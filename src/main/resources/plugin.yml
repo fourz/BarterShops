@@ -1,0 +1,11 @@
+name: BarterShops
+version: 1.0-SNAPSHOT
+description: This is a simple Bukkit Plugin
+author: Derek Schrishuhn
+main: org.fourz.BarterShops.Main
+
+commands:
+  Hello:
+    description: Shows a hello message to the player
+    usage: |
+      /<command> shows a hello message to the player
