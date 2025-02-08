@@ -9,6 +9,8 @@ import org.bukkit.event.Listener;
 import org.bukkit.event.block.BlockBreakEvent;
 import org.bukkit.event.inventory.InventoryOpenEvent;
 import org.bukkit.inventory.InventoryHolder;
+import org.bukkit.persistence.PersistentDataType;
+import org.bukkit.NamespacedKey;
 import org.fourz.BarterShops.Main;
 
 public class ContainerManager implements Listener {
@@ -44,12 +46,18 @@ public class ContainerManager implements Listener {
     }
 
     private boolean isShopContainer(InventoryHolder holder) {
-        // Check if container is registered as a shop container
+        if (holder instanceof Container) {
+            BarterContainer barterContainer = new BarterContainer((Container) holder, plugin);
+            return barterContainer.isBarterContainer();
+        }
         return false;
     }
 
     private boolean isShopContainer(Object containerState) {
-        // Overloaded method for block state checking
+        if (containerState instanceof Container) {
+            BarterContainer barterContainer = new BarterContainer((Container) containerState, plugin);
+            return barterContainer.isBarterContainer();
+        }
         return false;
     }
 
@@ -58,10 +66,18 @@ public class ContainerManager implements Listener {
     }
 
     public void registerShopContainer(Block container) {
-        // Register a container as a shop container
+        if (container.getState() instanceof Container) {
+            BarterContainer barterContainer = new BarterContainer((Container) container.getState(), plugin);
+            barterContainer.setBarterContainerId(java.util.UUID.randomUUID().toString());
+        }
     }
 
     public void unregisterShopContainer(Block container) {
-        // Remove container from shop registry
+        if (container.getState() instanceof Container) {
+            Container state = (Container) container.getState();
+            state.getPersistentDataContainer().remove(new NamespacedKey(plugin, "barter_container_id"));
+            state.getPersistentDataContainer().remove(new NamespacedKey(plugin, "payment_container_id"));
+            state.update();
+        }
     }
 }
