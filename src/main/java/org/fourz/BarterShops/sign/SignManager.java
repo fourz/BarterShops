@@ -11,9 +11,13 @@ import org.bukkit.event.block.SignChangeEvent;
 import org.bukkit.event.block.BlockBreakEvent;
 import org.bukkit.event.player.PlayerInteractEvent;
 import org.fourz.BarterShops.Main;
+import java.util.HashMap;
+import java.util.Map;
+import org.bukkit.Location;
 
 public class SignManager implements Listener {
     private final Main plugin;
+    private final Map<Location, BarterSign> barterSigns = new HashMap<>();
     
     public SignManager(Main plugin) {
         this.plugin = plugin;
@@ -49,7 +53,36 @@ public class SignManager implements Listener {
 
     @EventHandler
     public void onSignClick(PlayerInteractEvent event) {
-        // Handle shop interactions
+        if (!(event.getClickedBlock() != null && event.getClickedBlock().getState() instanceof Sign)) {
+            return;
+        }
+
+        Sign sign = (Sign) event.getClickedBlock().getState();
+        BarterSign barterSign = barterSigns.get(sign.getLocation());
+        
+        if (barterSign == null) return;
+
+        // Handle click based on current mode
+        switch (barterSign.getMode()) {
+            case SETUP:
+                handleSetupClick(event.getPlayer(), sign, barterSign);
+                break;
+            case MAIN:
+                handleMainClick(event.getPlayer(), sign, barterSign);
+                break;
+            case TYPE:
+                handleTypeClick(event.getPlayer(), sign, barterSign);
+                break;
+            case HELP:
+                handleHelpClick(event.getPlayer(), sign, barterSign);
+                break;
+            case DELETE:
+                handleDeleteClick(event.getPlayer(), sign, barterSign);
+                break;
+        }
+        
+        // Update sign display after handling click
+        SignDisplay.updateSign(sign, barterSign);
     }
 
     private boolean qualifySign(Sign sign) {
@@ -73,5 +106,26 @@ public class SignManager implements Listener {
 
     private void handleTrade(Player player, Sign sign) {
         // Process the actual trade
+    }
+
+    private void handleSetupClick(Player player, Sign sign, BarterSign barterSign) {
+        // Handle setup mode interactions
+        barterSign.setMode(SignMode.MAIN);
+    }
+
+    private void handleMainClick(Player player, Sign sign, BarterSign barterSign) {
+        // Handle main mode interactions
+    }
+
+    private void handleTypeClick(Player player, Sign sign, BarterSign barterSign) {
+        // Handle type selection mode interactions
+    }
+
+    private void handleHelpClick(Player player, Sign sign, BarterSign barterSign) {
+        // Handle help mode interactions
+    }
+
+    private void handleDeleteClick(Player player, Sign sign, BarterSign barterSign) {
+        // Handle delete confirmation mode interactions
     }
 }

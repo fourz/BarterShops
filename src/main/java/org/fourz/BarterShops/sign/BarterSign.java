@@ -14,6 +14,7 @@ public class BarterSign {
     private final Location container1Coords;
     private final Location container2Coords;
     private final ContainerType containerType;
+    private SignMode mode;  // New property
 
     private BarterSign(Builder builder) {
         this.id = builder.id;
@@ -23,6 +24,7 @@ public class BarterSign {
         this.container1Coords = builder.container1Coords;
         this.container2Coords = builder.container2Coords;
         this.containerType = builder.containerType;
+        this.mode = builder.mode;
     }
 
     // Getters
@@ -33,6 +35,8 @@ public class BarterSign {
     public Location getContainer1Coords() { return container1Coords; }
     public Location getContainer2Coords() { return container2Coords; }
     public ContainerType getContainerType() { return containerType; }
+    public SignMode getMode() { return mode; }
+    public void setMode(SignMode mode) { this.mode = mode; }
 
     // Builder class
     public static class Builder {
@@ -43,6 +47,7 @@ public class BarterSign {
         private Location container1Coords;
         private Location container2Coords;
         private ContainerType containerType;
+        private SignMode mode = SignMode.SETUP;  // Default to SETUP mode
 
         public Builder id(String id) { this.id = id; return this; }
         public Builder owner(UUID owner) { this.owner = owner; return this; }
@@ -50,31 +55,10 @@ public class BarterSign {
         public Builder type(SignType type) { this.type = type; return this; }
         public Builder container1Coords(Location coords) { this.container1Coords = coords; return this; }
         public Builder container2Coords(Location coords) { this.container2Coords = coords; return this; }
+        public Builder mode(SignMode mode) { this.mode = mode; return this; }
 
         private void validateContainers() throws IllegalArgumentException {
-            if (container1Coords == null) {
-                throw new IllegalArgumentException("Primary container location cannot be null");
-            }
-
-            Block container1 = container1Coords.getBlock();
-            Block container2 = container2Coords != null ? container2Coords.getBlock() : null;
-
-            if (container1.getState() instanceof Barrel) {
-                if (container2 != null) {
-                    throw new IllegalArgumentException("Barrels cannot be part of a double container");
-                }
-                containerType = ContainerType.BARREL;
-            } else if (container1.getState() instanceof Chest) {
-                if (container2 == null) {
-                    containerType = ContainerType.SINGLE_CHEST;
-                } else if (container2.getState() instanceof Chest) {
-                    containerType = ContainerType.DOUBLE_CHEST;
-                } else {
-                    throw new IllegalArgumentException("Second container must be a chest");
-                }
-            } else {
-                throw new IllegalArgumentException("Primary container must be a barrel or chest");
-            }
+            this.containerType = SignUtil.validateContainers(container1Coords, container2Coords);
         }
 
         public BarterSign build() {
