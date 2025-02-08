@@ -1,0 +1,45 @@
+storage:
+# types: mysql, sqlite
+  type: sqlite 
+  mysql:
+    host: localhost
+    port: 3306
+    username: root
+    password: ''
+    useSSL: false
+    database: bartershop
+    tablePrefix: bartershop_
+  sqlite:
+    database: data.db
+messages:
+  generic:
+    error:
+    - '[Error]'
+    success:
+    - '[Success]'
+    info:
+    - '[Info]'
+    help:
+    - '[Help]'
+    no_held_item:
+    - 'You must be holding an item!'
+  sign:
+    create:
+      denied:
+      - 'You do not have permission to create this sign!'
+    use:
+      denied:
+      - 'You do not have permission to use this sign!'
+    setup:
+    - 'Hold the item you wish to sell and left-click the sign.'
+sign:
+  setup:
+  - '&5%1'
+  - 'L-Click with'
+  - 'item you want'
+  - 'to sell'
+  main_menu:
+  - '&2Barter Shop'
+  - '(right-click)'
+  - '&9%1'
+  - '&9%2'
