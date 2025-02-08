@@ -10,7 +10,7 @@ public class BarterSign {
     private final SignType type;
     private final ContainerType containerType;
     private final Container container;
-    private final Container paymentContainer; // renamed from secondContainer
+    private final Container paymentContainer;
     private SignMode mode;
 
     private BarterSign(Builder builder) {
@@ -31,7 +31,7 @@ public class BarterSign {
     public SignType getType() { return type; }
     public ContainerType getContainerType() { return containerType; }
     public Container getContainer() { return container; }
-    public Container getPaymentContainer() { return paymentContainer; }  // renamed from getSecondContainer
+    public Container getPaymentContainer() { return paymentContainer; }
     public SignMode getMode() { return mode; }
     public void setMode(SignMode mode) { this.mode = mode; }
 
@@ -42,7 +42,7 @@ public class BarterSign {
         private SignType type;
         private ContainerType containerType;
         private Container container;
-        private Container paymentContainer;  // renamed from secondContainer
+        private Container paymentContainer;
         private SignMode mode = SignMode.SETUP;
 
         public Builder id(String id) { this.id = id; return this; }
@@ -54,7 +54,7 @@ public class BarterSign {
             return this;
         }
 
-        public Builder paymentContainer(Container container) {  // renamed from secondContainer
+        public Builder paymentContainer(Container container) {
             this.paymentContainer = container;
             return this;
         }

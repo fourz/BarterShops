@@ -14,6 +14,7 @@ import org.fourz.BarterShops.Main;
 import java.util.HashMap;
 import java.util.Map;
 import org.bukkit.Location;
+import org.bukkit.event.HandlerList;
 
 public class SignManager implements Listener {
     private final Main plugin;
@@ -127,5 +128,10 @@ public class SignManager implements Listener {
 
     private void handleDeleteClick(Player player, Sign sign, BarterSign barterSign) {
         // Handle delete confirmation mode interactions
+    }
+    
+    public void cleanup() {
+        HandlerList.unregisterAll(this);
+        barterSigns.clear();
     }
 }

@@ -11,6 +11,7 @@ import org.bukkit.event.inventory.InventoryOpenEvent;
 import org.bukkit.inventory.InventoryHolder;
 import org.bukkit.persistence.PersistentDataType;
 import org.bukkit.NamespacedKey;
+import org.bukkit.event.HandlerList;
 import org.fourz.BarterShops.Main;
 
 public class ContainerManager implements Listener {
@@ -79,5 +80,9 @@ public class ContainerManager implements Listener {
             state.getPersistentDataContainer().remove(new NamespacedKey(plugin, "payment_container_id"));
             state.update();
         }
+    }
+    
+    public void cleanup() {
+        HandlerList.unregisterAll(this);
     }
 }

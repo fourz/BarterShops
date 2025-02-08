@@ -60,4 +60,9 @@ public class CommandManager implements CommandExecutor {
             }
         }
     }
+    
+    public void cleanup() {
+        plugin.getCommand(COMMAND_NAME).setExecutor(null);
+        commands.clear();
+    }
 }

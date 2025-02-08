@@ -1,32 +1,23 @@
 package org.fourz.BarterShops.sign;
 
+import net.kyori.adventure.text.Component;
+import net.kyori.adventure.text.format.NamedTextColor;
 import org.bukkit.block.Sign;
 
 public class SignDisplay {
-    
     public static void updateSign(Sign sign, BarterSign barterSign) {
         switch (barterSign.getMode()) {
-            case SETUP:
-                displaySetupMode(sign, barterSign);
-                break;
-            case MAIN:
-                displayMainMode(sign, barterSign);
-                break;
-            case TYPE:
-                displayTypeMode(sign, barterSign);
-                break;
-            case HELP:
-                displayHelpMode(sign, barterSign);
-                break;
-            case DELETE:
-                displayDeleteMode(sign, barterSign);
-                break;
+            case SETUP -> displaySetupMode(sign, barterSign);
+            case MAIN -> displayMainMode(sign, barterSign);
+            case TYPE -> displayTypeMode(sign, barterSign);
+            case HELP -> displayHelpMode(sign, barterSign);
+            case DELETE -> displayDeleteMode(sign, barterSign);
         }
         sign.update();
     }
 
     private static void displaySetupMode(Sign sign, BarterSign barterSign) {
-        sign.setLine(0, "§1[Barter Setup]");
+        sign.setLine(0, "[Barter Setup]");
         sign.setLine(1, "Click to select");
         sign.setLine(2, "items to trade");
         sign.setLine(3, "<Click>");

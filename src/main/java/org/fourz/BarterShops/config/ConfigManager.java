@@ -3,6 +3,7 @@ package org.fourz.BarterShops.config;
 import org.bukkit.configuration.file.FileConfiguration;
 import org.bukkit.configuration.file.YamlConfiguration;
 import org.fourz.BarterShops.Main;
+import org.fourz.BarterShops.util.Debug;
 
 import java.io.File;
 import java.io.IOException;
@@ -58,5 +59,15 @@ public class ConfigManager {
 
     public String getStorageType() {
         return getConfig().getString("storage.type", "sqlite");
+    }
+
+    public Level getLogLevel() {
+        String levelStr = getConfig().getString("general.logLevel", "INFO");
+        return Debug.getLevel(levelStr);
+    }
+    
+    public void cleanup() {
+        saveConfig();
+        config = null;
     }
 }
