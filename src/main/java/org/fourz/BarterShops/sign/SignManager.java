@@ -68,7 +68,7 @@ public class SignManager implements Listener {
             case SETUP:
                 handleSetupClick(event.getPlayer(), sign, barterSign);
                 break;
-            case MAIN:
+            case DISPLAY:
                 handleMainClick(event.getPlayer(), sign, barterSign);
                 break;
             case TYPE:
@@ -111,7 +111,7 @@ public class SignManager implements Listener {
 
     private void handleSetupClick(Player player, Sign sign, BarterSign barterSign) {
         // Handle setup mode interactions
-        barterSign.setMode(SignMode.MAIN);
+        barterSign.setMode(SignMode.DISPLAY);
     }
 
     private void handleMainClick(Player player, Sign sign, BarterSign barterSign) {

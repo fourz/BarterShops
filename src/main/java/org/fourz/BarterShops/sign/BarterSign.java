@@ -1,6 +1,7 @@
 package org.fourz.BarterShops.sign;
 
 import org.bukkit.block.Container;
+import org.bukkit.block.sign.SignSide;
 import java.util.UUID;
 
 public class BarterSign {
@@ -12,6 +13,8 @@ public class BarterSign {
     private final Container container;
     private final Container paymentContainer;
     private SignMode mode;
+    private SignSide signSideDisplayFront;
+    private SignSide signSideDisplayBack;
 
     private BarterSign(Builder builder) {
         this.id = builder.id;
@@ -22,6 +25,8 @@ public class BarterSign {
         this.container = builder.container;
         this.paymentContainer = builder.paymentContainer;
         this.mode = builder.mode;
+        this.signSideDisplayFront = builder.signSideDisplayFront;
+        this.signSideDisplayBack = builder.signSideDisplayBack;
     }
 
     // Getters
@@ -34,6 +39,10 @@ public class BarterSign {
     public Container getPaymentContainer() { return paymentContainer; }
     public SignMode getMode() { return mode; }
     public void setMode(SignMode mode) { this.mode = mode; }
+    public SignSide getSignSideDisplayFront() { return signSideDisplayFront; }
+    public SignSide getSignSideDisplayBack() { return signSideDisplayBack; }
+    public void setSignSideDisplayFront(SignSide side) { this.signSideDisplayFront = side; }
+    public void setSignSideDisplayBack(SignSide side) { this.signSideDisplayBack = side; }
 
     public static class Builder {
         private String id;
@@ -44,6 +53,8 @@ public class BarterSign {
         private Container container;
         private Container paymentContainer;
         private SignMode mode = SignMode.SETUP;
+        private SignSide signSideDisplayFront;
+        private SignSide signSideDisplayBack;
 
         public Builder id(String id) { this.id = id; return this; }
         public Builder owner(UUID owner) { this.owner = owner; return this; }
@@ -60,6 +71,15 @@ public class BarterSign {
         }
 
         public Builder mode(SignMode mode) { this.mode = mode; return this; }
+        public Builder signSideDisplayFront(SignSide side) {
+            this.signSideDisplayFront = side;
+            return this;
+        }
+
+        public Builder signSideDisplayBack(SignSide side) {
+            this.signSideDisplayBack = side;
+            return this;
+        }
 
         public BarterSign build() {
             return new BarterSign(this);

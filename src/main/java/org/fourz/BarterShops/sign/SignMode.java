@@ -2,7 +2,7 @@ package org.fourz.BarterShops.sign;
 
 public enum SignMode {
     SETUP,
-    MAIN,
+    DISPLAY,
     TYPE,
     HELP,
     DELETE
