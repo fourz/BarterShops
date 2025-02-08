@@ -10,7 +10,7 @@ import java.util.Map;
 public class CommandManager implements CommandExecutor {
     private final Main plugin;
     private final Map<String, BaseCommand> commands;
-    public static final String COMMAND_NAME = "barter";
+    public static final String COMMAND_NAME = "shop";
 
     public CommandManager(Main plugin) {
         this.plugin = plugin;
@@ -56,7 +56,7 @@ public class CommandManager implements CommandExecutor {
         sender.sendMessage(plugin.getConfigManager().getMessage("generic.help"));
         for (Map.Entry<String, BaseCommand> entry : commands.entrySet()) {
             if (sender.hasPermission(entry.getValue().getPermission())) {
-                sender.sendMessage("§6/shops " + entry.getKey() + "§f - " + entry.getValue().getDescription());
+                sender.sendMessage("§6/shop " + entry.getKey() + "§f - " + entry.getValue().getDescription());
             }
         }
     }

@@ -28,6 +28,6 @@ public class ReloadCommand implements BaseCommand {
 
     @Override
     public String getUsage() {
-        return "/shops reload";
+        return "/shop reload";
     }
 }

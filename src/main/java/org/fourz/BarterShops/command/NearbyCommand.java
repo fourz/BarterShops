@@ -32,6 +32,6 @@ public class NearbyCommand implements BaseCommand {
 
     @Override
     public String getUsage() {
-        return "/shops nearby";
+        return "/shop nearby";
     }
 }

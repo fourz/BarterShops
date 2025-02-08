@@ -27,6 +27,6 @@ public class ListCommand implements BaseCommand {
 
     @Override
     public String getUsage() {
-        return "/shops list";
+        return "/shop list";
     }
 }

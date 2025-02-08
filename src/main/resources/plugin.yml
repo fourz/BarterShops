@@ -6,10 +6,10 @@ main: org.fourz.BarterShops.Main
 api-version: '1.21'
 
 commands:
-  barter:
+  shop:
     description: Main command for BarterShops plugin
     usage: /<command> [subcommand]
-    aliases: [shop, shops]
+    aliases: [barter, shops]
 
 permissions:
   bartershops.list:
