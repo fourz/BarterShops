@@ -10,7 +10,7 @@ import java.util.Map;
 public class CommandManager implements CommandExecutor {
     private final Main plugin;
     private final Map<String, BaseCommand> commands;
-    public static final String COMMAND_NAME = "shops";
+    public static final String COMMAND_NAME = "barter";
 
     public CommandManager(Main plugin) {
         this.plugin = plugin;

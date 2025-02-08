@@ -1,19 +1,15 @@
 name: BarterShops
-version: '${project.version}'
+version: 0.1
 description: This is a simple Bukkit Plugin
 author: Derek Schrishuhn
 main: org.fourz.BarterShops.Main
 api-version: '1.21'
 
 commands:
-  Hello:
-    description: Shows a hello message to the player
-    usage: |
-      /<command> shows a hello message to the player
-  shops:
+  barter:
     description: Main command for BarterShops plugin
     usage: /<command> [subcommand]
-    aliases: [bartershops, shop]
+    aliases: [shop, shops]
 
 permissions:
   bartershops.list:
