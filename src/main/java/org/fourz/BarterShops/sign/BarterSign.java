@@ -2,6 +2,8 @@ package org.fourz.BarterShops.sign;
 
 import org.bukkit.block.Container;
 import org.bukkit.block.sign.SignSide;
+import org.fourz.BarterShops.container.ContainerType;
+
 import java.util.UUID;
 
 public class BarterSign {

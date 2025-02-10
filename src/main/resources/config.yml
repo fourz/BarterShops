@@ -1,5 +1,5 @@
 general:
-  logLevel: INFO # DEBUG, INFO,  WARN, ERROR
+  logLevel: DEBUG # DEBUG, INFO,  WARN, ERROR
 
 storage:
 # types: mysql, sqlite

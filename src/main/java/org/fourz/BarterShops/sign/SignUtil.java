@@ -3,6 +3,7 @@ package org.fourz.BarterShops.sign;
 import org.bukkit.Location;
 import org.bukkit.block.Block;
 import org.bukkit.block.Chest;
+import org.fourz.BarterShops.container.ContainerType;
 import org.bukkit.block.Barrel;
 
 public class SignUtil {

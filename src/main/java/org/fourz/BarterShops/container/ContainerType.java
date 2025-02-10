@@ -1,4 +1,4 @@
-package org.fourz.BarterShops.sign;
+package org.fourz.BarterShops.container;
 
 public enum ContainerType {
     BARREL,
