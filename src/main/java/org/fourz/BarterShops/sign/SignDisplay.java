@@ -13,7 +13,7 @@ public class SignDisplay {
         
         switch (barterSign.getMode()) {
             case SETUP -> displaySetupMode(frontSide);
-            case DISPLAY -> displayDisplayMode(frontSide, barterSign);
+            case BOARD -> displayBoardMode(frontSide, barterSign);  // Changed method name
             case TYPE -> displayTypeMode(frontSide, barterSign);
             case HELP -> displayHelpMode(frontSide);
             case DELETE -> displayDeleteMode(frontSide);
@@ -28,7 +28,7 @@ public class SignDisplay {
         side.setLine(3, "<Click>");
     }
 
-    private static void displayDisplayMode(SignSide side, BarterSign barterSign) {
+    private static void displayBoardMode(SignSide side, BarterSign barterSign) {  // Renamed method
         // Get the stored display state or use current side if not set
         SignSide displaySide = barterSign.getSignSideDisplayFront();
         if (displaySide != null) {

@@ -1,6 +1,5 @@
 package org.fourz.BarterShops.sign;
 
-import org.bukkit.Color;
 import org.bukkit.block.Sign;
 import org.bukkit.entity.Player;
 import org.bukkit.event.player.PlayerInteractEvent;
@@ -19,7 +18,7 @@ public class SignInteraction {
         this.debug = new Debug(plugin, CLASS_NAME, plugin.getDebugger().getLogLevel()) {};
     }
 
-    public void handlePunch(Player player, Sign sign, BarterSign barterSign, PlayerInteractEvent event) {
+    public void handleLeftClick(Player player, Sign sign, BarterSign barterSign, PlayerInteractEvent event) {
         if (!player.hasPermission("bartershops.configure")) {
             debug.debug("Punch ignored - player lacks configure permission");
             return;
@@ -34,55 +33,55 @@ public class SignInteraction {
         }
     }
 
-    public void handleClick(Player player, Sign sign, BarterSign barterSign) {
+    public void handleRightClick(Player player, Sign sign, BarterSign barterSign) {
         debug.debug(String.format("Processing %s interaction in mode: %s", 
             player.getName(), barterSign.getMode()));
 
         if (barterSign.getOwner().equals(player.getUniqueId())) {
-            handleOwnerClick(player, sign, barterSign);
+            handleOwnerRightClick(player, sign, barterSign);
         } else {
-            handleCustomerClick(player, sign, barterSign);
+            handleCustomerRightClick(player, sign, barterSign);
         }
     }
 
-    private void handleOwnerClick(Player player, Sign sign, BarterSign barterSign) {
+    private void handleOwnerRightClick(Player player, Sign sign, BarterSign barterSign) {
         debug.debug("Processing owner interaction");
         
         switch (barterSign.getMode()) {
             case SETUP -> {
                 debug.debug("Owner: SETUP -> TYPE");
                 barterSign.setMode(SignMode.TYPE);
-                player.sendMessage("Select shop type");
+                player.sendMessage("Click to toggle shop type");
             }
             case TYPE -> {
-                debug.debug("Owner: TYPE -> DISPLAY");
-                barterSign.setMode(SignMode.DISPLAY);
-                player.sendMessage(Color.GREEN + "Shop created successfully!");
+                debug.debug("Owner: TYPE -> BOARD");
+                barterSign.setMode(SignMode.BOARD);
+                player.sendMessage("Click to edit the shop display");
             }
-            case DISPLAY -> {                
-                debug.debug("Owner: DISPLAY -> DELETE");
+            case BOARD -> {                
+                debug.debug("Owner: BOARD -> DELETE");
                 barterSign.setMode(SignMode.DELETE);
-                player.sendMessage(Color.RED + "Break sign to confirm deletion");
+                player.sendMessage("Break sign to confirm deletion");
             }
             case DELETE -> {
                 debug.debug("Owner: DELETE -> SETUP");
-                barterSign.setMode(SignMode.TYPE);
-                player.sendMessage("Select shop type");
+                barterSign.setMode(SignMode.SETUP);
+                player.sendMessage("Right-click sign with payment item to configure");
             }
             default -> {
                 debug.warning("Unknown mode encountered: " + barterSign.getMode());
-                barterSign.setMode(SignMode.DISPLAY);
+                barterSign.setMode( SignMode.BOARD);
             }
         }
         
         SignDisplay.updateSign(sign, barterSign);
     }
 
-    private void handleCustomerClick(Player player, Sign sign, BarterSign barterSign) {
+    private void handleCustomerRightClick(Player player, Sign sign, BarterSign barterSign) {
         debug.debug("Processing customer interaction");
         
-        if (barterSign.getMode() != SignMode.DISPLAY) {
-            debug.debug("Customer tried to interact with non-DISPLAY mode shop");
+        if (barterSign.getMode() != SignMode.BOARD) {
+            debug.debug("Customer tried to interact with non-BOARD mode shop");
             player.sendMessage("This shop is currently being configured");
             return;
         }

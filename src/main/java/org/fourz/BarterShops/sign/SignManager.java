@@ -44,7 +44,7 @@ public class SignManager implements Listener {
             .owner(player.getUniqueId())
             .container(container)
             .mode(SignMode.SETUP)
-            .type(SignType.STACKABLE) // Default type, can be changed during setup
+            .type(SignType.STACKABLE) 
             .signSideDisplayFront(sign.getSide(org.bukkit.block.sign.Side.FRONT))
             .signSideDisplayBack(sign.getSide(org.bukkit.block.sign.Side.BACK))
             .build();
@@ -149,12 +149,12 @@ public class SignManager implements Listener {
             event.setCancelled(true);
             
             if (event.getAction() == org.bukkit.event.block.Action.LEFT_CLICK_BLOCK) {
-                signInteraction.handlePunch(player, sign, barterSign, event);
+                signInteraction.handleLeftClick(player, sign, barterSign, event);
                 return;
             }
 
             if (barterSign != null) {
-                signInteraction.handleClick(player, sign, barterSign);
+                signInteraction.handleRightClick(player, sign, barterSign);
             }
         } catch (Exception e) {
             debug.error("Error processing sign interaction: " + e.getMessage(), e);
@@ -185,7 +185,7 @@ public class SignManager implements Listener {
     private void handleSignInteraction(Player player, Sign sign, BarterSign barterSign) {
         try {
             debug.debug("Delegating sign interaction to SignInteraction handler");
-            signInteraction.handleClick(player, sign, barterSign);
+            signInteraction.handleRightClick(player, sign, barterSign);
         } catch (Exception e) {
             debug.error("Error in sign interaction delegation: " + e.getMessage(), e);
             player.sendMessage("An error occurred while processing your interaction");
