@@ -28,6 +28,10 @@ public class SignDisplay {
         side.setLine(3, "<Click>");
     }
 
+    /**
+     * Displays the sign in BOARD mode, which is meant for customer display.
+     * This is auto-generated during creation and allows the shop owner to later customize.
+     */
     private static void displayBoardMode(SignSide side, BarterSign barterSign) {  // Renamed method
         // Get the stored display state or use current side if not set
         SignSide displaySide = barterSign.getSignSideDisplayFront();
