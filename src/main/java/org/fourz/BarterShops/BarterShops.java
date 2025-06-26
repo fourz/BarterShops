@@ -6,51 +6,52 @@ import org.fourz.BarterShops.config.ConfigManager;
 import org.fourz.BarterShops.sign.SignManager;
 import org.fourz.BarterShops.container.ContainerManager;
 import org.fourz.BarterShops.shop.ShopManager;  
-import org.fourz.BarterShops.util.Debug;
-import java.util.logging.Level;
+import org.fourz.BarterShops.debug.LogManager;
+import org.fourz.BarterShops.debug.Debug;
 
-public class Main extends JavaPlugin {
+public class BarterShops extends JavaPlugin {
     private ConfigManager configManager;
     private CommandManager commandManager;
     private SignManager signManager;
     private ContainerManager containerManager;
-    private Debug debugger;
     private ShopManager shopManager;
+    private final LogManager logger;
+    private Debug debugger;
+
+    public BarterShops() {
+        this.logger = LogManager.getInstance(this, "BarterShops");
+    }
 
     @Override
     public void onEnable() {
         this.configManager = new ConfigManager(this);
-        this.debugger = new Debug(this, "BarterShops", configManager.getLogLevel()) {};
+        this.debugger = Debug.createDebugger(this, "BarterShops", configManager.getLogLevel());
         this.commandManager = new CommandManager(this);
         this.signManager = new SignManager(this);
         this.containerManager = new ContainerManager(this);
         this.shopManager = new ShopManager(this);
-        debugger.info("BarterShops has been loaded");
+        logger.info("BarterShops has been loaded");
     }
 
     @Override
     public void onDisable() {
-        // Early return if debugger is null, but log to server console as fallback
-        if (debugger == null) {
-            getLogger().warning("Debugger was null during shutdown");
+        if (logger == null) {
+            getLogger().warning("Logger was null during shutdown");
             return;
         }
         
-        debugger.info("BarterShops is shutting down...");
+        logger.info("BarterShops is shutting down...");
         
         try {
             cleanupManagers();
-        } catch (RuntimeException e) {  // Be more specific about exception type
-            debugger.error(String.format("Failed to cleanup managers: %s", e.getMessage()), e);
-            e.printStackTrace();  // Log stack trace for debugging
+        } catch (RuntimeException e) {
+            logger.error("Failed to cleanup managers", e);
         } finally {
-            debugger.info("BarterShops has been unloaded");
-            debugger = null;
+            logger.info("BarterShops has been unloaded");
         }
     }
 
     private void cleanupManagers() {
-        // Use specific exception types for each manager
         cleanupManager("container", () -> {
             if (containerManager != null) {
                 containerManager.cleanup();
@@ -89,14 +90,10 @@ public class Main extends JavaPlugin {
 
     private void cleanupManager(String managerName, Runnable cleanupTask) {
         try {
-            debugger.debug("Cleaning up " + managerName + " manager...");
+            logger.debug("Cleaning up " + managerName + " manager...");
             cleanupTask.run();
         } catch (RuntimeException e) {
-            debugger.error(String.format("Failed to cleanup %s manager: %s", 
-                managerName, e.getMessage()), e);
-            if (debugger.getLogLevel() == Level.FINE) {
-                e.printStackTrace();
-            }
+            logger.error("Failed to cleanup " + managerName + " manager", e);
         }
     }
 

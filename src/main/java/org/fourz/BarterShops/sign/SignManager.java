@@ -15,32 +15,31 @@ import java.util.Map;
 import org.bukkit.event.HandlerList;
 import java.util.Collections;
 
-import org.fourz.BarterShops.Main;
-import org.fourz.BarterShops.util.Debug;
+import org.fourz.BarterShops.BarterShops;
+import org.fourz.BarterShops.debug.LogManager;
 import org.fourz.BarterShops.shop.ShopManager;
 import org.fourz.BarterShops.shop.ShopMode;
 import org.fourz.BarterShops.shop.ShopSession;
 
 public class SignManager implements Listener {
     private static final String CLASS_NAME = "SignManager";
-    private final Main plugin;
-    private final Debug debug;
+    private final BarterShops plugin;
+    private final LogManager logger;
     private final Map<Block, BarterSign> barterSigns = new HashMap<>();
     private final SignInteraction signInteraction;
     private final ShopManager shopManager;
     
-    public SignManager(Main plugin) {
+    public SignManager(BarterShops plugin) {
         this.plugin = plugin;
-        this.debug = new Debug(plugin, CLASS_NAME, plugin.getDebugger().getLogLevel()) {};
+        this.logger = LogManager.getInstance(plugin, CLASS_NAME);
         this.signInteraction = new SignInteraction(plugin);
         this.shopManager = plugin.getShopManager();
         plugin.getServer().getPluginManager().registerEvents(this, plugin);
-        debug.debug("SignManager initialized");
+        logger.debug("SignManager initialized");
     }
 
     private void createBarterSign(Player player, Sign sign, Container container) {
-        debug.debug(String.format("Creating new barter sign for %s at %s", 
-            player.getName(), sign.getLocation()));
+        logger.debug("Creating new barter sign for " + player.getName() + " at " + sign.getLocation());
             
         String id = java.util.UUID.randomUUID().toString();
         
@@ -55,7 +54,7 @@ public class SignManager implements Listener {
             .build();
             
         barterSigns.put(sign.getBlock(), barterSign);
-        debug.info(String.format("Created barter sign (ID: %s) for %s", id, player.getName()));
+        logger.info("Created barter sign (ID: " + id + ") for " + player.getName());
     }
 
     @EventHandler
@@ -68,12 +67,12 @@ public class SignManager implements Listener {
                 // Check if sign is already registered
                 BarterSign existingSign = barterSigns.get(sign.getBlock());
                 if (existingSign != null) {
-                    debug.debug("Attempted creation of already existing barter sign by " + player.getName());
+                    logger.debug("Attempted creation of already existing barter sign by " + player.getName());
                     event.setCancelled(true);
                         
                     // If owner, treat as interaction
                     if (existingSign.getOwner().equals(player.getUniqueId())) {
-                        debug.debug("Owner attempted recreation - treating as interaction");
+                        logger.debug("Owner attempted recreation - treating as interaction");
                         handleSignInteraction(player, sign, existingSign);
                     } else {
                         player.sendMessage("This is already a barter shop!");
@@ -83,7 +82,7 @@ public class SignManager implements Listener {
 
                 // Continue with normal creation process for new signs
                 if (player.hasPermission("bartershops.create")) {
-                    debug.debug("Processing new barter sign creation attempt by " + player.getName());
+                    logger.debug("Processing new barter sign creation attempt by " + player.getName());
                     
                     if (qualifySign(sign)) {
                         Container container = findAssociatedContainer(sign);
@@ -96,16 +95,16 @@ public class SignManager implements Listener {
                         }
                     } else {
                         player.sendMessage("Invalid shop location! Place sign on or above a container.");
-                        debug.warning("Invalid shop location attempt by " + player.getName());
+                        logger.warning("Invalid shop location attempt by " + player.getName());
                         event.setCancelled(true);
                     }
                 } else {
                     player.sendMessage("You do not have permission to create a shop!");
-                    debug.warning("Permission denied for shop creation: " + player.getName());
+                    logger.warning("Permission denied for shop creation: " + player.getName());
                     event.setCancelled(true);
                 }
             } catch (Exception e) {
-                debug.error("Error creating barter shop: " + e.getMessage(), e);
+                logger.error("Error creating barter shop: " + e.getMessage(), e);
                 event.getPlayer().sendMessage("Error creating shop: " + e.getMessage());
                 event.setCancelled(true);
             }
@@ -162,7 +161,7 @@ public class SignManager implements Listener {
                 handleRightClickWithShop(player, sign, barterSign);
             }
         } catch (Exception e) {
-            debug.error("Error processing sign interaction: " + e.getMessage(), e);
+            logger.error("Error processing sign interaction: " + e.getMessage(), e);
             player.sendMessage("An error occurred while processing your interaction");
         }
     }
@@ -209,7 +208,7 @@ public class SignManager implements Listener {
     }
 
     private boolean qualifySign(Sign sign) {
-        debug.debug("Qualifying sign at location: " + sign.getLocation());
+        logger.debug("Qualifying sign at location: " + sign.getLocation());
         Block signBlock = sign.getBlock();
         BlockFace attachedFace = ((org.bukkit.block.data.type.WallSign) sign.getBlockData()).getFacing().getOppositeFace();
         
@@ -230,19 +229,19 @@ public class SignManager implements Listener {
 
     private void handleSignInteraction(Player player, Sign sign, BarterSign barterSign) {
         try {
-            debug.debug("Delegating sign interaction to SignInteraction handler");
+            logger.debug("Delegating sign interaction to SignInteraction handler");
             signInteraction.handleRightClick(player, sign, barterSign);
         } catch (Exception e) {
-            debug.error("Error in sign interaction delegation: " + e.getMessage(), e);
+            logger.error("Error in sign interaction delegation: " + e.getMessage(), e);
             player.sendMessage("An error occurred while processing your interaction");
         }
     }
 
     public void cleanup() {
-        debug.debug("Cleaning up SignManager - clearing " + barterSigns.size() + " registered signs");
+        logger.debug("Cleaning up SignManager - clearing " + barterSigns.size() + " registered signs");
         HandlerList.unregisterAll(this);
         barterSigns.clear();
-        debug.info("SignManager cleanup completed");
+        logger.info("SignManager cleanup completed");
     }
     
     public Map<Block, BarterSign> getBarterSigns() {

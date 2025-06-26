@@ -4,14 +4,14 @@ import org.bukkit.command.CommandSender;
 import org.bukkit.entity.Player;
 import org.bukkit.block.Block;
 import org.bukkit.ChatColor;
-import org.fourz.BarterShops.Main;
+import org.fourz.BarterShops.BarterShops;
 import org.fourz.BarterShops.sign.BarterSign;
 import java.util.Map;
 
 public class ListCommand implements BaseCommand {
-    private final Main plugin;
+    private final BarterShops plugin;
 
-    public ListCommand(Main plugin) {
+    public ListCommand(BarterShops plugin) {
         this.plugin = plugin;
     }
 

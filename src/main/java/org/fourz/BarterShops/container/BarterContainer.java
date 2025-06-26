@@ -5,7 +5,7 @@ import org.bukkit.block.Block;
 import org.bukkit.persistence.PersistentDataContainer;
 import org.bukkit.persistence.PersistentDataType;
 import org.bukkit.NamespacedKey;
-import org.fourz.BarterShops.Main;
+import org.fourz.BarterShops.BarterShops;
 import org.fourz.BarterShops.util.Debug;
 
 public class BarterContainer {
@@ -15,7 +15,7 @@ public class BarterContainer {
     private final NamespacedKey paymentIdKey;
     private final Debug debug;
     
-    public BarterContainer(Container container, Main plugin) {
+    public BarterContainer(Container container, BarterShops plugin) {
         this.container = container;
         this.barterIdKey = new NamespacedKey(plugin, "barter_container_id");
         this.paymentIdKey = new NamespacedKey(plugin, "payment_container_id");

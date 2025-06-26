@@ -2,12 +2,12 @@ package org.fourz.BarterShops.command;
 
 import org.bukkit.command.CommandSender;
 import org.bukkit.entity.Player;
-import org.fourz.BarterShops.Main;
+import org.fourz.BarterShops.BarterShops;
 
 public class NearbyCommand implements BaseCommand {
-    private final Main plugin;
+    private final BarterShops plugin;
 
-    public NearbyCommand(Main plugin) {
+    public NearbyCommand(BarterShops plugin) {
         this.plugin = plugin;
     }
 

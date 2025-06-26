@@ -3,16 +3,16 @@ package org.fourz.BarterShops.command;
 import org.bukkit.command.Command;
 import org.bukkit.command.CommandExecutor;
 import org.bukkit.command.CommandSender;
-import org.fourz.BarterShops.Main;
+import org.fourz.BarterShops.BarterShops;
 import java.util.HashMap;
 import java.util.Map;
 
 public class CommandManager implements CommandExecutor {
-    private final Main plugin;
+    private final BarterShops plugin;
     private final Map<String, BaseCommand> commands;
     public static final String COMMAND_NAME = "shop";
 
-    public CommandManager(Main plugin) {
+    public CommandManager(BarterShops plugin) {
         this.plugin = plugin;
         this.commands = new HashMap<>();
         registerCommands();

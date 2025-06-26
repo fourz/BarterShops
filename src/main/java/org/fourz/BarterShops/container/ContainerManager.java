@@ -12,12 +12,12 @@ import org.bukkit.inventory.InventoryHolder;
 import org.bukkit.persistence.PersistentDataType;
 import org.bukkit.NamespacedKey;
 import org.bukkit.event.HandlerList;
-import org.fourz.BarterShops.Main;
+import org.fourz.BarterShops.BarterShops;
 
 public class ContainerManager implements Listener {
-    private final Main plugin;
+    private final BarterShops plugin;
 
-    public ContainerManager(Main plugin) {
+    public ContainerManager(BarterShops plugin) {
         this.plugin = plugin;
         plugin.getServer().getPluginManager().registerEvents(this, plugin);
     }

@@ -1,8 +1,8 @@
 package org.fourz.BarterShops.shop;
 
 import org.bukkit.entity.Player;
-import org.fourz.BarterShops.Main;
-import org.fourz.BarterShops.util.Debug;
+import org.fourz.BarterShops.BarterShops;
+import org.fourz.BarterShops.debug.LogManager;
 
 import java.util.HashMap;
 import java.util.Map;
@@ -16,15 +16,15 @@ import java.util.Collections;
  */
 public class ShopManager {
     private static final String CLASS_NAME = "ShopManager";
-    private final Main plugin;
-    private final Debug debug;
+    private final BarterShops plugin;
+    private final LogManager logger;
     private final Map<UUID, ShopSession> activeSessions;
 
-    public ShopManager(Main plugin) {
+    public ShopManager(BarterShops plugin) {
         this.plugin = plugin;
-        this.debug = new Debug(plugin, CLASS_NAME, plugin.getDebugger().getLogLevel()) {};
+        this.logger = LogManager.getInstance(plugin, CLASS_NAME);
         this.activeSessions = new HashMap<>();
-        debug.debug("ShopManager initialized");
+        logger.debug("ShopManager initialized");
     }
 
     /**
@@ -34,10 +34,10 @@ public class ShopManager {
      * @return The player's shop session
      */
     public ShopSession getSession(Player player) {
-        debug.debug("Getting session for player: " + player.getName());
+        logger.debug("Getting session for player: " + player.getName());
         return activeSessions.computeIfAbsent(player.getUniqueId(), uuid -> {
             ShopSession session = new ShopSession(player);
-            debug.debug("Created new session for player: " + player.getName());
+            logger.debug("Created new session for player: " + player.getName());
             return session;
         });
     }
@@ -48,11 +48,11 @@ public class ShopManager {
      * @param player The player whose session should be removed
      */
     public void removeSession(Player player) {
-        debug.debug("Removing session for player: " + player.getName());
+        logger.debug("Removing session for player: " + player.getName());
         ShopSession session = activeSessions.remove(player.getUniqueId());
         if (session != null) {
             session.cleanup();
-            debug.debug("Cleaned up session for player: " + player.getName());
+            logger.debug("Cleaned up session for player: " + player.getName());
         }
     }
 
@@ -63,7 +63,7 @@ public class ShopManager {
      * @param newMode The new mode to set
      */
     public void setSessionMode(Player player, ShopMode newMode) {
-        debug.debug("Setting mode " + newMode + " for player: " + player.getName());
+        logger.debug("Setting mode " + newMode + " for player: " + player.getName());
         ShopSession session = getSession(player);
         session.setCurrentMode(newMode);
         sendModeInstructions(player, newMode);
@@ -76,7 +76,7 @@ public class ShopManager {
      * @param newMode The mode to transition to
      */
     public void handleSignInteraction(Player player, ShopMode newMode) {
-        debug.debug("Handling sign interaction for player: " + player.getName() + " with mode: " + newMode);
+        logger.debug("Handling sign interaction for player: " + player.getName() + " with mode: " + newMode);
         ShopSession session = getSession(player);
         session.setCurrentMode(newMode);
         sendModeInstructions(player, newMode);
@@ -115,9 +115,9 @@ public class ShopManager {
      * Cleans up all active sessions.
      */
     public void cleanup() {
-        debug.debug("Cleaning up all sessions (" + activeSessions.size() + " active)");
+        logger.debug("Cleaning up all sessions (" + activeSessions.size() + " active)");
         activeSessions.values().forEach(ShopSession::cleanup);
         activeSessions.clear();
-        debug.info("ShopManager cleanup completed");
+        logger.info("ShopManager cleanup completed");
     }
 }

@@ -3,7 +3,7 @@ api: '1.21'
 version: 0.1.1
 description: This is a simple Bukkit Plugin
 author: Derek Schrishuhn
-main: org.fourz.BarterShops.Main
+main: org.fourz.BarterShops.BarterShops
 
 commands:
   shop:
@@ -14,10 +14,8 @@ commands:
 permissions:
   bartershops.list:
     description: Allows listing all shops
-    default: true
   bartershops.nearby:
     description: Allows finding nearby shops
-    default: true
   bartershops.reload:
     description: Allows reloading the plugin configuration
     default: op

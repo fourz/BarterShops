@@ -1,12 +1,12 @@
 package org.fourz.BarterShops.command;
 
 import org.bukkit.command.CommandSender;
-import org.fourz.BarterShops.Main;
+import org.fourz.BarterShops.BarterShops;
 
 public class ReloadCommand implements BaseCommand {
-    private final Main plugin;
+    private final BarterShops plugin;
 
-    public ReloadCommand(Main plugin) {
+    public ReloadCommand(BarterShops plugin) {
         this.plugin = plugin;
     }
 

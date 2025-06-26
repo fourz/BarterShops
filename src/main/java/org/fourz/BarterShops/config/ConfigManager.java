@@ -2,7 +2,7 @@ package org.fourz.BarterShops.config;
 
 import org.bukkit.configuration.file.FileConfiguration;
 import org.bukkit.configuration.file.YamlConfiguration;
-import org.fourz.BarterShops.Main;
+import org.fourz.BarterShops.BarterShops;
 import org.fourz.BarterShops.util.Debug;
 
 import java.io.File;
@@ -10,11 +10,11 @@ import java.io.IOException;
 import java.util.logging.Level;
 
 public class ConfigManager {
-    private final Main plugin;
+    private final BarterShops plugin;
     private FileConfiguration config;
     private File configFile;
 
-    public ConfigManager(Main plugin) {
+    public ConfigManager(BarterShops plugin) {
         this.plugin = plugin;
         loadConfig();
     }
