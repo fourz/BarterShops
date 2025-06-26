@@ -145,6 +145,7 @@ public void doSomething() {
 - [README](../README.md)
 - [ROADMAP](../ROADMAP.md)
 - [Overview](../docs/overview.md)
+- [BarterShop Database Implementation](../docs/bartershop-database-implementation.md)
 
 
 ## Project Context
