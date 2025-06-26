@@ -5,6 +5,7 @@ import org.fourz.BarterShops.command.CommandManager;
 import org.fourz.BarterShops.config.ConfigManager;
 import org.fourz.BarterShops.sign.SignManager;
 import org.fourz.BarterShops.container.ContainerManager;
+import org.fourz.BarterShops.shop.ShopManager;  
 import org.fourz.BarterShops.util.Debug;
 import java.util.logging.Level;
 
@@ -14,6 +15,7 @@ public class Main extends JavaPlugin {
     private SignManager signManager;
     private ContainerManager containerManager;
     private Debug debugger;
+    private ShopManager shopManager;
 
     @Override
     public void onEnable() {
@@ -22,6 +24,7 @@ public class Main extends JavaPlugin {
         this.commandManager = new CommandManager(this);
         this.signManager = new SignManager(this);
         this.containerManager = new ContainerManager(this);
+        this.shopManager = new ShopManager(this);
         debugger.info("BarterShops has been loaded");
     }
 
@@ -75,6 +78,13 @@ public class Main extends JavaPlugin {
                 configManager = null;
             }
         });
+
+        cleanupManager("shop", () -> {
+            if (shopManager != null) {
+                shopManager.cleanup();
+                shopManager = null;
+            }
+        });
     }
 
     private void cleanupManager(String managerName, Runnable cleanupTask) {
@@ -104,5 +114,9 @@ public class Main extends JavaPlugin {
 
     public Debug getDebugger() {
         return debugger;
+    }
+
+    public ShopManager getShopManager() {
+        return shopManager;
     }
 }

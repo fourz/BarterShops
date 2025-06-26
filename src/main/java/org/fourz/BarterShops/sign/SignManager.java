@@ -17,6 +17,9 @@ import java.util.Collections;
 
 import org.fourz.BarterShops.Main;
 import org.fourz.BarterShops.util.Debug;
+import org.fourz.BarterShops.shop.ShopManager;
+import org.fourz.BarterShops.shop.ShopMode;
+import org.fourz.BarterShops.shop.ShopSession;
 
 public class SignManager implements Listener {
     private static final String CLASS_NAME = "SignManager";
@@ -24,11 +27,13 @@ public class SignManager implements Listener {
     private final Debug debug;
     private final Map<Block, BarterSign> barterSigns = new HashMap<>();
     private final SignInteraction signInteraction;
+    private final ShopManager shopManager;
     
     public SignManager(Main plugin) {
         this.plugin = plugin;
         this.debug = new Debug(plugin, CLASS_NAME, plugin.getDebugger().getLogLevel()) {};
         this.signInteraction = new SignInteraction(plugin);
+        this.shopManager = plugin.getShopManager();
         plugin.getServer().getPluginManager().registerEvents(this, plugin);
         debug.debug("SignManager initialized");
     }
@@ -149,17 +154,58 @@ public class SignManager implements Listener {
             event.setCancelled(true);
             
             if (event.getAction() == org.bukkit.event.block.Action.LEFT_CLICK_BLOCK) {
-                signInteraction.handleLeftClick(player, sign, barterSign, event);
+                handleLeftClickWithShop(player, sign, barterSign, event);
                 return;
             }
 
             if (barterSign != null) {
-                signInteraction.handleRightClick(player, sign, barterSign);
+                handleRightClickWithShop(player, sign, barterSign);
             }
         } catch (Exception e) {
             debug.error("Error processing sign interaction: " + e.getMessage(), e);
             player.sendMessage("An error occurred while processing your interaction");
         }
+    }
+
+    private void handleLeftClickWithShop(Player player, Sign sign, BarterSign barterSign, PlayerInteractEvent event) {
+        ShopMode nextMode = calculateNextMode(player, sign, barterSign);
+        if (nextMode != null) {
+            ShopSession session = shopManager.getSession(player);
+            session.setActiveSign(sign);
+            shopManager.handleSignInteraction(player, nextMode);
+        }
+        signInteraction.handleLeftClick(player, sign, barterSign, event);
+    }
+
+    private void handleRightClickWithShop(Player player, Sign sign, BarterSign barterSign) {
+        ShopMode nextMode = calculateNextMode(player, sign, barterSign);
+        if (nextMode != null) {
+            ShopSession session = shopManager.getSession(player);
+            session.setActiveSign(sign);
+            shopManager.handleSignInteraction(player, nextMode);
+        }
+        signInteraction.handleRightClick(player, sign, barterSign);
+    }
+
+    private ShopMode calculateNextMode(Player player, Sign sign, BarterSign barterSign) {
+        if (barterSign == null) {
+            return null;
+        }
+
+        ShopSession session = shopManager.getSession(player);
+        ShopMode currentMode = session.getCurrentMode();
+
+        // Mode transition logic
+        return switch (currentMode) {
+            case SETUP_SELL -> ShopMode.SETUP_STACK;
+            case SETUP_STACK -> ShopMode.TYPE;
+            case TYPE -> null; // End of setup flow
+            case DELETE -> null; // One-time action
+            case BOARD_SETUP -> ShopMode.BOARD_DISPLAY;
+            case BOARD_DISPLAY -> null;
+            case HELP -> null;
+            default -> ShopMode.SETUP_SELL; // Start of setup flow
+        };
     }
 
     private boolean qualifySign(Sign sign) {

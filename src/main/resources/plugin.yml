@@ -1,9 +1,9 @@
 name: BarterShops
-version: 0.1
+api: '1.21'
+version: 0.1.1
 description: This is a simple Bukkit Plugin
 author: Derek Schrishuhn
 main: org.fourz.BarterShops.Main
-api-version: '1.21'
 
 commands:
   shop:

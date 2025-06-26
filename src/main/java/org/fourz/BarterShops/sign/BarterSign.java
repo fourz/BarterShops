@@ -10,8 +10,8 @@ public class BarterSign {
     private final UUID owner;
     private String group;
     private SignType type;
-    private final Container container;
-    private final Container paymentContainer;
+    private Container container;
+    private Container shopContainer;
     private SignMode mode;
     private SignSide signSideDisplayFront;
     private SignSide signSideDisplayBack;
@@ -22,7 +22,7 @@ public class BarterSign {
         this.group = builder.group;
         this.type = builder.type;
         this.container = builder.container;
-        this.paymentContainer = builder.paymentContainer;
+        this.shopContainer = builder.shopContainer;
         this.mode = builder.mode;
         this.signSideDisplayFront = builder.signSideDisplayFront;
         this.signSideDisplayBack = builder.signSideDisplayBack;
@@ -34,7 +34,7 @@ public class BarterSign {
     public String getGroup() { return group; }
     public SignType getType() { return type; }
     public Container getContainer() { return container; }
-    public Container getPaymentContainer() { return paymentContainer; }
+    public Container getShopContainer() { return shopContainer; }
     public SignMode getMode() { return mode; }
     public void setMode(SignMode mode) { this.mode = mode; }
     public SignSide getSignSideDisplayFront() { return signSideDisplayFront; }
@@ -48,7 +48,7 @@ public class BarterSign {
         private String group;
         private SignType type;
         private Container container;
-        private Container paymentContainer;
+        private Container shopContainer;
         private SignMode mode = SignMode.SETUP;
         private SignSide signSideDisplayFront;
         private SignSide signSideDisplayBack;
@@ -62,8 +62,8 @@ public class BarterSign {
             return this;
         }
 
-        public Builder paymentContainer(Container container) {
-            this.paymentContainer = container;
+        public Builder shopContainer(Container container) {
+            this.shopContainer = container;
             return this;
         }
 
