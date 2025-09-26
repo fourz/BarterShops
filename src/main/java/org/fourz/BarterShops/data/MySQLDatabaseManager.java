@@ -1,26 +1,32 @@
-package org.fourz.BarterShops.config;
+package org.fourz.BarterShops.data;
 
-import java.io.File;
 import java.sql.Connection;
 import java.sql.DriverManager;
 import java.sql.SQLException;
 import java.sql.Statement;
+import org.bukkit.configuration.file.FileConfiguration;
 import org.bukkit.plugin.Plugin;
 
-public class SQLiteDatabaseManager implements DatabaseManager {
+public class MySQLDatabaseManager implements DatabaseManager {
     private final Plugin plugin;
     private Connection connection;
 
-    public SQLiteDatabaseManager(Plugin plugin) {
+    public MySQLDatabaseManager(Plugin plugin) {
         this.plugin = plugin;
     }
 
     @Override
     public void connect() throws SQLException {
-        File databaseFile = new File(plugin.getDataFolder(), "bartershops.db");
-        String url = "jdbc:sqlite:" + databaseFile.getAbsolutePath();
+        FileConfiguration config = plugin.getConfig();
+        String host = config.getString("mysql.host", "localhost");
+        int port = config.getInt("mysql.port", 3306);
+        String database = config.getString("mysql.database", "bartershops");
+        String user = config.getString("mysql.user", "root");
+        String password = config.getString("mysql.password", "");
 
-        connection = DriverManager.getConnection(url);
+        String url = "jdbc:mysql://" + host + ":" + port + "/" + database + "?useSSL=false&autoReconnect=true";
+
+        connection = DriverManager.getConnection(url, user, password);
         setupTables();
     }
 
@@ -39,8 +45,8 @@ public class SQLiteDatabaseManager implements DatabaseManager {
     @Override
     public void setupTables() throws SQLException {
         String createShopsTable = "CREATE TABLE IF NOT EXISTS shops (" +
-                "id INTEGER PRIMARY KEY AUTOINCREMENT, " +
-                "owner_uuid TEXT NOT NULL, " +
+                "id INT AUTO_INCREMENT PRIMARY KEY, " +
+                "owner_uuid VARCHAR(36) NOT NULL, " +
                 "chest_location TEXT NOT NULL, " +
                 "sign_location TEXT NOT NULL, " +
                 "trade_items TEXT NOT NULL" +

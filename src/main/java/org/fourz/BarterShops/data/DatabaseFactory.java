@@ -1,4 +1,4 @@
-package org.fourz.BarterShops.config;
+package org.fourz.BarterShops.data;
 
 import org.bukkit.configuration.file.FileConfiguration;
 import org.bukkit.plugin.Plugin;

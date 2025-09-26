@@ -1,4 +1,4 @@
-package org.fourz.BarterShops.config;
+package org.fourz.BarterShops.data;
 
 import java.sql.Connection;
 import java.sql.SQLException;
