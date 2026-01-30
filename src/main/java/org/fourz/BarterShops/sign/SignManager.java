@@ -16,7 +16,7 @@ import org.bukkit.event.HandlerList;
 import java.util.Collections;
 
 import org.fourz.BarterShops.BarterShops;
-import org.fourz.BarterShops.debug.LogManager;
+import org.fourz.rvnkcore.util.log.LogManager;
 import org.fourz.BarterShops.shop.ShopManager;
 import org.fourz.BarterShops.shop.ShopMode;
 import org.fourz.BarterShops.shop.ShopSession;

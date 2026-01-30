@@ -4,7 +4,7 @@ import org.bukkit.block.Sign;
 import org.bukkit.entity.Player;
 import org.bukkit.event.player.PlayerInteractEvent;
 import org.fourz.BarterShops.BarterShops;
-import org.fourz.BarterShops.debug.LogManager;
+import org.fourz.rvnkcore.util.log.LogManager;
 
 
 public class SignInteraction {

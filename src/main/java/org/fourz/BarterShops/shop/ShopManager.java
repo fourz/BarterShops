@@ -2,7 +2,7 @@ package org.fourz.BarterShops.shop;
 
 import org.bukkit.entity.Player;
 import org.fourz.BarterShops.BarterShops;
-import org.fourz.BarterShops.debug.LogManager;
+import org.fourz.rvnkcore.util.log.LogManager;
 
 import java.util.HashMap;
 import java.util.Map;

@@ -6,8 +6,7 @@ import org.fourz.BarterShops.config.ConfigManager;
 import org.fourz.BarterShops.sign.SignManager;
 import org.fourz.BarterShops.container.ContainerManager;
 import org.fourz.BarterShops.shop.ShopManager;  
-import org.fourz.BarterShops.debug.LogManager;
-import org.fourz.BarterShops.debug.Debug;
+import org.fourz.rvnkcore.util.log.LogManager;
 
 public class BarterShops extends JavaPlugin {
     private ConfigManager configManager;
@@ -16,7 +15,6 @@ public class BarterShops extends JavaPlugin {
     private ContainerManager containerManager;
     private ShopManager shopManager;
     private final LogManager logger;
-    private Debug debugger;
 
     public BarterShops() {
         this.logger = LogManager.getInstance(this, "BarterShops");
@@ -25,7 +23,7 @@ public class BarterShops extends JavaPlugin {
     @Override
     public void onEnable() {
         this.configManager = new ConfigManager(this);
-        this.debugger = Debug.createDebugger(this, "BarterShops", configManager.getLogLevel());
+        LogManager.setPluginLogLevel(this, configManager.getLogLevel());
         this.commandManager = new CommandManager(this);
         this.signManager = new SignManager(this);
         this.containerManager = new ContainerManager(this);
@@ -107,10 +105,6 @@ public class BarterShops extends JavaPlugin {
 
     public ContainerManager getContainerManager() {
         return containerManager;
-    }
-
-    public Debug getDebugger() {
-        return debugger;
     }
 
     public ShopManager getShopManager() {

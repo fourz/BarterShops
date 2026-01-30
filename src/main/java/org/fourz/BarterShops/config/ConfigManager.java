@@ -3,7 +3,7 @@ package org.fourz.BarterShops.config;
 import org.bukkit.configuration.file.FileConfiguration;
 import org.bukkit.configuration.file.YamlConfiguration;
 import org.fourz.BarterShops.BarterShops;
-import org.fourz.BarterShops.util.Debug;
+import org.fourz.rvnkcore.util.log.LogManager;
 
 import java.io.File;
 import java.io.IOException;
@@ -63,7 +63,7 @@ public class ConfigManager {
 
     public Level getLogLevel() {
         String levelStr = getConfig().getString("general.logLevel", "INFO");
-        return Debug.getLevel(levelStr);
+        return LogManager.parseLevel(levelStr);
     }
     
     public void cleanup() {
