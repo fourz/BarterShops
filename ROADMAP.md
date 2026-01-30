@@ -1,125 +1,83 @@
 # BarterShops Development Roadmap
 
+**Last Updated**: January 25, 2026
+**Archon Board**: `bd4e478b-772a-4b97-bd99-300552840815`
+
 ## Current Status (v0.1)
 
-The BarterShops plugin is currently in early development with basic functionality implemented:
+Early development with foundational framework in place:
 
 - ✅ Sign creation and validation
-- ✅ Shop ownership tracking
+- ✅ Shop ownership tracking (ShopManager)
 - ✅ Multiple shop interaction modes (SETUP, BOARD, TYPE, etc.)
 - ✅ Command system infrastructure
-- ✅ Database connection framework
+- ✅ Database connection framework (DatabaseFactory)
 - ✅ Debug and logging utilities
+- ✅ Sym-linked to Ravenkraft Dev documentation hub
 
-## Short-Term Goals (v0.2-0.3) - Q2-Q3 2025
+## RVNKCore Integration (Q1 2026)
 
-### Version 0.2
+Aligning BarterShops with the unified RVNKCore pattern standard:
+
+| Gap | Task | Status |
+|-----|------|--------|
+| Interface naming (I-prefix) + Repository pattern | impl-07 | todo |
+| Java Records DTOs + service layer | impl-08 | todo |
+| CommandManager framework | impl-09 | todo |
+| Trade engine (core transaction logic) | impl-10 | todo |
+| Unit tests | test-06 | todo |
+| Live server integration test | test-07 | todo |
+
+**Pattern Standard**: I-prefix interfaces (`IShopService`), Impl suffix (`ShopServiceImpl`), Java Records DTOs, async `CompletableFuture`, `FallbackTracker` for resilience.
+
+See: `rvnkcore-integration.md` | `shared-patterns.md` | `dto-patterns.md`
+
+## Version 0.2 (Q1-Q2 2026)
+
 - **Core Trade Functionality**
-  - Complete transaction processing system
+  - Complete transaction processing system (impl-10)
   - Inventory management during trades
   - Item validation and verification
   - Trade confirmation dialog
 
-- **User Experience**
-  - Intuitive sign formatting
-  - Feedback messages during interactions
-  - Basic shop statistics
+- **Command System**
+  - CommandManager framework integration (impl-09)
+  - Tab completion with contextual suggestions
+  - Permission-based command access
 
-### Version 0.3
 - **Data Persistence**
-  - Complete database implementations
+  - Repository pattern for all data access
   - Shop data storage and retrieval
   - Transaction logging
-  - Owner history
+
+## Version 0.3 (Q2-Q3 2026)
 
 - **Admin Tools**
   - Shop inspection for moderators
   - Remote shop management
   - Advanced listing with filtering
 
-## Medium-Term Goals (v0.4-0.6) - Q3-Q4 2025
-
-### Version 0.4
-- **Enhanced Shop Features**
+- **Enhanced Features**
   - Multi-item trades
   - Item bundle support
-  - Time-limited special offers
   - Shop categories
 
-### Version 0.5
-- **Shop Discovery**
-  - Global shop directory
-  - Search functionality
-  - Classification by item types
-  - Nearby shops indicators
+## Version 0.4+ (Future)
 
-### Version 0.6
-- **Integration**
-  - Economy plugin support (Vault)
-  - Permission groups integration
-  - PlaceholderAPI variables
-  - Server-wide notifications
+- **Shop Discovery**: Global directory, search, nearby indicators
+- **Integration**: Economy plugin (VaultUnlocked), PlaceholderAPI, server notifications
+- **GUI**: GUI-based shop management
+- **Advanced**: Shop rentals, group shops, templates, trade contracts
 
-## Long-Term Goals (v1.0+) - Q4 2025 and beyond
+## Technical Debt
 
-### Version 1.0
-- **Ravenkraft Release**
-  - Performance optimization for server scale
-  - Comprehensive documentation for server admins and players
-  - Full localization support for server community
-  - Server-specific configuration presets
-
-### Future Versions
-- **Advanced Features**
-  - GUI-based shop management
-  - Shop analytics and metrics
-  - Player reputation system
-  - Seasonal trade adjustments for server events
-  - Integration with other Ravenkraft systems
-
-## Technical Debt and Architecture
-
-### Code Quality
-- Implement comprehensive unit testing
+- Implement unit testing (test-06)
 - Establish code coverage targets
-- Standardize exception handling
-- Create architecture documentation
+- Standardize exception handling via RVNKCore patterns
+- Performance profiling for Ravenkraft player counts
 
-### Performance
-- Optimize database queries
-- Implement caching for common operations
-- Profile memory usage during high-load scenarios
-- Scalability testing for Ravenkraft player counts
+## Contributing
 
-## Feature Proposals Under Consideration
+Feature requests via GitHub issues with `feature-request` or `enhancement` tags.
 
-- **Shop Rentals** - Allow players to rent shop spaces from others
-- **Group Shops** - Enable Ravenkraft factions/groups shared ownership
-- **Shop Templates** - Save and load shop configurations
-- **Trade Contracts** - Scheduled recurring trades between players
-- **Shop Aesthetics** - Customizable shop appearances to match server themes
-- **Shop Advertising** - Broadcast shop updates to server chat
-
-## Contribution Focus Areas
-
-If you're interested in contributing to BarterShops development for Ravenkraft, these areas would benefit most from community input:
-
-1. Localization of messages
-2. UX improvements for sign interaction
-3. Advanced item matching algorithms
-4. Alternative storage backends
-5. Performance testing for Ravenkraft environment
-
-## Release Timeline
-
-| Version | Release Target | Focus Area |
-|---------|---------------|------------|
-| 0.1     | Current       | Initial framework |
-| 0.2     | June 2025     | Core trading |
-| 0.3     | July 2025     | Data persistence |
-| 0.4     | August 2025   | Enhanced shop features |
-| 0.5     | October 2025  | Shop discovery |
-| 0.6     | November 2025 | Integration |
-| 1.0     | December 2025 | Ravenkraft stable release |
-
-This roadmap is subject to change based on Ravenkraft community feedback and server priorities.
+This roadmap is subject to change based on community feedback and server priorities.

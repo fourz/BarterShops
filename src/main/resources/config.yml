@@ -1,5 +1,7 @@
 general:
-  logLevel: DEBUG # DEBUG, INFO,  WARN, ERROR
+  # Valid log levels: DEBUG, INFO, WARNING, SEVERE
+  # Default: WARNING (quiet mode - set INFO for verbose operational logs)
+  logLevel: WARNING
 
 storage:
 # types: mysql, sqlite

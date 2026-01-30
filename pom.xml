@@ -63,6 +63,13 @@
             <version>5.4</version>
             <scope>provided</scope>
         </dependency>
+        <!-- RVNKCore - shared logging and utilities -->
+        <dependency>
+            <groupId>org.fourz</groupId>
+            <artifactId>rvnkcore</artifactId>
+            <version>1.3.0-alpha</version>
+            <scope>provided</scope>
+        </dependency>
 
     </dependencies>
     <build>
