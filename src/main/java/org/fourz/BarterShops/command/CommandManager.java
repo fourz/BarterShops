@@ -1,68 +1,99 @@
 package org.fourz.BarterShops.command;
 
-import org.bukkit.command.Command;
 import org.bukkit.command.CommandExecutor;
-import org.bukkit.command.CommandSender;
+import org.bukkit.command.PluginCommand;
+import org.bukkit.command.TabCompleter;
 import org.fourz.BarterShops.BarterShops;
+import org.fourz.rvnkcore.util.log.LogManager;
+
 import java.util.HashMap;
 import java.util.Map;
 
-public class CommandManager implements CommandExecutor {
+/**
+ * Manages command registration and execution for the BarterShops plugin.
+ * Follows RVNKCore CommandManager pattern.
+ */
+public class CommandManager {
+
     private final BarterShops plugin;
-    private final Map<String, BaseCommand> commands;
+    private final LogManager logger;
+    private final Map<String, CommandExecutor> commands = new HashMap<>();
+
     public static final String COMMAND_NAME = "shop";
 
     public CommandManager(BarterShops plugin) {
         this.plugin = plugin;
-        this.commands = new HashMap<>();
+        this.logger = LogManager.getInstance(plugin, "CommandManager");
         registerCommands();
-        plugin.getCommand(COMMAND_NAME).setExecutor(this);
     }
 
+    /**
+     * Registers all commands for the plugin.
+     */
     private void registerCommands() {
-        commands.put("list", new ListCommand(plugin));
-        commands.put("nearby", new NearbyCommand(plugin));
-        commands.put("reload", new ReloadCommand(plugin));
+        logger.debug("Registering commands...");
+        registerCommand(COMMAND_NAME, new ShopCommand(plugin));
+        logger.debug("Commands registered successfully");
     }
 
-    @Override
-    public boolean onCommand(CommandSender sender, Command command, String label, String[] args) {
-        if (command.getName().equalsIgnoreCase(COMMAND_NAME)) {
-            if (args.length == 0) {
-                showHelp(sender);
-                return true;
-            }
+    /**
+     * Registers a command with the server.
+     *
+     * @param commandName The name of the command
+     * @param executor The executor for the command
+     */
+    private void registerCommand(String commandName, CommandExecutor executor) {
+        logger.debug("Registering command: " + commandName);
+        PluginCommand command = plugin.getCommand(commandName);
 
-            BaseCommand cmd = commands.get(args[0].toLowerCase());
-            if (cmd == null) {
-                sender.sendMessage(plugin.getConfigManager().getMessage("generic.error") + " Unknown command!");
-                return true;
-            }
-
-            if (!sender.hasPermission(cmd.getPermission())) {
-                sender.sendMessage(plugin.getConfigManager().getMessage("generic.error") + " No permission!");
-                return true;
-            }
-
-            String[] newArgs = new String[args.length - 1];
-            System.arraycopy(args, 1, newArgs, 0, args.length - 1);
-            cmd.execute(sender, newArgs);
-            return true;
+        if (command == null) {
+            logger.warning("Failed to register command: " + commandName + " (not found in plugin.yml)");
+            return;
         }
-        return false;
+
+        command.setExecutor(executor);
+
+        // If the executor also implements TabCompleter, register it
+        if (executor instanceof TabCompleter) {
+            command.setTabCompleter((TabCompleter) executor);
+            logger.debug("Tab completer registered for command: " + commandName);
+        }
+
+        commands.put(commandName, executor);
+        logger.debug("Command registered: " + commandName);
     }
 
-    private void showHelp(CommandSender sender) {
-        sender.sendMessage(plugin.getConfigManager().getMessage("generic.help"));
-        for (Map.Entry<String, BaseCommand> entry : commands.entrySet()) {
-            if (sender.hasPermission(entry.getValue().getPermission())) {
-                sender.sendMessage("§6/shop " + entry.getKey() + "§f - " + entry.getValue().getDescription());
-            }
-        }
+    /**
+     * Gets a registered command executor.
+     *
+     * @param commandName The name of the command
+     * @return The command executor, or null if not found
+     */
+    public CommandExecutor getCommand(String commandName) {
+        return commands.get(commandName);
     }
-    
+
+    /**
+     * Gets the ShopCommand instance.
+     *
+     * @return The ShopCommand, or null if not registered
+     */
+    public ShopCommand getShopCommand() {
+        CommandExecutor executor = commands.get(COMMAND_NAME);
+        return executor instanceof ShopCommand ? (ShopCommand) executor : null;
+    }
+
+    /**
+     * Cleans up command registrations.
+     */
     public void cleanup() {
-        plugin.getCommand(COMMAND_NAME).setExecutor(null);
+        logger.debug("Cleaning up command registrations...");
+        PluginCommand command = plugin.getCommand(COMMAND_NAME);
+        if (command != null) {
+            command.setExecutor(null);
+            command.setTabCompleter(null);
+        }
         commands.clear();
+        logger.info("CommandManager cleanup completed");
     }
 }
