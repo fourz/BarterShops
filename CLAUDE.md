@@ -1,6 +1,9 @@
-# CLAUDE.md
+# BarterShops: AI Assistant Instructions
 
-This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
+@import ../../.claude/rules/archon-workflow.md
+@import ../../.claude/rules/java-plugin-build.md
+
+---
 
 ## Project Overview
 
