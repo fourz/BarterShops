@@ -65,7 +65,19 @@ public class ConfigManager {
         String levelStr = getConfig().getString("general.logLevel", "INFO");
         return LogManager.parseLevel(levelStr);
     }
-    
+
+    public int getInt(String path, int defaultValue) {
+        return getConfig().getInt(path, defaultValue);
+    }
+
+    public long getLong(String path, long defaultValue) {
+        return getConfig().getLong(path, defaultValue);
+    }
+
+    public boolean getBoolean(String path, boolean defaultValue) {
+        return getConfig().getBoolean(path, defaultValue);
+    }
+
     public void cleanup() {
         saveConfig();
         config = null;

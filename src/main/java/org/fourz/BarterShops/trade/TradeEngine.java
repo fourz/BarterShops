@@ -1,0 +1,378 @@
+package org.fourz.BarterShops.trade;
+
+import org.bukkit.Bukkit;
+import org.bukkit.entity.Player;
+import org.bukkit.inventory.Inventory;
+import org.bukkit.inventory.ItemStack;
+import org.fourz.BarterShops.BarterShops;
+import org.fourz.BarterShops.data.FallbackTracker;
+import org.fourz.BarterShops.data.dto.TradeRecordDTO;
+import org.fourz.BarterShops.service.ITradeService.TradeResultDTO;
+import org.fourz.BarterShops.sign.BarterSign;
+import org.fourz.rvnkcore.util.log.LogManager;
+
+import java.util.Map;
+import java.util.Optional;
+import java.util.UUID;
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.ConcurrentHashMap;
+
+/**
+ * Core trade transaction engine for BarterShops.
+ * Handles trade initiation, validation, execution, and logging.
+ */
+public class TradeEngine {
+
+    private final BarterShops plugin;
+    private final LogManager logger;
+    private final TradeValidator validator;
+    private final FallbackTracker fallbackTracker;
+
+    /** Active trade sessions by session ID */
+    private final Map<String, TradeSession> activeSessions = new ConcurrentHashMap<>();
+
+    /** Active sessions by player UUID (one session per player) */
+    private final Map<UUID, String> playerSessions = new ConcurrentHashMap<>();
+
+    public TradeEngine(BarterShops plugin) {
+        this.plugin = plugin;
+        this.logger = LogManager.getInstance(plugin, "TradeEngine");
+        this.validator = new TradeValidator(plugin);
+        this.fallbackTracker = new FallbackTracker(plugin);
+    }
+
+    /**
+     * Initiates a new trade session for a player at a shop.
+     *
+     * @param buyer The buying player
+     * @param shop The shop to trade with
+     * @return The created trade session, or empty if failed
+     */
+    public Optional<TradeSession> initiateTrade(Player buyer, BarterSign shop) {
+        if (buyer == null || shop == null) {
+            logger.warning("Cannot initiate trade: null buyer or shop");
+            return Optional.empty();
+        }
+
+        // Check if player already has an active session
+        String existingSession = playerSessions.get(buyer.getUniqueId());
+        if (existingSession != null) {
+            TradeSession existing = activeSessions.get(existingSession);
+            if (existing != null && existing.isActive()) {
+                logger.debug("Player already has active trade session");
+                return Optional.of(existing);
+            }
+            // Clean up expired session
+            cancelSession(existingSession);
+        }
+
+        // Prevent owner from trading with own shop
+        if (shop.getOwner().equals(buyer.getUniqueId())) {
+            logger.debug("Owner cannot trade with own shop");
+            return Optional.empty();
+        }
+
+        // Create new session
+        TradeSession session = new TradeSession(buyer.getUniqueId(), shop);
+        activeSessions.put(session.getSessionId(), session);
+        playerSessions.put(buyer.getUniqueId(), session.getSessionId());
+
+        logger.debug("Trade session created: " + session.getSessionId() +
+                " for player " + buyer.getName());
+
+        return Optional.of(session);
+    }
+
+    /**
+     * Gets an active trade session by ID.
+     */
+    public Optional<TradeSession> getSession(String sessionId) {
+        TradeSession session = activeSessions.get(sessionId);
+        if (session == null) return Optional.empty();
+
+        // Check expiration
+        if (session.isExpired()) {
+            cancelSession(sessionId);
+            return Optional.empty();
+        }
+
+        return Optional.of(session);
+    }
+
+    /**
+     * Gets a player's active trade session.
+     */
+    public Optional<TradeSession> getPlayerSession(UUID playerUuid) {
+        String sessionId = playerSessions.get(playerUuid);
+        if (sessionId == null) return Optional.empty();
+        return getSession(sessionId);
+    }
+
+    /**
+     * Validates and executes a trade.
+     *
+     * @param sessionId The session ID to execute
+     * @return CompletableFuture with the trade result
+     */
+    public CompletableFuture<TradeResultDTO> executeTrade(String sessionId) {
+        return CompletableFuture.supplyAsync(() -> {
+            TradeSession session = activeSessions.get(sessionId);
+            if (session == null) {
+                return TradeResultDTO.failure("Trade session not found");
+            }
+
+            if (session.isExpired()) {
+                cancelSession(sessionId);
+                return TradeResultDTO.failure("Trade session expired");
+            }
+
+            // Get buyer player
+            Player buyer = Bukkit.getPlayer(session.getBuyerUuid());
+            if (buyer == null || !buyer.isOnline()) {
+                session.setState(TradeSession.TradeState.FAILED);
+                return TradeResultDTO.failure("Buyer is not online");
+            }
+
+            // Validate the trade
+            session.setState(TradeSession.TradeState.VALIDATING);
+            TradeValidator.ValidationResult validation = validator.validate(session, buyer);
+
+            if (!validation.valid()) {
+                session.setState(TradeSession.TradeState.FAILED);
+                String errors = String.join(", ", validation.errors());
+                return TradeResultDTO.failure("Validation failed: " + errors);
+            }
+
+            // Execute the item exchange
+            session.setState(TradeSession.TradeState.PROCESSING);
+            return executeItemExchange(session, buyer);
+
+        }).exceptionally(ex -> {
+            logger.error("Trade execution failed: " + ex.getMessage());
+            fallbackTracker.recordFailure("Trade execution: " + ex.getMessage());
+            return TradeResultDTO.failure("Internal error: " + ex.getMessage());
+        });
+    }
+
+    /**
+     * Executes the actual item exchange between buyer and shop.
+     */
+    private TradeResultDTO executeItemExchange(TradeSession session, Player buyer) {
+        try {
+            BarterSign shop = session.getShop();
+            ItemStack offered = session.getOfferedItem();
+            int offeredQty = session.getOfferedQuantity();
+            ItemStack requested = session.getRequestedItem();
+            int requestedQty = session.getRequestedQuantity();
+
+            // Remove payment from buyer
+            if (requested != null && requestedQty > 0) {
+                if (!removeItems(buyer.getInventory(), requested, requestedQty)) {
+                    session.setState(TradeSession.TradeState.FAILED);
+                    return TradeResultDTO.failure("Failed to take payment from buyer");
+                }
+            }
+
+            // Remove items from shop container (if not admin shop)
+            if (shop.getShopContainer() != null && offered != null) {
+                Inventory shopInv = shop.getShopContainer().getInventory();
+                if (!removeItems(shopInv, offered, offeredQty)) {
+                    // Rollback: return payment to buyer
+                    if (requested != null && requestedQty > 0) {
+                        giveItems(buyer.getInventory(), requested, requestedQty);
+                    }
+                    session.setState(TradeSession.TradeState.FAILED);
+                    return TradeResultDTO.failure("Shop out of stock");
+                }
+
+                // Add payment to shop container
+                if (requested != null && requestedQty > 0) {
+                    giveItems(shopInv, requested, requestedQty);
+                }
+            }
+
+            // Give items to buyer
+            if (offered != null && offeredQty > 0) {
+                giveItems(buyer.getInventory(), offered, offeredQty);
+            }
+
+            // Mark session complete
+            session.setState(TradeSession.TradeState.COMPLETED);
+            String transactionId = UUID.randomUUID().toString();
+
+            // Log the trade (async, fire-and-forget)
+            logTrade(session, transactionId);
+
+            // Cleanup session
+            cleanupSession(session.getSessionId());
+
+            logger.info("Trade completed: " + transactionId + " for " + buyer.getName());
+            fallbackTracker.recordSuccess();
+
+            return TradeResultDTO.success(transactionId);
+
+        } catch (Exception e) {
+            logger.error("Item exchange failed: " + e.getMessage());
+            session.setState(TradeSession.TradeState.FAILED);
+            return TradeResultDTO.failure("Exchange failed: " + e.getMessage());
+        }
+    }
+
+    /**
+     * Removes items from an inventory.
+     */
+    private boolean removeItems(Inventory inventory, ItemStack item, int amount) {
+        if (inventory == null || item == null || amount <= 0) return true;
+
+        int remaining = amount;
+        ItemStack[] contents = inventory.getContents();
+
+        for (int i = 0; i < contents.length && remaining > 0; i++) {
+            ItemStack stack = contents[i];
+            if (stack != null && stack.isSimilar(item)) {
+                int take = Math.min(remaining, stack.getAmount());
+                if (take >= stack.getAmount()) {
+                    inventory.setItem(i, null);
+                } else {
+                    stack.setAmount(stack.getAmount() - take);
+                }
+                remaining -= take;
+            }
+        }
+
+        return remaining == 0;
+    }
+
+    /**
+     * Gives items to an inventory.
+     */
+    private void giveItems(Inventory inventory, ItemStack item, int amount) {
+        if (inventory == null || item == null || amount <= 0) return;
+
+        int remaining = amount;
+        int maxStack = item.getMaxStackSize();
+
+        while (remaining > 0) {
+            ItemStack toGive = item.clone();
+            toGive.setAmount(Math.min(remaining, maxStack));
+            inventory.addItem(toGive);
+            remaining -= toGive.getAmount();
+        }
+    }
+
+    /**
+     * Logs a completed trade to the repository.
+     */
+    private void logTrade(TradeSession session, String transactionId) {
+        // Build trade record DTO
+        TradeRecordDTO record = TradeRecordDTO.builder()
+                .transactionId(transactionId)
+                .shopId(Integer.parseInt(session.getShop().getId()))
+                .buyerUuid(session.getBuyerUuid())
+                .sellerUuid(session.getSellerUuid())
+                .itemStackData(serializeItem(session.getOfferedItem()))
+                .quantity(session.getOfferedQuantity())
+                .currencyMaterial(session.getRequestedItem() != null ?
+                        session.getRequestedItem().getType().name() : null)
+                .pricePaid(session.getRequestedQuantity())
+                .build();
+
+        // TODO: Save to ITradeRepository when implementation exists
+        logger.debug("Trade logged: " + transactionId);
+    }
+
+    /**
+     * Serializes an ItemStack to string for storage.
+     */
+    private String serializeItem(ItemStack item) {
+        if (item == null) return null;
+        // Simple serialization - can be enhanced with NBT
+        return item.getType().name() + ":" + item.getAmount();
+    }
+
+    /**
+     * Cancels a trade session.
+     */
+    public void cancelSession(String sessionId) {
+        TradeSession session = activeSessions.remove(sessionId);
+        if (session != null) {
+            session.setState(TradeSession.TradeState.CANCELLED);
+            playerSessions.remove(session.getBuyerUuid());
+            logger.debug("Trade session cancelled: " + sessionId);
+        }
+    }
+
+    /**
+     * Cleans up a completed session.
+     */
+    private void cleanupSession(String sessionId) {
+        TradeSession session = activeSessions.remove(sessionId);
+        if (session != null) {
+            playerSessions.remove(session.getBuyerUuid());
+        }
+    }
+
+    /**
+     * Cancels all sessions for a player.
+     */
+    public void cancelPlayerSessions(UUID playerUuid) {
+        String sessionId = playerSessions.remove(playerUuid);
+        if (sessionId != null) {
+            cancelSession(sessionId);
+        }
+    }
+
+    /**
+     * Gets the trade validator.
+     */
+    public TradeValidator getValidator() {
+        return validator;
+    }
+
+    /**
+     * Gets the fallback tracker.
+     */
+    public FallbackTracker getFallbackTracker() {
+        return fallbackTracker;
+    }
+
+    /**
+     * Checks if in fallback mode.
+     */
+    public boolean isInFallbackMode() {
+        return fallbackTracker.isInFallbackMode();
+    }
+
+    /**
+     * Gets count of active sessions.
+     */
+    public int getActiveSessionCount() {
+        return activeSessions.size();
+    }
+
+    /**
+     * Cleans up expired sessions.
+     */
+    public void cleanupExpiredSessions() {
+        activeSessions.entrySet().removeIf(entry -> {
+            if (entry.getValue().isExpired()) {
+                playerSessions.remove(entry.getValue().getBuyerUuid());
+                logger.debug("Cleaned up expired session: " + entry.getKey());
+                return true;
+            }
+            return false;
+        });
+    }
+
+    /**
+     * Shuts down the trade engine.
+     */
+    public void shutdown() {
+        logger.info("Shutting down TradeEngine...");
+        // Cancel all active sessions
+        activeSessions.keySet().forEach(this::cancelSession);
+        activeSessions.clear();
+        playerSessions.clear();
+        logger.info("TradeEngine shutdown complete");
+    }
+}

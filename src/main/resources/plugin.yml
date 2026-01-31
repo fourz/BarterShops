@@ -1,9 +1,10 @@
 name: BarterShops
-api: '1.21'
-version: 0.1.1
-description: This is a simple Bukkit Plugin
+api-version: '1.21'
+version: ${project.version}
+description: Barter trading plugin with sign-based shop creation
 author: Derek Schrishuhn
 main: org.fourz.BarterShops.BarterShops
+softdepend: [RVNKCore]
 
 commands:
   shop:
