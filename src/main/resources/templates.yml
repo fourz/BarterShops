@@ -1,0 +1,39 @@
+# BarterShops Template Storage
+# This file stores shop templates for quick setup and reuse.
+# Templates can be player-created or server-wide presets (admin-defined).
+#
+# Template Structure:
+#   templates:
+#     <template-id>:
+#       name: Template display name
+#       owner: Player UUID (or "SERVER" for presets)
+#       signType: BARTER or SHOP
+#       description: Optional description
+#       category: Template category (general, food, tools, etc.)
+#       tags: Comma-separated tags for filtering
+#       createdAt: ISO timestamp
+#       isServerPreset: true/false
+
+# Example server preset templates (uncomment to enable):
+# templates:
+#   starter-shop:
+#     name: "Starter Shop"
+#     owner: "SERVER"
+#     signType: "BARTER"
+#     description: "Basic barter shop for new players"
+#     category: "starter"
+#     tags: "basic,beginner,starter"
+#     createdAt: "2026-02-01T00:00:00"
+#     isServerPreset: true
+#
+#   food-vendor:
+#     name: "Food Vendor"
+#     owner: "SERVER"
+#     signType: "BARTER"
+#     description: "Template for food trading shops"
+#     category: "food"
+#     tags: "food,vendor,trading"
+#     createdAt: "2026-02-01T00:00:00"
+#     isServerPreset: true
+
+templates: {}

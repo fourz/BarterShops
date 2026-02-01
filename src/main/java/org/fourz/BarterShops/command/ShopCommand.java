@@ -45,8 +45,15 @@ public class ShopCommand implements CommandExecutor, TabCompleter {
         registerSubCommand("remove", new ShopRemoveSubCommand(plugin));
         registerSubCommand("nearby", new ShopNearbySubCommand(plugin));
 
+        // Template commands
+        registerSubCommand("template", new ShopTemplateSubCommand(plugin));
+
+        // Notification commands
+        registerSubCommand("notifications", new ShopNotificationsSubCommand(plugin));
+
         // Admin commands
         registerSubCommand("admin", new ShopAdminSubCommand(plugin));
+        registerSubCommand("admingui", new ShopAdminGUISubCommand(plugin));
         registerSubCommand("inspect", new ShopInspectSubCommand(plugin));
         registerSubCommand("clear", new ShopClearSubCommand(plugin));
         registerSubCommand("reload", new ShopReloadSubCommand(plugin));

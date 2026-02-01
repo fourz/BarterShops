@@ -5,7 +5,7 @@ general:
 
 storage:
 # types: mysql, sqlite
-  type: sqlite 
+  type: sqlite
   mysql:
     host: localhost
     port: 3306
@@ -16,6 +16,46 @@ storage:
     tablePrefix: bartershop_
   sqlite:
     database: data.db
+
+notifications:
+  # Master notification toggle (can be overridden per-player)
+  enabled: true
+
+  # Default channel settings for new players
+  defaults:
+    chat: true
+    actionBar: true
+    title: false
+    sound: true
+
+  # Per-type notification settings
+  types:
+    trade_request:
+      enabled: true
+      sound: BLOCK_NOTE_BLOCK_PLING
+    trade_complete:
+      enabled: true
+      sound: ENTITY_PLAYER_LEVELUP
+    trade_cancelled:
+      enabled: true
+      sound: BLOCK_NOTE_BLOCK_BASS
+    shop_stock_low:
+      enabled: true
+      threshold: 5  # Items remaining
+      sound: BLOCK_NOTE_BLOCK_BELL
+    shop_sale:
+      enabled: true
+      sound: ENTITY_EXPERIENCE_ORB_PICKUP
+    review_received:
+      enabled: true
+      sound: BLOCK_NOTE_BLOCK_CHIME
+    price_change:
+      enabled: false  # Disabled by default
+      sound: BLOCK_NOTE_BLOCK_HARP
+    system:
+      enabled: true
+      sound: BLOCK_NOTE_BLOCK_FLUTE
+
 messages:
   generic:
     error:
@@ -37,6 +77,22 @@ messages:
       - 'You do not have permission to use this sign!'
     setup:
     - 'Hold the item you wish to sell and left-click the sign.'
+  notifications:
+    trade_request:
+    - '&e{player} wants to trade with you!'
+    trade_complete:
+    - '&aTrade completed successfully!'
+    trade_cancelled:
+    - '&cTrade was cancelled'
+    shop_stock_low:
+    - '&6Your shop stock is running low!'
+    shop_sale:
+    - '&2New sale in your shop: {amount}x {item}'
+    review_received:
+    - '&bYou received a new review!'
+    price_change:
+    - '&dPrice changed: {item} now {price}'
+
 sign:
   setup:
   - '&5%1'

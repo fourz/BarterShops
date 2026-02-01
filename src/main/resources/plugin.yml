@@ -20,6 +20,9 @@ permissions:
   bartershops.reload:
     description: Allows reloading the plugin configuration
     default: op
+  bartershops.notifications:
+    description: Allows managing notification preferences
+    default: true
   bartershops.admin.inspect:
     description: Allows inspecting any shop (admin)
     default: op
@@ -28,4 +31,32 @@ permissions:
     default: op
   bartershops.admin.reload:
     description: Allows reloading plugin configuration (admin)
+    default: op
+  bartershops.admin.gui:
+    description: Allows access to admin GUI interfaces (shop browser, trade history, stats)
+    default: op
+  # Template permissions
+  bartershops.template:
+    description: Base permission for template commands
+    default: true
+  bartershops.template.save:
+    description: Allows saving shop configurations as templates
+    default: true
+  bartershops.template.load:
+    description: Allows loading templates to create shops
+    default: true
+  bartershops.template.load.other:
+    description: Allows loading other players' templates
+    default: op
+  bartershops.template.list:
+    description: Allows listing available templates
+    default: true
+  bartershops.template.delete:
+    description: Allows deleting own templates
+    default: true
+  bartershops.template.delete.other:
+    description: Allows deleting other players' templates (admin)
+    default: op
+  bartershops.template.preset.create:
+    description: Allows creating server-wide preset templates (admin)
     default: op

@@ -4,12 +4,15 @@ import org.bukkit.plugin.Plugin;
 import org.bukkit.plugin.java.JavaPlugin;
 import org.fourz.BarterShops.command.CommandManager;
 import org.fourz.BarterShops.config.ConfigManager;
+import org.fourz.BarterShops.data.DatabaseManager;
+import org.fourz.BarterShops.notification.NotificationManager;
 import org.fourz.BarterShops.service.IShopService;
 import org.fourz.BarterShops.sign.SignManager;
 import org.fourz.BarterShops.container.ContainerManager;
 import org.fourz.BarterShops.shop.ShopManager;
 import org.fourz.BarterShops.trade.TradeEngine;
 import org.fourz.BarterShops.trade.TradeConfirmationGUI;
+import org.fourz.BarterShops.template.TemplateManager;
 import org.fourz.rvnkcore.util.log.LogManager;
 
 public class BarterShops extends JavaPlugin {
@@ -20,7 +23,13 @@ public class BarterShops extends JavaPlugin {
     private ShopManager shopManager;
     private TradeEngine tradeEngine;
     private TradeConfirmationGUI tradeConfirmationGUI;
+    private NotificationManager notificationManager;
+    private TemplateManager templateManager;
+    private DatabaseManager databaseManager;
     private final LogManager logger;
+
+    // Plugin lifecycle tracking
+    private long startTime;
 
     // RVNKCore integration
     private boolean rvnkCoreAvailable = false;
@@ -32,14 +41,21 @@ public class BarterShops extends JavaPlugin {
 
     @Override
     public void onEnable() {
+        this.startTime = System.currentTimeMillis();
+
         this.configManager = new ConfigManager(this);
         LogManager.setPluginLogLevel(this, configManager.getLogLevel());
+        this.notificationManager = new NotificationManager(this);
+        this.templateManager = new TemplateManager(this);
         this.commandManager = new CommandManager(this);
         this.signManager = new SignManager(this);
         this.containerManager = new ContainerManager(this);
         this.shopManager = new ShopManager(this);
         this.tradeEngine = new TradeEngine(this);
         this.tradeConfirmationGUI = new TradeConfirmationGUI(this);
+
+        // TODO: Initialize DatabaseManager when repository implementation is complete
+        // this.databaseManager = new DatabaseFactory().createDatabaseManager(this);
 
         // Register with RVNKCore ServiceRegistry if available
         registerWithRVNKCore();
@@ -66,6 +82,15 @@ public class BarterShops extends JavaPlugin {
         } finally {
             logger.info("BarterShops has been unloaded");
         }
+    }
+
+    /**
+     * Gets the plugin start time in milliseconds since epoch.
+     *
+     * @return Plugin start timestamp
+     */
+    public long getStartTime() {
+        return startTime;
     }
 
     /**
@@ -188,6 +213,13 @@ public class BarterShops extends JavaPlugin {
     }
 
     private void cleanupManagers() {
+        cleanupManager("notification", () -> {
+            if (notificationManager != null) {
+                notificationManager.shutdown();
+                notificationManager = null;
+            }
+        });
+
         cleanupManager("container", () -> {
             if (containerManager != null) {
                 containerManager.cleanup();
@@ -236,6 +268,24 @@ public class BarterShops extends JavaPlugin {
                 tradeConfirmationGUI = null;
             }
         });
+
+        cleanupManager("template", () -> {
+            if (templateManager != null) {
+                templateManager.cleanup();
+                templateManager = null;
+            }
+        });
+
+        cleanupManager("database", () -> {
+            if (databaseManager != null) {
+                try {
+                    databaseManager.disconnect();
+                } catch (Exception e) {
+                    logger.warning("Failed to disconnect database: " + e.getMessage());
+                }
+                databaseManager = null;
+            }
+        });
     }
 
     private void cleanupManager(String managerName, Runnable cleanupTask) {
@@ -269,5 +319,17 @@ public class BarterShops extends JavaPlugin {
 
     public TradeConfirmationGUI getTradeConfirmationGUI() {
         return tradeConfirmationGUI;
+    }
+
+    public NotificationManager getNotificationManager() {
+        return notificationManager;
+    }
+
+    public DatabaseManager getDatabaseManager() {
+        return databaseManager;
+    }
+
+    public TemplateManager getTemplateManager() {
+        return templateManager;
     }
 }
