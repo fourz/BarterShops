@@ -20,3 +20,12 @@ permissions:
   bartershops.reload:
     description: Allows reloading the plugin configuration
     default: op
+  bartershops.admin.inspect:
+    description: Allows inspecting any shop (admin)
+    default: op
+  bartershops.admin.clear:
+    description: Allows clearing shop inventories (admin)
+    default: op
+  bartershops.admin.reload:
+    description: Allows reloading plugin configuration (admin)
+    default: op

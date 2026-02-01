@@ -47,6 +47,9 @@ public class ShopCommand implements CommandExecutor, TabCompleter {
 
         // Admin commands
         registerSubCommand("admin", new ShopAdminSubCommand(plugin));
+        registerSubCommand("inspect", new ShopInspectSubCommand(plugin));
+        registerSubCommand("clear", new ShopClearSubCommand(plugin));
+        registerSubCommand("reload", new ShopReloadSubCommand(plugin));
 
         logger.debug("Registered " + subCommands.size() + " subcommands");
     }
