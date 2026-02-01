@@ -8,6 +8,8 @@ import org.fourz.BarterShops.service.IShopService;
 import org.fourz.BarterShops.sign.SignManager;
 import org.fourz.BarterShops.container.ContainerManager;
 import org.fourz.BarterShops.shop.ShopManager;
+import org.fourz.BarterShops.trade.TradeEngine;
+import org.fourz.BarterShops.trade.TradeConfirmationGUI;
 import org.fourz.rvnkcore.util.log.LogManager;
 
 public class BarterShops extends JavaPlugin {
@@ -16,6 +18,8 @@ public class BarterShops extends JavaPlugin {
     private SignManager signManager;
     private ContainerManager containerManager;
     private ShopManager shopManager;
+    private TradeEngine tradeEngine;
+    private TradeConfirmationGUI tradeConfirmationGUI;
     private final LogManager logger;
 
     // RVNKCore integration
@@ -34,6 +38,8 @@ public class BarterShops extends JavaPlugin {
         this.signManager = new SignManager(this);
         this.containerManager = new ContainerManager(this);
         this.shopManager = new ShopManager(this);
+        this.tradeEngine = new TradeEngine(this);
+        this.tradeConfirmationGUI = new TradeConfirmationGUI(this);
 
         // Register with RVNKCore ServiceRegistry if available
         registerWithRVNKCore();
@@ -216,6 +222,20 @@ public class BarterShops extends JavaPlugin {
                 shopManager = null;
             }
         });
+
+        cleanupManager("trade", () -> {
+            if (tradeEngine != null) {
+                tradeEngine.shutdown();
+                tradeEngine = null;
+            }
+        });
+
+        cleanupManager("tradeGUI", () -> {
+            if (tradeConfirmationGUI != null) {
+                tradeConfirmationGUI.shutdown();
+                tradeConfirmationGUI = null;
+            }
+        });
     }
 
     private void cleanupManager(String managerName, Runnable cleanupTask) {
@@ -241,5 +261,13 @@ public class BarterShops extends JavaPlugin {
 
     public ShopManager getShopManager() {
         return shopManager;
+    }
+
+    public TradeEngine getTradeEngine() {
+        return tradeEngine;
+    }
+
+    public TradeConfirmationGUI getTradeConfirmationGUI() {
+        return tradeConfirmationGUI;
     }
 }

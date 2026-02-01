@@ -1,10 +1,19 @@
 package org.fourz.BarterShops.sign;
 
+import org.bukkit.ChatColor;
+import org.bukkit.Material;
+import org.bukkit.block.Container;
 import org.bukkit.block.Sign;
 import org.bukkit.entity.Player;
 import org.bukkit.event.player.PlayerInteractEvent;
+import org.bukkit.inventory.ItemStack;
 import org.fourz.BarterShops.BarterShops;
+import org.fourz.BarterShops.trade.TradeEngine;
+import org.fourz.BarterShops.trade.TradeSession;
+import org.fourz.BarterShops.trade.TradeConfirmationGUI;
 import org.fourz.rvnkcore.util.log.LogManager;
+
+import java.util.Optional;
 
 
 public class SignInteraction {
@@ -89,7 +98,103 @@ public class SignInteraction {
     }
 
     private void processTrade(Player player, Sign sign, BarterSign barterSign) {
-        // TODO: Implement trade processing logic
         logger.debug("Processing trade for player: " + player.getName());
+
+        TradeEngine tradeEngine = plugin.getTradeEngine();
+        TradeConfirmationGUI confirmationGUI = plugin.getTradeConfirmationGUI();
+
+        // Check fallback mode
+        if (tradeEngine.isInFallbackMode()) {
+            player.sendMessage(ChatColor.RED + "Trading is temporarily unavailable. Please try again later.");
+            logger.warning("Trade rejected - system in fallback mode");
+            return;
+        }
+
+        // Get shop container for trade items
+        Container shopContainer = barterSign.getShopContainer();
+        if (shopContainer == null) {
+            shopContainer = barterSign.getContainer();
+        }
+
+        if (shopContainer == null) {
+            player.sendMessage(ChatColor.RED + "This shop has no inventory configured.");
+            logger.debug("Trade rejected - no shop container");
+            return;
+        }
+
+        // Get offered item (first non-empty slot in shop container)
+        ItemStack offeredItem = null;
+        int offeredQuantity = 0;
+        for (ItemStack item : shopContainer.getInventory().getContents()) {
+            if (item != null && item.getType() != Material.AIR) {
+                offeredItem = item.clone();
+                offeredQuantity = item.getAmount();
+                break;
+            }
+        }
+
+        if (offeredItem == null) {
+            player.sendMessage(ChatColor.RED + "This shop is out of stock.");
+            logger.debug("Trade rejected - shop out of stock");
+            return;
+        }
+
+        // Get requested payment from player's main hand
+        ItemStack requestedItem = player.getInventory().getItemInMainHand();
+        int requestedQuantity = 0;
+
+        if (requestedItem != null && requestedItem.getType() != Material.AIR) {
+            requestedQuantity = 1; // Default to 1 item as payment
+        } else {
+            player.sendMessage(ChatColor.YELLOW + "Hold an item in your hand to trade.");
+            logger.debug("Trade rejected - player not holding payment item");
+            return;
+        }
+
+        // Initiate trade session
+        Optional<TradeSession> sessionOpt = tradeEngine.initiateTrade(player, barterSign);
+        if (sessionOpt.isEmpty()) {
+            player.sendMessage(ChatColor.RED + "Cannot start trade. You may already have an active trade.");
+            logger.debug("Trade rejected - failed to create session");
+            return;
+        }
+
+        TradeSession session = sessionOpt.get();
+
+        // Configure trade items
+        session.setOfferedItem(offeredItem, offeredQuantity);
+        session.setRequestedItem(requestedItem, requestedQuantity);
+        session.setState(TradeSession.TradeState.AWAITING_BUYER_CONFIRM);
+
+        logger.debug("Trade session created: " + session.getSessionId());
+
+        // Open confirmation GUI
+        confirmationGUI.openConfirmation(player, session,
+            // On confirm
+            (confirmedSession) -> {
+                logger.debug("Trade confirmed for session: " + confirmedSession.getSessionId());
+                confirmedSession.setState(TradeSession.TradeState.AWAITING_FINAL_CONFIRM);
+
+                // Execute the trade asynchronously
+                tradeEngine.executeTrade(confirmedSession.getSessionId())
+                    .thenAccept(result -> {
+                        // Sync back to main thread for Bukkit API
+                        plugin.getServer().getScheduler().runTask(plugin, () -> {
+                            if (result.success()) {
+                                player.sendMessage(ChatColor.GREEN + "Trade completed successfully!");
+                                player.sendMessage(ChatColor.GRAY + "Transaction ID: " + result.transactionId());
+                            } else {
+                                player.sendMessage(ChatColor.RED + "Trade failed: " + result.message());
+                            }
+                        });
+                    });
+            },
+            // On cancel
+            (cancelledSession) -> {
+                logger.debug("Trade cancelled for session: " + cancelledSession.getSessionId());
+                tradeEngine.cancelSession(cancelledSession.getSessionId());
+                player.sendMessage(ChatColor.YELLOW + "Trade cancelled.");
+            }
+        );
     }
 }
