@@ -25,6 +25,11 @@ public class TradeRepositoryImpl implements ITradeRepository {
     private final LogManager logger;
     private final ExecutorService executor;
 
+    // Table name helper
+    private String t(String baseName) {
+        return connectionProvider.table(baseName);
+    }
+
     /**
      * Creates a new TradeRepositoryImpl.
      *
@@ -65,7 +70,7 @@ public class TradeRepositoryImpl implements ITradeRepository {
 
         return CompletableFuture.supplyAsync(() -> {
             String sql = """
-                INSERT INTO trade_records (transaction_id, shop_id, buyer_uuid, seller_uuid, 
+                INSERT INTO " + t("trade_records") + " (transaction_id, shop_id, buyer_uuid, seller_uuid, 
                     item_stack_data, quantity, currency_material, price_paid, status, completed_at)
                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 """;
@@ -103,7 +108,7 @@ public class TradeRepositoryImpl implements ITradeRepository {
         }
 
         return CompletableFuture.supplyAsync(() -> {
-            String sql = "SELECT * FROM trade_records WHERE transaction_id = ?";
+            String sql = "SELECT * FROM " + t("trade_records") + " WHERE transaction_id = ?";
 
             try (Connection conn = connectionProvider.getConnection();
                  PreparedStatement stmt = conn.prepareStatement(sql)) {
@@ -135,7 +140,7 @@ public class TradeRepositoryImpl implements ITradeRepository {
         }
 
         return CompletableFuture.supplyAsync(() -> {
-            String sql = "DELETE FROM trade_records WHERE transaction_id = ?";
+            String sql = "DELETE FROM " + t("trade_records") + " WHERE transaction_id = ?";
 
             try (Connection conn = connectionProvider.getConnection();
                  PreparedStatement stmt = conn.prepareStatement(sql)) {
@@ -165,7 +170,7 @@ public class TradeRepositoryImpl implements ITradeRepository {
 
         return CompletableFuture.supplyAsync(() -> {
             String sql = """
-                SELECT * FROM trade_records 
+                SELECT * FROM " + t("trade_records") + " 
                 WHERE buyer_uuid = ? OR seller_uuid = ?
                 ORDER BY completed_at DESC
                 LIMIT ?
@@ -205,7 +210,7 @@ public class TradeRepositoryImpl implements ITradeRepository {
 
         return CompletableFuture.supplyAsync(() -> {
             String sql = """
-                SELECT * FROM trade_records 
+                SELECT * FROM " + t("trade_records") + " 
                 WHERE buyer_uuid = ?
                 ORDER BY completed_at DESC
                 LIMIT ?
@@ -243,7 +248,7 @@ public class TradeRepositoryImpl implements ITradeRepository {
 
         return CompletableFuture.supplyAsync(() -> {
             String sql = """
-                SELECT * FROM trade_records 
+                SELECT * FROM " + t("trade_records") + " 
                 WHERE seller_uuid = ?
                 ORDER BY completed_at DESC
                 LIMIT ?
@@ -281,7 +286,7 @@ public class TradeRepositoryImpl implements ITradeRepository {
 
         return CompletableFuture.supplyAsync(() -> {
             String sql = """
-                SELECT * FROM trade_records 
+                SELECT * FROM " + t("trade_records") + " 
                 WHERE shop_id = ?
                 ORDER BY completed_at DESC
                 LIMIT ?
@@ -320,7 +325,7 @@ public class TradeRepositoryImpl implements ITradeRepository {
 
         return CompletableFuture.supplyAsync(() -> {
             String sql = """
-                SELECT * FROM trade_records 
+                SELECT * FROM " + t("trade_records") + " 
                 WHERE completed_at >= ? AND completed_at < ?
                 ORDER BY completed_at DESC
                 LIMIT ?
@@ -360,7 +365,7 @@ public class TradeRepositoryImpl implements ITradeRepository {
         return CompletableFuture.supplyAsync(() -> {
             List<TradeRecordDTO> trades = new ArrayList<>();
             String sql = """
-                SELECT * FROM trade_records 
+                SELECT * FROM " + t("trade_records") + " 
                 ORDER BY completed_at DESC 
                 LIMIT ?
                 """;
@@ -398,7 +403,7 @@ public class TradeRepositoryImpl implements ITradeRepository {
         }
 
         return CompletableFuture.supplyAsync(() -> {
-            String sql = "SELECT COUNT(*) FROM trade_records";
+            String sql = "SELECT COUNT(*) FROM " + t("trade_records") + "";
 
             try (Connection conn = connectionProvider.getConnection();
                  PreparedStatement stmt = conn.prepareStatement(sql);
@@ -425,7 +430,7 @@ public class TradeRepositoryImpl implements ITradeRepository {
 
         return CompletableFuture.supplyAsync(() -> {
             String sql = """
-                SELECT COUNT(*) FROM trade_records 
+                SELECT COUNT(*) FROM " + t("trade_records") + " 
                 WHERE buyer_uuid = ? OR seller_uuid = ?
                 """;
 
@@ -458,7 +463,7 @@ public class TradeRepositoryImpl implements ITradeRepository {
         }
 
         return CompletableFuture.supplyAsync(() -> {
-            String sql = "SELECT COUNT(*) FROM trade_records WHERE shop_id = ?";
+            String sql = "SELECT COUNT(*) FROM " + t("trade_records") + " WHERE shop_id = ?";
 
             try (Connection conn = connectionProvider.getConnection();
                  PreparedStatement stmt = conn.prepareStatement(sql)) {
@@ -493,7 +498,7 @@ public class TradeRepositoryImpl implements ITradeRepository {
         }
 
         return CompletableFuture.supplyAsync(() -> {
-            String sql = "SELECT COUNT(*) FROM trade_records WHERE status = ?";
+            String sql = "SELECT COUNT(*) FROM " + t("trade_records") + " WHERE status = ?";
 
             try (Connection conn = connectionProvider.getConnection();
                  PreparedStatement stmt = conn.prepareStatement(sql)) {
@@ -523,7 +528,7 @@ public class TradeRepositoryImpl implements ITradeRepository {
 
         return CompletableFuture.supplyAsync(() -> {
             String sql = """
-                SELECT COALESCE(SUM(quantity), 0) FROM trade_records 
+                SELECT COALESCE(SUM(quantity), 0) FROM " + t("trade_records") + " 
                 WHERE shop_id = ? AND status = 'COMPLETED'
                 """;
 
@@ -554,7 +559,7 @@ public class TradeRepositoryImpl implements ITradeRepository {
         }
 
         return CompletableFuture.supplyAsync(() -> {
-            String sql = "SELECT COUNT(*) FROM trade_records WHERE completed_at >= ? AND completed_at < ?";
+            String sql = "SELECT COUNT(*) FROM " + t("trade_records") + " WHERE completed_at >= ? AND completed_at < ?";
 
             try (Connection conn = connectionProvider.getConnection();
                  PreparedStatement stmt = conn.prepareStatement(sql)) {
@@ -591,7 +596,7 @@ public class TradeRepositoryImpl implements ITradeRepository {
 
         return CompletableFuture.supplyAsync(() -> {
             String sql = """
-                SELECT SUM(price_paid) FROM trade_records 
+                SELECT SUM(price_paid) FROM " + t("trade_records") + " 
                 WHERE (buyer_uuid = ? OR seller_uuid = ?) AND status = 'COMPLETED'
                 """;
 
@@ -634,7 +639,7 @@ public class TradeRepositoryImpl implements ITradeRepository {
         }
 
         return CompletableFuture.supplyAsync(() -> {
-            String sql = "DELETE FROM trade_records WHERE shop_id = ?";
+            String sql = "DELETE FROM " + t("trade_records") + " WHERE shop_id = ?";
 
             try (Connection conn = connectionProvider.getConnection();
                  PreparedStatement stmt = conn.prepareStatement(sql)) {
@@ -659,7 +664,7 @@ public class TradeRepositoryImpl implements ITradeRepository {
         }
 
         return CompletableFuture.supplyAsync(() -> {
-            String sql = "DELETE FROM trade_records WHERE completed_at < ?";
+            String sql = "DELETE FROM " + t("trade_records") + " WHERE completed_at < ?";
 
             try (Connection conn = connectionProvider.getConnection();
                  PreparedStatement stmt = conn.prepareStatement(sql)) {
@@ -687,9 +692,10 @@ public class TradeRepositoryImpl implements ITradeRepository {
         return CompletableFuture.supplyAsync(() -> {
             // For now, archive is a soft operation - we move to archive table
             // If archive table doesn't exist, we just return 0 (no archiving capability)
-            String checkTable = "SELECT 1 FROM information_schema.tables WHERE table_name = 'trade_records_archive'";
+            String archiveTable = t("trade_records_archive");
+            String checkTable = "SELECT 1 FROM information_schema.tables WHERE table_name = '" + archiveTable + "'";
             if (connectionProvider.getDatabaseType().equals("sqlite")) {
-                checkTable = "SELECT 1 FROM sqlite_master WHERE type='table' AND name='trade_records_archive'";
+                checkTable = "SELECT 1 FROM sqlite_master WHERE type='table' AND name='" + archiveTable + "'";
             }
 
             try (Connection conn = connectionProvider.getConnection();
@@ -703,11 +709,9 @@ public class TradeRepositoryImpl implements ITradeRepository {
                 }
 
                 // Archive the records
-                String archiveSql = """
-                    INSERT INTO trade_records_archive 
-                    SELECT * FROM trade_records WHERE completed_at < ?
-                    """;
-                String deleteSql = "DELETE FROM trade_records WHERE completed_at < ?";
+                String archiveSql = "INSERT INTO " + archiveTable +
+                    " SELECT * FROM " + t("trade_records") + " WHERE completed_at < ?";
+                String deleteSql = "DELETE FROM " + t("trade_records") + " WHERE completed_at < ?";
 
                 conn.setAutoCommit(false);
                 try {

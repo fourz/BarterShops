@@ -8,6 +8,8 @@ import org.bukkit.command.TabCompleter;
 import org.bukkit.entity.Player;
 import org.fourz.BarterShops.BarterShops;
 import org.fourz.BarterShops.command.sub.*;
+import org.fourz.BarterShops.service.IRatingService;
+import org.fourz.BarterShops.service.IStatsService;
 import org.fourz.rvnkcore.util.log.LogManager;
 
 import java.util.ArrayList;
@@ -50,6 +52,28 @@ public class ShopCommand implements CommandExecutor, TabCompleter {
 
         // Notification commands
         registerSubCommand("notifications", new ShopNotificationsSubCommand(plugin));
+
+        // Rating commands (feat-06)
+        IRatingService ratingService = plugin.getRatingService();
+        if (ratingService != null) {
+            registerSubCommand("rate", new ShopRateSubCommand(plugin, ratingService));
+            registerSubCommand("reviews", new ShopReviewsSubCommand(plugin, ratingService));
+            logger.debug("Registered rating commands");
+        } else {
+            logger.debug("RatingService not available - rating commands not registered");
+        }
+
+        // Statistics commands (feat-07)
+        IStatsService statsService = plugin.getStatsService();
+        if (statsService != null) {
+            registerSubCommand("stats", new ShopStatsSubCommand(plugin, statsService));
+            logger.debug("Registered statistics commands");
+        } else {
+            logger.debug("StatsService not available - statistics commands not registered");
+        }
+
+        // Region protection commands
+        registerSubCommand("region", new ShopRegionSubCommand(plugin, plugin.getProtectionManager()));
 
         // Admin commands
         registerSubCommand("admin", new ShopAdminSubCommand(plugin));

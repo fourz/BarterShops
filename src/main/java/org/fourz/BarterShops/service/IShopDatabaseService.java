@@ -1,6 +1,10 @@
 package org.fourz.BarterShops.service;
 
+import org.fourz.BarterShops.data.dto.TradeRecordDTO;
+
 import java.sql.Connection;
+import java.util.List;
+import java.util.Optional;
 import java.util.concurrent.CompletableFuture;
 
 /**
@@ -94,6 +98,26 @@ public interface IShopDatabaseService {
      * @return The total connection pool size
      */
     int getConnectionPoolSize();
+
+    // ========================================================
+    // Direct Query Methods (for API endpoints)
+    // ========================================================
+
+    /**
+     * Gets recent trade records across all shops.
+     *
+     * @param limit Maximum number of trades to return
+     * @return CompletableFuture containing list of recent trade records
+     */
+    CompletableFuture<List<TradeRecordDTO>> getRecentTrades(int limit);
+
+    /**
+     * Gets a trade record by transaction ID.
+     *
+     * @param transactionId The transaction ID
+     * @return CompletableFuture containing the trade record, or empty if not found
+     */
+    CompletableFuture<Optional<TradeRecordDTO>> getTradeByTransactionId(String transactionId);
 
     // ========================================================
     // Fallback Mode

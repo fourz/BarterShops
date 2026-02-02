@@ -4,7 +4,7 @@ version: ${project.version}
 description: Barter trading plugin with sign-based shop creation
 author: Derek Schrishuhn
 main: org.fourz.BarterShops.BarterShops
-softdepend: [RVNKCore]
+softdepend: [RVNKCore, Vault, WorldGuard, GriefPrevention]
 
 commands:
   shop:
@@ -35,6 +35,9 @@ permissions:
   bartershops.admin.gui:
     description: Allows access to admin GUI interfaces (shop browser, trade history, stats)
     default: op
+  bartershops.admin.unlimited:
+    description: Bypass shop creation limits
+    default: op
   # Template permissions
   bartershops.template:
     description: Base permission for template commands
@@ -60,3 +63,23 @@ permissions:
   bartershops.template.preset.create:
     description: Allows creating server-wide preset templates (admin)
     default: op
+  # Economy permissions
+  bartershops.economy.fee:
+    description: Allows viewing shop listing fees
+    default: true
+  bartershops.economy.tax:
+    description: Allows viewing trade tax information
+    default: true
+  bartershops.admin.economy:
+    description: Allows managing economy settings (admin)
+    default: op
+  # Region protection permissions
+  bartershops.command.region:
+    description: Allows viewing shop region protection info
+    default: true
+  bartershops.region.info:
+    description: Allows checking protection info at locations
+    default: true
+  bartershops.region.status:
+    description: Allows viewing protection system status
+    default: true

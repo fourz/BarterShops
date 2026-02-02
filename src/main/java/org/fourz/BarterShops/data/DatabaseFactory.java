@@ -10,7 +10,7 @@ public class DatabaseFactory {
 
     public static void initialize(Plugin plugin) throws SQLException {
         FileConfiguration config = plugin.getConfig();
-        String type = config.getString("database.type", "sqlite");
+        String type = config.getString("storage.type", "sqlite");
 
         if (type.equalsIgnoreCase("mysql")) {
             databaseManager = new MySQLDatabaseManager(plugin);
