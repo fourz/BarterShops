@@ -103,11 +103,18 @@ public class ShopCommand implements CommandExecutor, TabCompleter {
         }
 
         String subCommandName = args[0].toLowerCase();
+
+        // Handle help as special case (not a registered subcommand)
+        if (subCommandName.equals("help") || subCommandName.equals("?")) {
+            showHelp(sender);
+            return true;
+        }
+
         SubCommand subCommand = subCommands.get(subCommandName);
 
         if (subCommand == null) {
             sender.sendMessage(ChatColor.RED + "Unknown subcommand: " + subCommandName);
-            showHelp(sender);
+            sender.sendMessage(ChatColor.GRAY + "Use /shop help to see available commands.");
             return true;
         }
 
