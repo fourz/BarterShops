@@ -2,9 +2,9 @@
 
 **Version**: 1.0-SNAPSHOT
 **For**: Players and Shop Owners
-**Last Updated**: February 2026
+**Last Updated**: February 1, 2026
 
-Welcome to BarterShops, a modern item-for-item trading system for Minecraft. This guide will help you create and manage your own barter shops.
+Welcome to BarterShops, a modern item-for-item trading system for Minecraft. This guide will help you create and manage your own barter shops with the latest features including ratings, templates, statistics, and economy integration.
 
 ---
 
@@ -12,11 +12,17 @@ Welcome to BarterShops, a modern item-for-item trading system for Minecraft. Thi
 
 1. [Getting Started](#getting-started)
 2. [Creating Your First Shop](#creating-your-first-shop)
-3. [Shop Modes](#shop-modes)
+3. [Shop Modes and Types](#shop-modes-and-types)
 4. [Trading at Shops](#trading-at-shops)
-5. [Managing Your Shops](#managing-your-shops)
-6. [Finding Shops](#finding-shops)
-7. [Common Issues](#common-issues)
+5. [Rating and Reviewing Shops](#rating-and-reviewing-shops)
+6. [Shop Templates](#shop-templates)
+7. [Viewing Statistics](#viewing-statistics)
+8. [Economy Features](#economy-features)
+9. [Region Protection](#region-protection)
+10. [Managing Your Shops](#managing-your-shops)
+11. [Notifications](#notifications)
+12. [Commands Reference](#commands-reference)
+13. [Troubleshooting](#troubleshooting)
 
 ---
 
@@ -24,23 +30,28 @@ Welcome to BarterShops, a modern item-for-item trading system for Minecraft. Thi
 
 ### What is BarterShops?
 
-BarterShops enables player-to-player trading without currency. You set up a shop by placing a chest and sign, then configure what items you want to trade. Other players can interact with your shop to exchange items.
+BarterShops enables player-to-player trading without currency (barter mode) or with economy integration for buy/sell shops. You set up a shop by placing a chest and sign, then configure what items you want to trade. Other players can interact with your shop to exchange items.
 
 **Key Features:**
 - Item-for-item barter trading (no money required)
+- Economy integration with Vault (buy/sell shops)
 - Sign-based shop interfaces
 - Chest-backed inventory storage
-- Secure transaction validation
-- Easy shop management commands
+- Trade ratings and reviews
+- Shop templates for quick setup
+- Comprehensive statistics tracking
+- Region protection (WorldGuard/GriefPrevention)
+- Web API for external integrations
 
 ### Requirements
 
 To create a barter shop, you need:
-- Permission: `bartershops.create` (default: all players)
-- Materials:
+- **Permission**: `bartershops.create` (default: all players)
+- **Materials**:
   - 1 chest (to store traded items)
   - 1 sign (any sign type: oak, birch, spruce, etc.)
   - Items to trade
+- **Optional**: Economy balance for listing fees (if enabled)
 
 ---
 
@@ -52,23 +63,24 @@ To create a barter shop, you need:
 2. Place a chest on the ground
 3. This chest will store items from trades
 
-**Tip**: You can access the chest at any time to restock or collect items.
+**Tip**: Build in a protected region (WorldGuard/GriefPrevention) to prevent griefing.
 
 ### Step 2: Create the Shop Sign
 
-1. **Look at a sign** within 5 blocks of you
-2. Run the command:
-   ```
-   /shop create <shop_name>
-   ```
-   Example: `/shop create Derek's Trading Post`
+**Method 1 - Command**:
+1. Look at a sign within 5 blocks
+2. Run: `/shop create <shop_name>`
+3. Example: `/shop create Derek's Trading Post`
 
-3. The sign will be converted to a shop sign
-
-**Alternative Method** (Manual Sign Creation):
+**Method 2 - Manual**:
 1. Place a sign near your chest
 2. Write `[barter]` on the first line
-3. The plugin will automatically convert it to a shop
+3. The plugin will automatically convert it
+
+**Listing Fees**: If economy is enabled, you'll be charged a creation fee:
+- Barter shops: 100 coins (default)
+- Currency shops: 500 coins (default)
+- Check fees with `/shop fee list`
 
 ### Step 3: Configure Your First Trade
 
@@ -90,98 +102,33 @@ to sell
 2. **Left-click the sign** again
 3. Your trade is now configured
 
----
+### Step 5: Activate Your Shop
 
-## Shop Modes
-
-Shop signs can display different modes based on their state:
-
-### SETUP Mode
-
-**Display:**
-```
-[Shop Name]
-L-Click with
-item you want
-to sell
-```
-
-**When it appears**: When first creating a shop or reconfiguring trades
-
-**What to do**: Left-click with the item you want to trade away
+1. Right-click the sign to switch to Main Menu mode
+2. Your shop is now open for business!
 
 ---
 
-### BOARD Mode (Main Display)
+## Shop Modes and Types
 
-**Display:**
-```
-Barter Shop
-(right-click)
-[Item Offering]
-[Item Requesting]
-```
+### Shop Types
 
-**When it appears**: After shop is fully configured
+| Type | Description | Economy Required |
+|------|-------------|------------------|
+| **BARTER** | Item-for-item exchange | No |
+| **SELL** | Players buy items with currency | Yes (Vault) |
+| **BUY** | You buy items from players | Yes (Vault) |
+| **ADMIN** | Special admin shops with unlimited stock | Admin only |
 
-**What to do**:
-- Players: Right-click to initiate a trade
-- Owners: Right-click to access shop management
+### Shop Modes
 
----
-
-### TYPE Mode
-
-**Display:**
-```
-Shop Type:
-BARTER
-(or SELL/BUY/ADMIN)
-```
-
-**When it appears**: When configuring shop type
-
-**What to do**: Select the shop type (BARTER is default)
-
-**Shop Types**:
-- **BARTER**: Item-for-item exchange (default)
-- **SELL**: Players sell items to you for currency (requires economy plugin)
-- **BUY**: Players buy items from you with currency (requires economy plugin)
-- **ADMIN**: Server-managed shop with unlimited stock
-
----
-
-### HELP Mode
-
-**Display:**
-```
-BarterShops
-Help & Info
-Right-click
-for details
-```
-
-**When it appears**: When accessing shop help
-
-**What to do**: Right-click for usage instructions
-
----
-
-### DELETE Mode
-
-**Display:**
-```
-Delete Shop?
-Left-click to
-confirm removal
-Right-click cancel
-```
-
-**When it appears**: When removing a shop
-
-**What to do**:
-- Left-click to confirm deletion
-- Right-click to cancel
+| Mode | Display | Purpose |
+|------|---------|---------|
+| **SETUP** | "L-Click with item you want to sell" | Configure trade items |
+| **MAIN** | "Barter Shop (right-click)" | Customer trading interface |
+| **TYPE** | "Shop Type: BARTER" | Change shop type |
+| **HELP** | "BarterShops Help & Info" | Show usage instructions |
+| **DELETE** | "Delete Shop? L-click confirm" | Confirm shop removal |
 
 ---
 
@@ -189,11 +136,12 @@ Right-click cancel
 
 ### How to Trade
 
-1. **Find a shop** (use `/shop nearby` to locate shops)
+1. **Find a shop** using `/shop nearby [radius]`
 2. **Right-click the shop sign** to open the trade interface
 3. **Review the trade**:
    - What the shop owner wants (input)
    - What you'll receive (output)
+   - Shop ratings and reviews
 4. **Confirm the trade** in the GUI interface
 5. Items are automatically exchanged
 
@@ -201,16 +149,244 @@ Right-click cancel
 
 To complete a trade, you must:
 - Have the required items in your inventory
-- Have enough inventory space to receive the items
+- Have enough inventory space to receive items
 - Be within interaction range of the shop
+- Meet economy requirements (if applicable)
 
-### Trade Validation
+### Trade Taxes
 
-The plugin automatically checks:
-- You have the exact items required
-- The shop has the items to give you
-- Both inventories have space for the exchange
-- The shop is active and not in setup mode
+If economy features are enabled:
+- Default tax rate: 5% of trade value
+- View tax info: `/shop tax info`
+- Calculate tax: `/shop tax calculate <amount>`
+- Tax revenue can be configured by server admins
+
+---
+
+## Rating and Reviewing Shops
+
+Help other players find quality shops by leaving ratings and reviews!
+
+### Rate a Shop
+
+```
+/shop rate <shopId> <1-5> [review]
+```
+
+**Examples:**
+```bash
+/shop rate 42 5 Excellent shop, always stocked!
+/shop rate 17 4 Good prices but slow to restock
+/shop rate 8 3
+```
+
+**Rating Scale:**
+- ★★★★★ (5) - Excellent
+- ★★★★☆ (4) - Good
+- ★★★☆☆ (3) - Average
+- ★★☆☆☆ (2) - Below Average
+- ★☆☆☆☆ (1) - Poor
+
+**Notes:**
+- You cannot rate your own shops
+- Reviews are limited to 200 characters
+- Console usage: `/shop rate <shopId> <rating> <playerName> [review]`
+
+### View Shop Reviews
+
+```
+/shop reviews <shopId>
+```
+
+Displays:
+- Average rating
+- Individual ratings with review text
+- Reviewer names and dates
+- Star display for quick reference
+
+---
+
+## Shop Templates
+
+Save time creating multiple shops with similar configurations!
+
+### Save a Template
+
+```
+/shop template save <name> [description]
+```
+
+**Example:**
+```bash
+/shop template save DiamondShop Sells diamonds for emeralds
+```
+
+**Permission**: `bartershops.template.save`
+
+### Load a Template
+
+```
+/shop template load <name>
+```
+
+Apply a saved template to create a new shop quickly.
+
+**Permission**: `bartershops.template.load`
+
+### List Templates
+
+```
+/shop template list                    # Your templates
+/shop template list <player>           # Another player's templates
+/shop template list category:<name>    # Filter by category
+/shop template list tags:<tags>        # Filter by tags
+```
+
+### Template Management
+
+```
+/shop template info <name>     # View template details
+/shop template delete <name>   # Delete a template
+```
+
+**Server Presets**: Admins can create server-wide templates with `bartershops.template.preset.create`.
+
+---
+
+## Viewing Statistics
+
+Track your trading performance and see server-wide trends!
+
+### Your Personal Stats
+
+```
+/shop stats
+```
+
+**Displays:**
+- Shops owned
+- Trades completed
+- Items traded
+- Average rating
+- Most traded items (top 5)
+
+**Example Output:**
+```
+===== YourName's Statistics =====
+
+Shops Owned: 3
+Trades Completed: 127
+Items Traded: 2,458
+
+Average Rating: ★★★★☆ (4.3/5.0)
+
+Most Traded Items:
+  1. Diamond x 245
+  2. Emerald x 189
+  3. Gold Ingot x 156
+```
+
+### View Another Player's Stats
+
+```
+/shop stats <player>
+```
+
+**Permission**: `bartershops.stats.admin` (for viewing other players)
+
+### Server-Wide Statistics
+
+```
+/shop stats server
+```
+
+**Displays:**
+- Total shops
+- Active shops
+- Total trades
+- Items traded server-wide
+- Top shops by trade count
+- Most traded items
+- Average trades per shop
+
+**Permission**: `bartershops.stats.admin`
+
+---
+
+## Economy Features
+
+BarterShops integrates with Vault for economy features.
+
+### Listing Fees
+
+When creating shops, you may be charged:
+- **Barter shops**: Base fee (default: 100 coins)
+- **Currency shops**: Higher fee (default: 500 coins)
+
+**Commands:**
+```
+/shop fee list               # View current fee structure
+```
+
+### Trade Taxes
+
+Currency-based trades are taxed:
+- **Default rate**: 5% of trade value
+- Tax is deducted from the seller's earnings
+
+**Commands:**
+```
+/shop tax info                    # View tax information
+/shop tax calculate <amount>      # Calculate tax for amount
+```
+
+**Example:**
+```bash
+/shop tax calculate 1000
+# Output: Tax on 1000 coins: 50 coins (5%)
+#         Seller receives: 950 coins
+```
+
+### Mixed Trades
+
+Combine items and currency in trades:
+- Minimum currency amount: 1.0 (configurable)
+- Enable with `economy.mixed_trades.enabled: true`
+
+---
+
+## Region Protection
+
+Protect your shops from griefing with region protection!
+
+### Supported Plugins
+
+- **WorldGuard**: Automatic region creation around shops
+- **GriefPrevention**: Claim integration
+- **Auto-protection**: Default 3-block radius
+
+### Check Protection Status
+
+```
+/shop region status         # View protection system status
+/shop region info           # Check protection at current location
+```
+
+**Example Output:**
+```
+===== Region Protection Status =====
+Status: ENABLED
+Provider: WorldGuard
+Auto-protect radius: 3 blocks
+Max shops per player: 5
+
+Your current location:
+Protected: YES
+Region: shop-42-protection
+Owner: PlayerName
+```
+
+**Permission**: `bartershops.region.status`, `bartershops.region.info`
 
 ---
 
@@ -218,219 +394,206 @@ The plugin automatically checks:
 
 ### List Your Shops
 
-View all shops you own:
 ```
 /shop list
 ```
 
-**Output**:
-```
-Your Shops (3):
-#1: Derek's Trading Post - BARTER - [Active]
-   Location: world: 123, 64, -456
-#2: Diamond Exchange - BARTER - [Active]
-   Location: world: 200, 70, 300
-#3: Tool Shop - BARTER - [Inactive]
-   Location: world_nether: -50, 64, 100
-```
+**Shows:**
+- Shop ID
+- Shop name
+- Location (world, coordinates)
+- Shop type
+- Status (Active/Inactive)
 
 ### View Shop Details
 
-Get detailed information about a specific shop:
 ```
-/shop info <shop_id>
-```
-
-Example:
-```
-/shop info 1
+/shop info <shopId>
 ```
 
-**Output**:
-```
-Shop #1: Derek's Trading Post
-Type: BARTER
-Owner: Derek
-Status: Active
-Location: world (123, 64, -456)
-Created: 2026-01-15 14:30:00
-Last Modified: 2026-02-01 10:15:00
-
-Trade Configuration:
-Offering: 64x Diamond
-Requesting: 1x Netherite Ingot
-```
-
-### Remove a Shop
-
-Delete one of your shops:
-```
-/shop remove <shop_id>
-```
-
-Example:
-```
-/shop remove 3
-```
-
-**What happens**:
-1. Shop sign is removed
-2. Shop data is deleted from database
-3. Chest remains (items inside are preserved)
-4. Confirmation message is displayed
-
-**Warning**: This action cannot be undone. Make sure to empty your chest before removing the shop.
-
----
-
-## Finding Shops
+**Displays:**
+- Owner
+- Location
+- Shop type and mode
+- Trade configuration
+- Creation date
+- Last modified
+- Ratings and statistics
 
 ### Find Nearby Shops
 
-Locate shops within a specific radius:
 ```
 /shop nearby [radius]
 ```
 
-**Default radius**: 50 blocks
-**Maximum radius**: 200 blocks (configurable by admin)
+**Default radius**: 50 blocks (configurable by admin)
 
-**Examples**:
-```
-/shop nearby          # Search within 50 blocks
-/shop nearby 100      # Search within 100 blocks
-```
-
-**Output**:
-```
-Nearby Shops (3 found within 50 blocks):
-
-Shop #1: Derek's Trading Post (15 blocks away)
-Owner: Derek
-Direction: Northeast
-Trade: 64x Diamond -> 1x Netherite Ingot
-
-Shop #5: Emerald Exchange (32 blocks away)
-Owner: Alice
-Direction: South
-Trade: 32x Emerald -> 1x Diamond Block
-
-Shop #7: Food Market (45 blocks away)
-Owner: Bob
-Direction: West
-Trade: 16x Cooked Beef -> 8x Golden Apple
+**Example:**
+```bash
+/shop nearby        # Search 50 blocks
+/shop nearby 100    # Search 100 blocks
 ```
 
-### Browse All Shops
+**Output includes:**
+- Shop ID and name
+- Distance and direction
+- Owner
+- Trade configuration
+- Ratings
 
-List all active shops on the server:
+### Remove a Shop
+
 ```
-/shop list
+/shop remove <shopId>
 ```
 
-**Note**: Without arguments, this lists YOUR shops. Admins can add flags to list all shops.
+**What happens:**
+1. Shop sign is removed
+2. Shop data is deleted
+3. Chest remains (items preserved)
+4. Region protection is removed
+
+**Warning**: This action cannot be undone. Empty your chest first!
 
 ---
 
-## Common Issues
+## Notifications
 
-### "You do not have permission to create this sign!"
+BarterShops keeps you informed about your shop activity!
 
-**Cause**: Missing `bartershops.create` permission
+### Notification Types
 
-**Solution**: Contact a server administrator to grant you permission
+- **Trade Request**: When someone wants to trade
+- **Trade Complete**: When a trade succeeds
+- **Trade Cancelled**: When a trade is cancelled
+- **Shop Stock Low**: When inventory runs low (default threshold: 5 items)
+- **Shop Sale**: When someone buys from your shop
+- **Review Received**: When someone rates your shop
+- **Price Change**: When shop prices are modified (disabled by default)
+- **System**: Important system messages
+
+### Notification Channels
+
+- **Chat**: Messages in chat
+- **Action Bar**: Notification above hotbar
+- **Title**: Large screen notification
+- **Sound**: Audio notification
+
+### Manage Notifications
+
+```
+/shop notifications                  # View current settings
+/shop notifications <channel> <on|off>
+```
+
+**Examples:**
+```bash
+/shop notifications chat on       # Enable chat notifications
+/shop notifications actionBar off # Disable action bar
+/shop notifications sound on      # Enable sounds
+/shop notifications title off     # Disable title notifications
+```
+
+**Permission**: `bartershops.notifications`
 
 ---
 
-### "A shop already exists at this location"
+## Commands Reference
 
-**Cause**: Trying to create a shop on a sign that's already a shop
+### Player Commands
 
-**Solution**:
-1. Remove the existing shop first: `/shop remove <id>`
-2. Or choose a different sign location
+| Command | Description | Permission |
+|---------|-------------|------------|
+| `/shop create <name>` | Create a shop at sign you're looking at | `bartershops.create` |
+| `/shop list` | List all your shops | `bartershops.list` |
+| `/shop info <shopId>` | View shop details | Default |
+| `/shop remove <shopId>` | Delete a shop | Default |
+| `/shop nearby [radius]` | Find shops near you | `bartershops.nearby` |
+| `/shop rate <shopId> <1-5> [review]` | Rate a shop | Default |
+| `/shop reviews <shopId>` | View shop reviews | Default |
+| `/shop stats [player\|server]` | View statistics | `bartershops.stats` |
+| `/shop template <action> [args]` | Manage templates | `bartershops.template` |
+| `/shop notifications <channel> <on\|off>` | Manage notifications | `bartershops.notifications` |
+| `/shop fee list` | View listing fees | `bartershops.economy.fee` |
+| `/shop tax info` | View tax information | `bartershops.economy.tax` |
+| `/shop tax calculate <amount>` | Calculate tax | `bartershops.economy.tax` |
+| `/shop region status` | Protection system status | `bartershops.region.status` |
+| `/shop region info` | Check protection | `bartershops.region.info` |
 
----
+### Command Aliases
 
-### "You must be looking at a sign to create a shop"
-
-**Cause**: Not looking directly at a sign when running `/shop create`
-
-**Solution**:
-1. Stand within 5 blocks of a sign
-2. Look directly at the sign (center your crosshair on it)
-3. Run the command again
-
----
-
-### "No shops found within X blocks"
-
-**Cause**: No shops exist in your search radius
-
-**Solution**:
-- Try increasing the search radius: `/shop nearby 100`
-- Explore a different area
-- Create your own shop to start trading
+- `/barter` - Alias for `/shop`
+- `/shops` - Alias for `/shop`
 
 ---
 
-### "Trade validation failed"
+## Troubleshooting
 
-**Cause**: One or more trade requirements not met
+### Shop Creation Issues
 
-**Common reasons**:
-- You don't have the required items
+**"You do not have permission to create this sign!"**
+- Missing `bartershops.create` permission
+- Contact a server administrator
+
+**"A shop already exists at this location"**
+- Sign is already a shop
+- Use `/shop remove <id>` first or choose different sign
+
+**"Insufficient funds for listing fee"**
+- You need more money to create this shop type
+- Check fees with `/shop fee list`
+
+**"Maximum shops reached"**
+- You've hit the shop creation limit
+- Default: 5 shops per player (bypass with `bartershops.admin.unlimited`)
+
+### Trading Issues
+
+**"Trade validation failed"**
+- You don't have required items
 - Your inventory is full
-- The shop chest is empty or full
-- Items don't match exactly (wrong quantity or type)
+- Shop chest is empty or full
+- Items don't match exactly (wrong quantity/type)
 
-**Solution**:
-- Verify you have the exact items needed
-- Free up inventory space
-- Contact the shop owner if the shop appears broken
+**"You cannot rate your own shop"**
+- You can only rate shops owned by other players
 
----
+### Template Issues
 
-### Shop sign shows "[Shop Name]" but no trade info
+**"Template not found"**
+- Check template name spelling
+- Use `/shop template list` to see available templates
 
-**Cause**: Shop is in SETUP mode (not fully configured)
+**"Permission denied loading template"**
+- Template is owned by another player
+- Need `bartershops.template.load.other` permission
 
-**Solution**:
-- If you're the owner: Complete the setup by left-clicking with items
-- If you're a customer: The shop isn't ready yet - try another shop
+### Protection Issues
+
+**"Cannot place shop here - region protected"**
+- Location is protected by another plugin
+- You don't have build permission in this region
+- Move to a different location
 
 ---
 
 ## Tips & Best Practices
 
-### For Shop Owners
+✅ **Stock Management**: Regularly check your shop chest to restock items
 
-1. **Stock Management**: Regularly check your shop chest to restock items
-2. **Fair Trades**: Set reasonable exchange rates to attract customers
-3. **Clear Names**: Use descriptive shop names so players know what you trade
-4. **Accessible Locations**: Place shops in high-traffic areas
-5. **Protection**: Use land claiming plugins to protect your shop from griefing
+✅ **Fair Trades**: Set reasonable exchange rates to attract customers and get better ratings
 
-### For Traders
+✅ **Use Templates**: Save time creating multiple shops with similar configurations
 
-1. **Compare Prices**: Check multiple shops for the best deals
-2. **Bulk Trading**: Some shops may offer better rates for larger quantities
-3. **Build Relationships**: Regular trading with the same shops can lead to better deals
-4. **Report Issues**: If a shop appears broken or exploited, report to admins
+✅ **Check Reviews**: Look at shop ratings before trading to find reliable shops
 
----
+✅ **Protect Your Shops**: Build in protected regions to prevent griefing
 
-## Quick Command Reference
+✅ **Monitor Statistics**: Track which items are most popular and adjust inventory
 
-| Command | Description | Example |
-|---------|-------------|---------|
-| `/shop create <name>` | Create a shop at the sign you're looking at | `/shop create My Shop` |
-| `/shop list` | List all your shops | `/shop list` |
-| `/shop info <id>` | View details about a shop | `/shop info 1` |
-| `/shop remove <id>` | Remove one of your shops | `/shop remove 1` |
-| `/shop nearby [radius]` | Find shops near you | `/shop nearby 100` |
+✅ **Notification Setup**: Configure notifications to stay informed without spam
 
-**Aliases**: You can also use `/barter` or `/shops` instead of `/shop`
+✅ **Economy Integration**: Use currency features for more flexible trading options
 
 ---
 
@@ -439,9 +602,10 @@ List all active shops on the server:
 If you encounter issues not covered in this guide:
 
 1. **In-game**: Right-click a shop sign in HELP mode
-2. **Commands**: Contact server staff for assistance
-3. **Server Forums**: Check your server's community forums or Discord
-4. **Report Bugs**: Notify administrators of any technical issues
+2. **Commands**: Use `/shop help` for quick command reference
+3. **Server Staff**: Contact administrators for assistance
+4. **Documentation**: See [ADMIN_GUIDE.md](ADMIN_GUIDE.md) for configuration details
+5. **Developers**: See [DEVELOPER_GUIDE.md](DEVELOPER_GUIDE.md) for API documentation
 
 ---
 
@@ -449,3 +613,4 @@ If you encounter issues not covered in this guide:
 
 For administrator documentation, see [ADMIN_GUIDE.md](ADMIN_GUIDE.md)
 For developer documentation, see [DEVELOPER_GUIDE.md](DEVELOPER_GUIDE.md)
+For API documentation, see [API_REFERENCE.md](API_REFERENCE.md)
