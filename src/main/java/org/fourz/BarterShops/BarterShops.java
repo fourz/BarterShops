@@ -5,8 +5,16 @@ import org.bukkit.plugin.java.JavaPlugin;
 import org.fourz.BarterShops.command.CommandManager;
 import org.fourz.BarterShops.config.ConfigManager;
 import org.fourz.BarterShops.data.DatabaseManager;
+import org.fourz.BarterShops.data.FallbackTracker;
+import org.fourz.BarterShops.data.IConnectionProvider;
+import org.fourz.BarterShops.data.repository.IShopRepository;
+import org.fourz.BarterShops.data.repository.impl.ConnectionProviderImpl;
+import org.fourz.BarterShops.data.repository.impl.ShopRepositoryImpl;
 import org.fourz.BarterShops.notification.NotificationManager;
+import org.fourz.BarterShops.protection.ProtectionManager;
 import org.fourz.BarterShops.service.IShopService;
+import org.fourz.BarterShops.service.IRatingService;
+import org.fourz.BarterShops.service.IStatsService;
 import org.fourz.BarterShops.sign.SignManager;
 import org.fourz.BarterShops.container.ContainerManager;
 import org.fourz.BarterShops.shop.ShopManager;
@@ -26,7 +34,15 @@ public class BarterShops extends JavaPlugin {
     private NotificationManager notificationManager;
     private TemplateManager templateManager;
     private DatabaseManager databaseManager;
+    private ProtectionManager protectionManager;
+    private IRatingService ratingService;
+    private IStatsService statsService;
     private final LogManager logger;
+
+    // Database layer (impl-11)
+    private ConnectionProviderImpl connectionProvider;
+    private FallbackTracker fallbackTracker;
+    private IShopRepository shopRepository;
 
     // Plugin lifecycle tracking
     private long startTime;
@@ -47,6 +63,7 @@ public class BarterShops extends JavaPlugin {
         LogManager.setPluginLogLevel(this, configManager.getLogLevel());
         this.notificationManager = new NotificationManager(this);
         this.templateManager = new TemplateManager(this);
+        this.protectionManager = new ProtectionManager(this);
         this.commandManager = new CommandManager(this);
         this.signManager = new SignManager(this);
         this.containerManager = new ContainerManager(this);
@@ -54,8 +71,14 @@ public class BarterShops extends JavaPlugin {
         this.tradeEngine = new TradeEngine(this);
         this.tradeConfirmationGUI = new TradeConfirmationGUI(this);
 
-        // TODO: Initialize DatabaseManager when repository implementation is complete
-        // this.databaseManager = new DatabaseFactory().createDatabaseManager(this);
+        // Initialize database layer (impl-11)
+        initializeDatabaseLayer();
+
+        // TODO: Initialize RatingService when rating system is ready
+        // this.ratingService = createRatingService();
+
+        // TODO: Initialize StatsService when rating system is integrated
+        // this.statsService = createStatsService();
 
         // Register with RVNKCore ServiceRegistry if available
         registerWithRVNKCore();
@@ -81,6 +104,27 @@ public class BarterShops extends JavaPlugin {
             logger.error("Failed to cleanup managers", e);
         } finally {
             logger.info("BarterShops has been unloaded");
+        }
+    }
+
+    /**
+     * Initializes the database layer (ConnectionProvider, FallbackTracker, ShopRepository).
+     */
+    private void initializeDatabaseLayer() {
+        try {
+            this.fallbackTracker = new FallbackTracker(this);
+            this.connectionProvider = new ConnectionProviderImpl(this);
+            this.connectionProvider.initialize();
+            this.shopRepository = new ShopRepositoryImpl(this, connectionProvider, fallbackTracker);
+
+            logger.info("Database layer initialized successfully (" + connectionProvider.getDatabaseType() + ")");
+        } catch (Exception e) {
+            logger.warning("Failed to initialize database layer: " + e.getMessage());
+            logger.warning("Running in fallback mode (in-memory storage)");
+            // Fallback: create a fallback tracker in failed state
+            if (fallbackTracker != null) {
+                fallbackTracker.enterFallbackMode("Database initialization failed: " + e.getMessage());
+            }
         }
     }
 
@@ -143,6 +187,20 @@ public class BarterShops extends JavaPlugin {
                 logger.info("ShopServiceImpl not available - skipping IShopService registration");
             }
 
+            // TODO: Register IRatingService when RatingServiceImpl is integrated
+            // Object ratingService = createRatingService();
+            // if (ratingService != null) {
+            //     registerMethod.invoke(serviceRegistry, IRatingService.class, ratingService);
+            //     logger.info("Registered IRatingService with RVNKCore");
+            // }
+
+            // TODO: Register IStatsService when StatsServiceImpl is integrated
+            // Object statsService = createStatsService();
+            // if (statsService != null) {
+            //     registerMethod.invoke(serviceRegistry, IStatsService.class, statsService);
+            //     logger.info("Registered IStatsService with RVNKCore");
+            // }
+
             // TODO: Register ITradeService when TradeServiceImpl is implemented
             // registerMethod.invoke(serviceRegistry, ITradeService.class, tradeService);
 
@@ -168,13 +226,55 @@ public class BarterShops extends JavaPlugin {
         try {
             // Try to instantiate ShopServiceImpl if it exists
             Class<?> implClass = Class.forName("org.fourz.BarterShops.service.impl.ShopServiceImpl");
-            return implClass.getConstructor(BarterShops.class).newInstance(this);
+            // Pass plugin and repository to constructor
+            return implClass.getConstructor(BarterShops.class, IShopRepository.class)
+                    .newInstance(this, shopRepository);
         } catch (ClassNotFoundException e) {
             // ShopServiceImpl not yet implemented - this is expected during development
             logger.debug("ShopServiceImpl not found - impl-11 pending");
             return null;
+        } catch (NoSuchMethodException e) {
+            // Fall back to plugin-only constructor if repository constructor not available
+            try {
+                Class<?> implClass = Class.forName("org.fourz.BarterShops.service.impl.ShopServiceImpl");
+                return implClass.getConstructor(BarterShops.class).newInstance(this);
+            } catch (Exception ex) {
+                logger.warning("Failed to create ShopServiceImpl: " + ex.getMessage());
+                return null;
+            }
         } catch (Exception e) {
             logger.warning("Failed to create ShopServiceImpl: " + e.getMessage());
+            return null;
+        }
+    }
+
+    /**
+     * Creates the StatsServiceImpl instance for RVNKCore registration.
+     * Returns null if the implementation is not yet available.
+     *
+     * @return StatsServiceImpl instance or null
+     */
+    private Object createStatsService() {
+        try {
+            // Get ShopService first (required dependency)
+            Object shopService = createShopService();
+            if (shopService == null) {
+                logger.debug("StatsServiceImpl requires ShopServiceImpl - not available");
+                return null;
+            }
+
+            // Try to instantiate StatsServiceImpl if it exists
+            Class<?> implClass = Class.forName("org.fourz.BarterShops.service.impl.StatsServiceImpl");
+            return implClass.getConstructor(
+                BarterShops.class,
+                IShopService.class,
+                IRatingService.class
+            ).newInstance(this, shopService, ratingService);
+        } catch (ClassNotFoundException e) {
+            logger.debug("StatsServiceImpl not found - feat-07 pending");
+            return null;
+        } catch (Exception e) {
+            logger.warning("Failed to create StatsServiceImpl: " + e.getMessage());
             return null;
         }
     }
@@ -198,7 +298,9 @@ public class BarterShops extends JavaPlugin {
             java.lang.reflect.Method unregisterMethod = registryClass.getMethod("unregisterService", Class.class);
 
             // Unregister services in reverse order
+            unregisterMethod.invoke(serviceRegistry, IStatsService.class);
             unregisterMethod.invoke(serviceRegistry, IShopService.class);
+            // unregisterMethod.invoke(serviceRegistry, IRatingService.class);
             // unregisterMethod.invoke(serviceRegistry, ITradeService.class);
             // unregisterMethod.invoke(serviceRegistry, IShopDatabaseService.class);
 
@@ -217,6 +319,13 @@ public class BarterShops extends JavaPlugin {
             if (notificationManager != null) {
                 notificationManager.shutdown();
                 notificationManager = null;
+            }
+        });
+
+        cleanupManager("protection", () -> {
+            if (protectionManager != null) {
+                protectionManager.cleanup();
+                protectionManager = null;
             }
         });
 
@@ -286,6 +395,20 @@ public class BarterShops extends JavaPlugin {
                 databaseManager = null;
             }
         });
+
+        cleanupManager("shopRepository", () -> {
+            if (shopRepository != null && shopRepository instanceof ShopRepositoryImpl) {
+                ((ShopRepositoryImpl) shopRepository).shutdown();
+                shopRepository = null;
+            }
+        });
+
+        cleanupManager("connectionProvider", () -> {
+            if (connectionProvider != null) {
+                connectionProvider.shutdown();
+                connectionProvider = null;
+            }
+        });
     }
 
     private void cleanupManager(String managerName, Runnable cleanupTask) {
@@ -331,5 +454,37 @@ public class BarterShops extends JavaPlugin {
 
     public TemplateManager getTemplateManager() {
         return templateManager;
+    }
+
+    public ProtectionManager getProtectionManager() {
+        return protectionManager;
+    }
+
+    public IRatingService getRatingService() {
+        return ratingService;
+    }
+
+    public void setRatingService(IRatingService ratingService) {
+        this.ratingService = ratingService;
+    }
+
+    public IStatsService getStatsService() {
+        return statsService;
+    }
+
+    public void setStatsService(IStatsService statsService) {
+        this.statsService = statsService;
+    }
+
+    public IShopRepository getShopRepository() {
+        return shopRepository;
+    }
+
+    public IConnectionProvider getConnectionProvider() {
+        return connectionProvider;
+    }
+
+    public FallbackTracker getFallbackTracker() {
+        return fallbackTracker;
     }
 }

@@ -89,4 +89,19 @@ public interface IConnectionProvider {
      * @return true if migrations succeeded or were not needed
      */
     boolean runMigrations();
+
+    /**
+     * Gets the configured table prefix.
+     *
+     * @return The table prefix, or empty string if none
+     */
+    String getTablePrefix();
+
+    /**
+     * Gets the table name with prefix applied.
+     *
+     * @param baseName The base table name (e.g., "shops")
+     * @return The prefixed table name (e.g., "barter_shops")
+     */
+    String table(String baseName);
 }

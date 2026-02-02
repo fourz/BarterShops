@@ -30,135 +30,15 @@ public class ConnectionProviderImpl implements IConnectionProvider {
     private final BarterShops plugin;
     private final LogManager logger;
     private final String databaseType;
+    private final String tablePrefix;
     private HikariDataSource dataSource;
 
-    // SQL Schema for both dialects
-    private static final String MYSQL_SCHEMA = """
-        CREATE TABLE IF NOT EXISTS shops (
-            shop_id INT AUTO_INCREMENT PRIMARY KEY,
-            owner_uuid VARCHAR(36) NOT NULL,
-            shop_name VARCHAR(64),
-            shop_type VARCHAR(16) NOT NULL DEFAULT 'BARTER',
-            location_world VARCHAR(64),
-            location_x DOUBLE,
-            location_y DOUBLE,
-            location_z DOUBLE,
-            chest_location_world VARCHAR(64),
-            chest_location_x DOUBLE,
-            chest_location_y DOUBLE,
-            chest_location_z DOUBLE,
-            is_active BOOLEAN NOT NULL DEFAULT TRUE,
-            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-            last_modified TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-            INDEX idx_owner (owner_uuid),
-            INDEX idx_location (location_world, location_x, location_y, location_z),
-            INDEX idx_active (is_active)
-        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
-        
-        CREATE TABLE IF NOT EXISTS trade_items (
-            trade_item_id INT AUTO_INCREMENT PRIMARY KEY,
-            shop_id INT NOT NULL,
-            item_stack_data TEXT NOT NULL,
-            currency_material VARCHAR(64),
-            price_amount INT NOT NULL DEFAULT 0,
-            stock_quantity INT NOT NULL DEFAULT 0,
-            is_offering BOOLEAN NOT NULL DEFAULT TRUE,
-            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-            FOREIGN KEY (shop_id) REFERENCES shops(shop_id) ON DELETE CASCADE,
-            INDEX idx_shop (shop_id)
-        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
-        
-        CREATE TABLE IF NOT EXISTS trade_records (
-            transaction_id VARCHAR(36) PRIMARY KEY,
-            shop_id INT NOT NULL,
-            buyer_uuid VARCHAR(36) NOT NULL,
-            seller_uuid VARCHAR(36) NOT NULL,
-            item_stack_data TEXT NOT NULL,
-            quantity INT NOT NULL,
-            currency_material VARCHAR(64),
-            price_paid INT NOT NULL DEFAULT 0,
-            status VARCHAR(16) NOT NULL DEFAULT 'COMPLETED',
-            completed_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-            FOREIGN KEY (shop_id) REFERENCES shops(shop_id) ON DELETE CASCADE,
-            INDEX idx_buyer (buyer_uuid),
-            INDEX idx_seller (seller_uuid),
-            INDEX idx_shop_trade (shop_id),
-            INDEX idx_status (status),
-            INDEX idx_completed (completed_at)
-        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
-        
-        CREATE TABLE IF NOT EXISTS shop_metadata (
-            shop_id INT NOT NULL,
-            meta_key VARCHAR(64) NOT NULL,
-            meta_value TEXT,
-            PRIMARY KEY (shop_id, meta_key),
-            FOREIGN KEY (shop_id) REFERENCES shops(shop_id) ON DELETE CASCADE
-        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
-        """;
-
-    private static final String SQLITE_SCHEMA = """
-        CREATE TABLE IF NOT EXISTS shops (
-            shop_id INTEGER PRIMARY KEY AUTOINCREMENT,
-            owner_uuid TEXT NOT NULL,
-            shop_name TEXT,
-            shop_type TEXT NOT NULL DEFAULT 'BARTER',
-            location_world TEXT,
-            location_x REAL,
-            location_y REAL,
-            location_z REAL,
-            chest_location_world TEXT,
-            chest_location_x REAL,
-            chest_location_y REAL,
-            chest_location_z REAL,
-            is_active INTEGER NOT NULL DEFAULT 1,
-            created_at TEXT DEFAULT CURRENT_TIMESTAMP,
-            last_modified TEXT DEFAULT CURRENT_TIMESTAMP
-        );
-        
-        CREATE INDEX IF NOT EXISTS idx_shops_owner ON shops(owner_uuid);
-        CREATE INDEX IF NOT EXISTS idx_shops_location ON shops(location_world, location_x, location_y, location_z);
-        CREATE INDEX IF NOT EXISTS idx_shops_active ON shops(is_active);
-        
-        CREATE TABLE IF NOT EXISTS trade_items (
-            trade_item_id INTEGER PRIMARY KEY AUTOINCREMENT,
-            shop_id INTEGER NOT NULL,
-            item_stack_data TEXT NOT NULL,
-            currency_material TEXT,
-            price_amount INTEGER NOT NULL DEFAULT 0,
-            stock_quantity INTEGER NOT NULL DEFAULT 0,
-            is_offering INTEGER NOT NULL DEFAULT 1,
-            created_at TEXT DEFAULT CURRENT_TIMESTAMP,
-            FOREIGN KEY (shop_id) REFERENCES shops(shop_id) ON DELETE CASCADE
-        );
-        
-        CREATE INDEX IF NOT EXISTS idx_trade_items_shop ON trade_items(shop_id);
-        
-        CREATE TABLE IF NOT EXISTS trade_records (
-            transaction_id TEXT PRIMARY KEY,
-            shop_id INTEGER NOT NULL,
-            buyer_uuid TEXT NOT NULL,
-            seller_uuid TEXT NOT NULL,
-            item_stack_data TEXT NOT NULL,
-            quantity INTEGER NOT NULL,
-            currency_material TEXT,
-            price_paid INTEGER NOT NULL DEFAULT 0,
-            status TEXT NOT NULL DEFAULT 'COMPLETED',
-            completed_at TEXT DEFAULT CURRENT_TIMESTAMP,
-            FOREIGN KEY (shop_id) REFERENCES shops(shop_id) ON DELETE CASCADE
-        );
-        
-        CREATE INDEX IF NOT EXISTS idx_trade_records_buyer ON trade_records(buyer_uuid);
-        CREATE INDEX IF NOT EXISTS idx_trade_records_seller ON trade_records(seller_uuid);
-        CREATE INDEX IF NOT EXISTS idx_trade_records_shop ON trade_records(shop_id);
-        
-        CREATE TABLE IF NOT EXISTS shop_metadata (
-            shop_id INTEGER NOT NULL,
-            meta_key TEXT NOT NULL,
-            meta_value TEXT,
-            PRIMARY KEY (shop_id, meta_key),
-            FOREIGN KEY (shop_id) REFERENCES shops(shop_id) ON DELETE CASCADE
-        );
-        """;
+    // Table name constants (base names without prefix)
+    private static final String TABLE_SHOPS = "shops";
+    private static final String TABLE_TRADE_ITEMS = "trade_items";
+    private static final String TABLE_TRADE_RECORDS = "trade_records";
+    private static final String TABLE_SHOP_METADATA = "shop_metadata";
+    private static final String TABLE_SHOP_RATINGS = "shop_ratings";
 
     /**
      * Creates a new ConnectionProviderImpl.
@@ -180,7 +60,14 @@ public class ConnectionProviderImpl implements IConnectionProvider {
         this.plugin = plugin;
         this.logger = logger;
         FileConfiguration config = plugin.getConfigManager().getConfig();
-        this.databaseType = config.getString("database.type", "sqlite").toLowerCase();
+        this.databaseType = config.getString("storage.type", "sqlite").toLowerCase();
+
+        // Load table prefix from config
+        String prefixPath = "mysql".equals(databaseType) ? "storage.mysql.tablePrefix" : "storage.sqlite.tablePrefix";
+        this.tablePrefix = config.getString(prefixPath, "");
+        if (tablePrefix != null && !tablePrefix.isEmpty()) {
+            logger.info("Using table prefix: " + tablePrefix);
+        }
     }
 
     /**
@@ -259,21 +146,182 @@ public class ConnectionProviderImpl implements IConnectionProvider {
     }
 
     private void createSchema() throws SQLException {
-        String schema = "mysql".equals(databaseType) ? MYSQL_SCHEMA : SQLITE_SCHEMA;
-        String[] statements = schema.split(";");
+        try (Connection conn = getConnection();
+             Statement stmt = conn.createStatement()) {
 
-        try (Connection conn = getConnection()) {
-            for (String sql : statements) {
-                String trimmed = sql.trim();
-                if (!trimmed.isEmpty()) {
-                    try (Statement stmt = conn.createStatement()) {
-                        stmt.execute(trimmed);
-                    }
-                }
+            if ("mysql".equals(databaseType)) {
+                createMySQLSchema(stmt);
+            } else {
+                createSQLiteSchema(stmt);
             }
         }
 
         logger.info("Database schema validated/created successfully");
+    }
+
+    private void createMySQLSchema(Statement stmt) throws SQLException {
+        String shops = table(TABLE_SHOPS);
+        String tradeItems = table(TABLE_TRADE_ITEMS);
+        String tradeRecords = table(TABLE_TRADE_RECORDS);
+        String shopMetadata = table(TABLE_SHOP_METADATA);
+        String shopRatings = table(TABLE_SHOP_RATINGS);
+        String p = getTablePrefix();
+
+        stmt.execute("CREATE TABLE IF NOT EXISTS " + shops + " (" +
+                "shop_id INT AUTO_INCREMENT PRIMARY KEY, " +
+                "owner_uuid VARCHAR(36) NOT NULL, " +
+                "shop_name VARCHAR(64), " +
+                "shop_type VARCHAR(16) NOT NULL DEFAULT 'BARTER', " +
+                "location_world VARCHAR(64), " +
+                "location_x DOUBLE, " +
+                "location_y DOUBLE, " +
+                "location_z DOUBLE, " +
+                "chest_location_world VARCHAR(64), " +
+                "chest_location_x DOUBLE, " +
+                "chest_location_y DOUBLE, " +
+                "chest_location_z DOUBLE, " +
+                "is_active BOOLEAN NOT NULL DEFAULT TRUE, " +
+                "created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP, " +
+                "last_modified TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP, " +
+                "INDEX idx_" + p + "owner (owner_uuid), " +
+                "INDEX idx_" + p + "location (location_world, location_x, location_y, location_z), " +
+                "INDEX idx_" + p + "active (is_active)" +
+                ") ENGINE=InnoDB DEFAULT CHARSET=utf8mb4");
+
+        stmt.execute("CREATE TABLE IF NOT EXISTS " + tradeItems + " (" +
+                "trade_item_id INT AUTO_INCREMENT PRIMARY KEY, " +
+                "shop_id INT NOT NULL, " +
+                "item_stack_data TEXT NOT NULL, " +
+                "currency_material VARCHAR(64), " +
+                "price_amount INT NOT NULL DEFAULT 0, " +
+                "stock_quantity INT NOT NULL DEFAULT 0, " +
+                "is_offering BOOLEAN NOT NULL DEFAULT TRUE, " +
+                "created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP, " +
+                "FOREIGN KEY (shop_id) REFERENCES " + shops + "(shop_id) ON DELETE CASCADE, " +
+                "INDEX idx_" + p + "shop (shop_id)" +
+                ") ENGINE=InnoDB DEFAULT CHARSET=utf8mb4");
+
+        stmt.execute("CREATE TABLE IF NOT EXISTS " + tradeRecords + " (" +
+                "transaction_id VARCHAR(36) PRIMARY KEY, " +
+                "shop_id INT NOT NULL, " +
+                "buyer_uuid VARCHAR(36) NOT NULL, " +
+                "seller_uuid VARCHAR(36) NOT NULL, " +
+                "item_stack_data TEXT NOT NULL, " +
+                "quantity INT NOT NULL, " +
+                "currency_material VARCHAR(64), " +
+                "price_paid INT NOT NULL DEFAULT 0, " +
+                "status VARCHAR(16) NOT NULL DEFAULT 'COMPLETED', " +
+                "completed_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP, " +
+                "INDEX idx_" + p + "buyer (buyer_uuid), " +
+                "INDEX idx_" + p + "seller (seller_uuid), " +
+                "INDEX idx_" + p + "shop_trade (shop_id), " +
+                "INDEX idx_" + p + "status (status), " +
+                "INDEX idx_" + p + "completed (completed_at)" +
+                ") ENGINE=InnoDB DEFAULT CHARSET=utf8mb4");
+
+        stmt.execute("CREATE TABLE IF NOT EXISTS " + shopMetadata + " (" +
+                "shop_id INT NOT NULL, " +
+                "meta_key VARCHAR(64) NOT NULL, " +
+                "meta_value TEXT, " +
+                "PRIMARY KEY (shop_id, meta_key), " +
+                "FOREIGN KEY (shop_id) REFERENCES " + shops + "(shop_id) ON DELETE CASCADE" +
+                ") ENGINE=InnoDB DEFAULT CHARSET=utf8mb4");
+
+        stmt.execute("CREATE TABLE IF NOT EXISTS " + shopRatings + " (" +
+                "rating_id INT AUTO_INCREMENT PRIMARY KEY, " +
+                "shop_id INT NOT NULL, " +
+                "rater_uuid VARCHAR(36) NOT NULL, " +
+                "rating INT NOT NULL, " +
+                "review TEXT, " +
+                "created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP, " +
+                "UNIQUE KEY uq_" + p + "shop_rater (shop_id, rater_uuid), " +
+                "FOREIGN KEY (shop_id) REFERENCES " + shops + "(shop_id) ON DELETE CASCADE, " +
+                "INDEX idx_" + p + "ratings_shop (shop_id)" +
+                ") ENGINE=InnoDB DEFAULT CHARSET=utf8mb4");
+    }
+
+    private void createSQLiteSchema(Statement stmt) throws SQLException {
+        String shops = table(TABLE_SHOPS);
+        String tradeItems = table(TABLE_TRADE_ITEMS);
+        String tradeRecords = table(TABLE_TRADE_RECORDS);
+        String shopMetadata = table(TABLE_SHOP_METADATA);
+        String shopRatings = table(TABLE_SHOP_RATINGS);
+        String p = getTablePrefix();
+
+        stmt.execute("CREATE TABLE IF NOT EXISTS " + shops + " (" +
+                "shop_id INTEGER PRIMARY KEY AUTOINCREMENT, " +
+                "owner_uuid TEXT NOT NULL, " +
+                "shop_name TEXT, " +
+                "shop_type TEXT NOT NULL DEFAULT 'BARTER', " +
+                "location_world TEXT, " +
+                "location_x REAL, " +
+                "location_y REAL, " +
+                "location_z REAL, " +
+                "chest_location_world TEXT, " +
+                "chest_location_x REAL, " +
+                "chest_location_y REAL, " +
+                "chest_location_z REAL, " +
+                "is_active INTEGER NOT NULL DEFAULT 1, " +
+                "created_at TEXT DEFAULT CURRENT_TIMESTAMP, " +
+                "last_modified TEXT DEFAULT CURRENT_TIMESTAMP" +
+                ")");
+
+        stmt.execute("CREATE INDEX IF NOT EXISTS idx_" + p + "shops_owner ON " + shops + "(owner_uuid)");
+        stmt.execute("CREATE INDEX IF NOT EXISTS idx_" + p + "shops_location ON " + shops + "(location_world, location_x, location_y, location_z)");
+        stmt.execute("CREATE INDEX IF NOT EXISTS idx_" + p + "shops_active ON " + shops + "(is_active)");
+
+        stmt.execute("CREATE TABLE IF NOT EXISTS " + tradeItems + " (" +
+                "trade_item_id INTEGER PRIMARY KEY AUTOINCREMENT, " +
+                "shop_id INTEGER NOT NULL, " +
+                "item_stack_data TEXT NOT NULL, " +
+                "currency_material TEXT, " +
+                "price_amount INTEGER NOT NULL DEFAULT 0, " +
+                "stock_quantity INTEGER NOT NULL DEFAULT 0, " +
+                "is_offering INTEGER NOT NULL DEFAULT 1, " +
+                "created_at TEXT DEFAULT CURRENT_TIMESTAMP, " +
+                "FOREIGN KEY (shop_id) REFERENCES " + shops + "(shop_id) ON DELETE CASCADE" +
+                ")");
+
+        stmt.execute("CREATE INDEX IF NOT EXISTS idx_" + p + "trade_items_shop ON " + tradeItems + "(shop_id)");
+
+        stmt.execute("CREATE TABLE IF NOT EXISTS " + tradeRecords + " (" +
+                "transaction_id TEXT PRIMARY KEY, " +
+                "shop_id INTEGER NOT NULL, " +
+                "buyer_uuid TEXT NOT NULL, " +
+                "seller_uuid TEXT NOT NULL, " +
+                "item_stack_data TEXT NOT NULL, " +
+                "quantity INTEGER NOT NULL, " +
+                "currency_material TEXT, " +
+                "price_paid INTEGER NOT NULL DEFAULT 0, " +
+                "status TEXT NOT NULL DEFAULT 'COMPLETED', " +
+                "completed_at TEXT DEFAULT CURRENT_TIMESTAMP, " +
+                "FOREIGN KEY (shop_id) REFERENCES " + shops + "(shop_id) ON DELETE CASCADE" +
+                ")");
+
+        stmt.execute("CREATE INDEX IF NOT EXISTS idx_" + p + "trade_records_buyer ON " + tradeRecords + "(buyer_uuid)");
+        stmt.execute("CREATE INDEX IF NOT EXISTS idx_" + p + "trade_records_seller ON " + tradeRecords + "(seller_uuid)");
+        stmt.execute("CREATE INDEX IF NOT EXISTS idx_" + p + "trade_records_shop ON " + tradeRecords + "(shop_id)");
+
+        stmt.execute("CREATE TABLE IF NOT EXISTS " + shopMetadata + " (" +
+                "shop_id INTEGER NOT NULL, " +
+                "meta_key TEXT NOT NULL, " +
+                "meta_value TEXT, " +
+                "PRIMARY KEY (shop_id, meta_key), " +
+                "FOREIGN KEY (shop_id) REFERENCES " + shops + "(shop_id) ON DELETE CASCADE" +
+                ")");
+
+        stmt.execute("CREATE TABLE IF NOT EXISTS " + shopRatings + " (" +
+                "rating_id INTEGER PRIMARY KEY AUTOINCREMENT, " +
+                "shop_id INTEGER NOT NULL, " +
+                "rater_uuid TEXT NOT NULL, " +
+                "rating INTEGER NOT NULL CHECK (rating >= 1 AND rating <= 5), " +
+                "review TEXT, " +
+                "created_at TEXT DEFAULT CURRENT_TIMESTAMP, " +
+                "UNIQUE(shop_id, rater_uuid), " +
+                "FOREIGN KEY (shop_id) REFERENCES " + shops + "(shop_id) ON DELETE CASCADE" +
+                ")");
+
+        stmt.execute("CREATE INDEX IF NOT EXISTS idx_" + p + "shop_ratings_shop_id ON " + shopRatings + "(shop_id)");
     }
 
     @Override
@@ -341,9 +389,9 @@ public class ConnectionProviderImpl implements IConnectionProvider {
     @Override
     public boolean validateSchema() {
         try (Connection conn = getConnection()) {
-            // Check if shops table exists
+            // Check if shops table exists (with prefix if configured)
             var meta = conn.getMetaData();
-            var rs = meta.getTables(null, null, "shops", null);
+            var rs = meta.getTables(null, null, table(TABLE_SHOPS), null);
             return rs.next();
         } catch (SQLException e) {
             logger.warning("Schema validation failed: " + e.getMessage());
@@ -360,5 +408,18 @@ public class ConnectionProviderImpl implements IConnectionProvider {
             logger.error("Failed to run database migrations: " + e.getMessage());
             return false;
         }
+    }
+
+    @Override
+    public String getTablePrefix() {
+        return tablePrefix != null ? tablePrefix : "";
+    }
+
+    @Override
+    public String table(String baseName) {
+        if (tablePrefix == null || tablePrefix.isEmpty()) {
+            return baseName;
+        }
+        return tablePrefix + baseName;
     }
 }

@@ -4,7 +4,7 @@ general:
   logLevel: WARNING
 
 storage:
-# types: mysql, sqlite
+  # types: mysql, sqlite
   type: sqlite
   mysql:
     host: localhost
@@ -13,9 +13,67 @@ storage:
     password: ''
     useSSL: false
     database: bartershop
-    tablePrefix: bartershop_
+    # Table prefix for shared database hosting (e.g., "barter_" creates "barter_shops")
+    tablePrefix: "barter_"
   sqlite:
     database: data.db
+    # Table prefix for shared database hosting (e.g., "barter_" creates "barter_shops")
+    tablePrefix: "barter_"
+
+# REST API Configuration (feat-03)
+api:
+  # Enable REST API server for web integration
+  enabled: false
+
+  # HTTP server port
+  port: 8080
+
+  # CORS (Cross-Origin Resource Sharing) configuration
+  cors:
+    enabled: true
+    allowedOrigins:
+      - "http://localhost:3000"
+      - "https://fourz.org"
+
+  # API authentication
+  authentication:
+    # Require API key for requests
+    required: false
+
+    # Valid API keys (use environment variables in production)
+    keys:
+      - "dev-key-12345"
+
+economy:
+  # Shop listing fees (requires Vault)
+  fees:
+    enabled: true
+    base: 100.0              # Base fee for standard barter shops
+    currency_shop: 500.0     # Fee for currency-based shops
+
+  # Trade taxes (percentage-based)
+  taxes:
+    enabled: true
+    rate: 0.05               # 5% tax on trades (0.05 = 5%)
+
+  # Mixed trades (items + currency)
+  mixed_trades:
+    enabled: true
+    min_currency: 1.0        # Minimum currency amount for mixed trades
+
+protection:
+  # Enable shop region protection system
+  enabled: true
+
+  # Protection provider: auto, worldguard, griefprevention, none
+  # auto = auto-detect available protection plugin
+  provider: auto
+
+  # Auto-protect radius around shops (in blocks)
+  auto-protect-radius: 3
+
+  # Maximum shops per player (bypass with bartershops.admin.unlimited)
+  max-shops-per-player: 5
 
 notifications:
   # Master notification toggle (can be overridden per-player)
@@ -92,6 +150,15 @@ messages:
     - '&bYou received a new review!'
     price_change:
     - '&dPrice changed: {item} now {price}'
+  economy:
+    insufficient_funds:
+    - '&cInsufficient funds! You need {amount}'
+    fee_charged:
+    - '&aListing fee of {amount} charged'
+    tax_applied:
+    - '&7Trade tax: {amount}'
+    economy_disabled:
+    - '&eEconomy features are disabled (Vault not found)'
 
 sign:
   setup:

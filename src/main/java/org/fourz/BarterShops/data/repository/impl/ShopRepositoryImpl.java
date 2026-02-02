@@ -26,6 +26,11 @@ public class ShopRepositoryImpl implements IShopRepository {
     private final LogManager logger;
     private final ExecutorService executor;
 
+    // Table name helper
+    private String t(String baseName) {
+        return connectionProvider.table(baseName);
+    }
+
     /**
      * Creates a new ShopRepositoryImpl.
      *
@@ -69,20 +74,16 @@ public class ShopRepositoryImpl implements IShopRepository {
             boolean isInsert = shop.shopId() <= 0;
 
             if (isInsert) {
-                sql = """
-                    INSERT INTO shops (owner_uuid, shop_name, shop_type, location_world, 
-                        location_x, location_y, location_z, chest_location_world, 
-                        chest_location_x, chest_location_y, chest_location_z, is_active)
-                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-                    """;
+                sql = "INSERT INTO " + t("shops") + " (owner_uuid, shop_name, shop_type, location_world, " +
+                    "location_x, location_y, location_z, chest_location_world, " +
+                    "chest_location_x, chest_location_y, chest_location_z, is_active) " +
+                    "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)";
             } else {
-                sql = """
-                    UPDATE shops SET owner_uuid = ?, shop_name = ?, shop_type = ?, 
-                        location_world = ?, location_x = ?, location_y = ?, location_z = ?,
-                        chest_location_world = ?, chest_location_x = ?, chest_location_y = ?,
-                        chest_location_z = ?, is_active = ?, last_modified = CURRENT_TIMESTAMP
-                    WHERE shop_id = ?
-                    """;
+                sql = "UPDATE " + t("shops") + " SET owner_uuid = ?, shop_name = ?, shop_type = ?, " +
+                    "location_world = ?, location_x = ?, location_y = ?, location_z = ?, " +
+                    "chest_location_world = ?, chest_location_x = ?, chest_location_y = ?, " +
+                    "chest_location_z = ?, is_active = ?, last_modified = CURRENT_TIMESTAMP " +
+                    "WHERE shop_id = ?";
             }
 
             try (Connection conn = connectionProvider.getConnection();
@@ -149,7 +150,7 @@ public class ShopRepositoryImpl implements IShopRepository {
         }
 
         return CompletableFuture.supplyAsync(() -> {
-            String sql = "SELECT * FROM shops WHERE shop_id = ?";
+            String sql = "SELECT * FROM " + t("shops") + " WHERE shop_id = ?";
 
             try (Connection conn = connectionProvider.getConnection();
                  PreparedStatement stmt = conn.prepareStatement(sql)) {
@@ -182,7 +183,7 @@ public class ShopRepositoryImpl implements IShopRepository {
         }
 
         return CompletableFuture.supplyAsync(() -> {
-            String sql = "DELETE FROM shops WHERE shop_id = ?";
+            String sql = "DELETE FROM " + t("shops") + " WHERE shop_id = ?";
 
             try (Connection conn = connectionProvider.getConnection();
                  PreparedStatement stmt = conn.prepareStatement(sql)) {
@@ -207,7 +208,7 @@ public class ShopRepositoryImpl implements IShopRepository {
         }
 
         return CompletableFuture.supplyAsync(() -> {
-            String sql = "SELECT 1 FROM shops WHERE shop_id = ?";
+            String sql = "SELECT 1 FROM " + t("shops") + " WHERE shop_id = ?";
 
             try (Connection conn = connectionProvider.getConnection();
                  PreparedStatement stmt = conn.prepareStatement(sql)) {
@@ -237,7 +238,7 @@ public class ShopRepositoryImpl implements IShopRepository {
         }
 
         return CompletableFuture.supplyAsync(() -> {
-            String sql = "SELECT * FROM shops WHERE owner_uuid = ?";
+            String sql = "SELECT * FROM " + t("shops") + " WHERE owner_uuid = ?";
             List<ShopDataDTO> shops = new ArrayList<>();
 
             try (Connection conn = connectionProvider.getConnection();
@@ -272,10 +273,8 @@ public class ShopRepositoryImpl implements IShopRepository {
         }
 
         return CompletableFuture.supplyAsync(() -> {
-            String sql = """
-                SELECT * FROM shops 
-                WHERE location_world = ? AND location_x = ? AND location_y = ? AND location_z = ?
-                """;
+            String sql = "SELECT * FROM " + t("shops") + " " +
+                "WHERE location_world = ? AND location_x = ? AND location_y = ? AND location_z = ?";
 
             try (Connection conn = connectionProvider.getConnection();
                  PreparedStatement stmt = conn.prepareStatement(sql)) {
@@ -314,14 +313,12 @@ public class ShopRepositoryImpl implements IShopRepository {
 
         return CompletableFuture.supplyAsync(() -> {
             // Calculate bounding box for efficient query
-            String sql = """
-                SELECT * FROM shops 
-                WHERE location_world = ? 
-                AND location_x BETWEEN ? AND ?
-                AND location_y BETWEEN ? AND ?
-                AND location_z BETWEEN ? AND ?
-                AND is_active = TRUE
-                """;
+            String sql = "SELECT * FROM " + t("shops") + " " +
+                "WHERE location_world = ? " +
+                "AND location_x BETWEEN ? AND ? " +
+                "AND location_y BETWEEN ? AND ? " +
+                "AND location_z BETWEEN ? AND ? " +
+                "AND is_active = TRUE";
 
             List<ShopDataDTO> shops = new ArrayList<>();
 
@@ -370,7 +367,7 @@ public class ShopRepositoryImpl implements IShopRepository {
         }
 
         return CompletableFuture.supplyAsync(() -> {
-            String sql = "SELECT * FROM shops WHERE is_active = TRUE";
+            String sql = "SELECT * FROM " + t("shops") + " WHERE is_active = TRUE";
             List<ShopDataDTO> shops = new ArrayList<>();
 
             try (Connection conn = connectionProvider.getConnection();
@@ -401,7 +398,7 @@ public class ShopRepositoryImpl implements IShopRepository {
         }
 
         return CompletableFuture.supplyAsync(() -> {
-            String sql = "SELECT * FROM shops";
+            String sql = "SELECT * FROM " + t("shops") + "";
             List<ShopDataDTO> shops = new ArrayList<>();
 
             try (Connection conn = connectionProvider.getConnection();
@@ -436,7 +433,7 @@ public class ShopRepositoryImpl implements IShopRepository {
         }
 
         return CompletableFuture.supplyAsync(() -> {
-            String sql = "SELECT * FROM trade_items WHERE shop_id = ?";
+            String sql = "SELECT * FROM " + t("trade_items") + " WHERE shop_id = ?";
             List<TradeItemDTO> items = new ArrayList<>();
 
             try (Connection conn = connectionProvider.getConnection();
@@ -472,17 +469,13 @@ public class ShopRepositoryImpl implements IShopRepository {
             boolean isInsert = item.tradeItemId() <= 0;
 
             if (isInsert) {
-                sql = """
-                    INSERT INTO trade_items (shop_id, item_stack_data, currency_material, 
-                        price_amount, stock_quantity, is_offering)
-                    VALUES (?, ?, ?, ?, ?, ?)
-                    """;
+                sql = "INSERT INTO " + t("trade_items") + " (shop_id, item_stack_data, currency_material, " +
+                    "price_amount, stock_quantity, is_offering) " +
+                    "VALUES (?, ?, ?, ?, ?, ?)";
             } else {
-                sql = """
-                    UPDATE trade_items SET shop_id = ?, item_stack_data = ?, currency_material = ?,
-                        price_amount = ?, stock_quantity = ?, is_offering = ?
-                    WHERE trade_item_id = ?
-                    """;
+                sql = "UPDATE " + t("trade_items") + " SET shop_id = ?, item_stack_data = ?, currency_material = ?, " +
+                    "price_amount = ?, stock_quantity = ?, is_offering = ? " +
+                    "WHERE trade_item_id = ?";
             }
 
             try (Connection conn = connectionProvider.getConnection();
@@ -536,7 +529,7 @@ public class ShopRepositoryImpl implements IShopRepository {
         }
 
         return CompletableFuture.supplyAsync(() -> {
-            String sql = "DELETE FROM trade_items WHERE trade_item_id = ?";
+            String sql = "DELETE FROM " + t("trade_items") + " WHERE trade_item_id = ?";
 
             try (Connection conn = connectionProvider.getConnection();
                  PreparedStatement stmt = conn.prepareStatement(sql)) {
@@ -561,7 +554,7 @@ public class ShopRepositoryImpl implements IShopRepository {
         }
 
         return CompletableFuture.supplyAsync(() -> {
-            String sql = "UPDATE trade_items SET stock_quantity = ? WHERE trade_item_id = ?";
+            String sql = "UPDATE " + t("trade_items") + " SET stock_quantity = ? WHERE trade_item_id = ?";
 
             try (Connection conn = connectionProvider.getConnection();
                  PreparedStatement stmt = conn.prepareStatement(sql)) {
@@ -591,7 +584,7 @@ public class ShopRepositoryImpl implements IShopRepository {
         }
 
         return CompletableFuture.supplyAsync(() -> {
-            String sql = "SELECT COUNT(*) FROM shops";
+            String sql = "SELECT COUNT(*) FROM " + t("shops") + "";
 
             try (Connection conn = connectionProvider.getConnection();
                  PreparedStatement stmt = conn.prepareStatement(sql);
@@ -617,7 +610,7 @@ public class ShopRepositoryImpl implements IShopRepository {
         }
 
         return CompletableFuture.supplyAsync(() -> {
-            String sql = "SELECT COUNT(*) FROM shops WHERE owner_uuid = ?";
+            String sql = "SELECT COUNT(*) FROM " + t("shops") + " WHERE owner_uuid = ?";
 
             try (Connection conn = connectionProvider.getConnection();
                  PreparedStatement stmt = conn.prepareStatement(sql)) {
@@ -650,7 +643,7 @@ public class ShopRepositoryImpl implements IShopRepository {
         }
 
         return CompletableFuture.supplyAsync(() -> {
-            String sql = "SELECT meta_value FROM shop_metadata WHERE shop_id = ? AND meta_key = ?";
+            String sql = "SELECT meta_value FROM " + t("shop_metadata") + " WHERE shop_id = ? AND meta_key = ?";
 
             try (Connection conn = connectionProvider.getConnection();
                  PreparedStatement stmt = conn.prepareStatement(sql)) {
@@ -683,8 +676,8 @@ public class ShopRepositoryImpl implements IShopRepository {
 
         return CompletableFuture.supplyAsync(() -> {
             String sql = connectionProvider.getDatabaseType().equals("mysql")
-                    ? "INSERT INTO shop_metadata (shop_id, meta_key, meta_value) VALUES (?, ?, ?) ON DUPLICATE KEY UPDATE meta_value = ?"
-                    : "INSERT OR REPLACE INTO shop_metadata (shop_id, meta_key, meta_value) VALUES (?, ?, ?)";
+                    ? "INSERT INTO " + t("shop_metadata") + " (shop_id, meta_key, meta_value) VALUES (?, ?, ?) ON DUPLICATE KEY UPDATE meta_value = ?"
+                    : "INSERT OR REPLACE INTO " + t("shop_metadata") + " (shop_id, meta_key, meta_value) VALUES (?, ?, ?)";
 
             try (Connection conn = connectionProvider.getConnection();
                  PreparedStatement stmt = conn.prepareStatement(sql)) {
@@ -715,7 +708,7 @@ public class ShopRepositoryImpl implements IShopRepository {
         }
 
         return CompletableFuture.supplyAsync(() -> {
-            String sql = "DELETE FROM shop_metadata WHERE shop_id = ? AND meta_key = ?";
+            String sql = "DELETE FROM " + t("shop_metadata") + " WHERE shop_id = ? AND meta_key = ?";
 
             try (Connection conn = connectionProvider.getConnection();
                  PreparedStatement stmt = conn.prepareStatement(sql)) {
@@ -790,7 +783,7 @@ public class ShopRepositoryImpl implements IShopRepository {
     }
 
     private Map<String, String> loadMetadataInternal(Connection conn, int shopId) throws SQLException {
-        String sql = "SELECT meta_key, meta_value FROM shop_metadata WHERE shop_id = ?";
+        String sql = "SELECT meta_key, meta_value FROM " + t("shop_metadata") + " WHERE shop_id = ?";
         Map<String, String> metadata = new HashMap<>();
 
         try (PreparedStatement stmt = conn.prepareStatement(sql)) {
@@ -812,8 +805,8 @@ public class ShopRepositoryImpl implements IShopRepository {
         }
 
         String sql = connectionProvider.getDatabaseType().equals("mysql")
-                ? "INSERT INTO shop_metadata (shop_id, meta_key, meta_value) VALUES (?, ?, ?) ON DUPLICATE KEY UPDATE meta_value = ?"
-                : "INSERT OR REPLACE INTO shop_metadata (shop_id, meta_key, meta_value) VALUES (?, ?, ?)";
+                ? "INSERT INTO " + t("shop_metadata") + " (shop_id, meta_key, meta_value) VALUES (?, ?, ?) ON DUPLICATE KEY UPDATE meta_value = ?"
+                : "INSERT OR REPLACE INTO " + t("shop_metadata") + " (shop_id, meta_key, meta_value) VALUES (?, ?, ?)";
 
         try (PreparedStatement stmt = conn.prepareStatement(sql)) {
             for (Map.Entry<String, String> entry : metadata.entrySet()) {
