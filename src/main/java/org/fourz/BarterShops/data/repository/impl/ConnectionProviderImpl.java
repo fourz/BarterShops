@@ -102,11 +102,11 @@ public class ConnectionProviderImpl implements IConnectionProvider {
 
     private void configureMysql(HikariConfig config) {
         FileConfiguration cfg = plugin.getConfigManager().getConfig();
-        String host = cfg.getString("database.mysql.host", "localhost");
-        int port = plugin.getConfigManager().getInt("database.mysql.port", 3306);
-        String database = cfg.getString("database.mysql.database", "bartershops");
-        String username = cfg.getString("database.mysql.username", "root");
-        String password = cfg.getString("database.mysql.password", "");
+        String host = cfg.getString("storage.mysql.host", "localhost");
+        int port = cfg.getInt("storage.mysql.port", 3306);
+        String database = cfg.getString("storage.mysql.database", "bartershops");
+        String username = cfg.getString("storage.mysql.username", "root");
+        String password = cfg.getString("storage.mysql.password", "");
 
         config.setJdbcUrl("jdbc:mysql://" + host + ":" + port + "/" + database +
                 "?useSSL=false&autoReconnect=true&useUnicode=true&characterEncoding=UTF-8");
@@ -115,7 +115,7 @@ public class ConnectionProviderImpl implements IConnectionProvider {
         config.setDriverClassName("com.mysql.cj.jdbc.Driver");
 
         // MySQL-specific settings
-        config.setMaximumPoolSize(plugin.getConfigManager().getInt("database.mysql.pool-size", 10));
+        config.setMaximumPoolSize(cfg.getInt("storage.mysql.pool-size", 10));
         config.setMinimumIdle(2);
         config.setIdleTimeout(600000); // 10 minutes
         config.setMaxLifetime(1800000); // 30 minutes

@@ -3,9 +3,11 @@ package org.fourz.BarterShops.command.sub;
 import org.bukkit.ChatColor;
 import org.bukkit.command.CommandSender;
 import org.fourz.BarterShops.BarterShops;
+import org.fourz.BarterShops.command.SeedSubCommand;
 import org.fourz.BarterShops.command.SubCommand;
 
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -19,9 +21,11 @@ public class ShopAdminSubCommand implements SubCommand {
 
     private final BarterShops plugin;
     private final Map<String, AdminAction> adminActions = new HashMap<>();
+    private final SeedSubCommand seedSubCommand;
 
     public ShopAdminSubCommand(BarterShops plugin) {
         this.plugin = plugin;
+        this.seedSubCommand = new SeedSubCommand(plugin);
         registerAdminActions();
     }
 
@@ -29,6 +33,7 @@ public class ShopAdminSubCommand implements SubCommand {
         adminActions.put("reload", this::executeReload);
         adminActions.put("debug", this::executeDebug);
         adminActions.put("stats", this::executeStats);
+        adminActions.put("seed", (sender, args) -> seedSubCommand.execute(sender, args));
     }
 
     @Override
@@ -62,6 +67,8 @@ public class ShopAdminSubCommand implements SubCommand {
                 ChatColor.WHITE + " - Toggle debug mode");
         sender.sendMessage(ChatColor.YELLOW + "/shop admin stats" +
                 ChatColor.WHITE + " - Show plugin statistics");
+        sender.sendMessage(ChatColor.YELLOW + "/shop admin seed <action>" +
+                ChatColor.WHITE + " - Seed test data");
     }
 
     private boolean executeReload(CommandSender sender, String[] args) {
@@ -150,6 +157,8 @@ public class ShopAdminSubCommand implements SubCommand {
                     completions.add(action);
                 }
             }
+        } else if (args.length >= 2 && args[0].equalsIgnoreCase("seed")) {
+            return seedSubCommand.getTabCompletions(sender, Arrays.copyOfRange(args, 1, args.length));
         } else if (args.length == 2 && args[0].equalsIgnoreCase("debug")) {
             String partial = args[1].toLowerCase();
             for (String option : List.of("on", "off")) {
