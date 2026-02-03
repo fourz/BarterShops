@@ -239,7 +239,7 @@ class StatsServiceTest {
         @Test
         @DisplayName("refreshCache clears cache and recomputes")
         void refreshCacheRefreshesData() throws ExecutionException, InterruptedException {
-            statsService.enableCache();
+            statsService.setCacheEnabled(true);
             StatsDataDTO stats1 = statsService.getPlayerStats(testPlayerUuid).get();
 
             statsService.refreshCache().get();
@@ -253,7 +253,7 @@ class StatsServiceTest {
         @Test
         @DisplayName("clearCache removes all cached entries")
         void clearCacheClearsEntries() throws ExecutionException, InterruptedException {
-            statsService.enableCache();
+            statsService.setCacheEnabled(true);
             statsService.getPlayerStats(testPlayerUuid).get();
 
             statsService.clearCache();

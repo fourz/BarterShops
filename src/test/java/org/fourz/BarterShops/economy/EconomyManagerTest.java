@@ -3,11 +3,12 @@ package org.fourz.BarterShops.economy;
 import net.milkbowl.vault.economy.Economy;
 import net.milkbowl.vault.economy.EconomyResponse;
 import org.bukkit.OfflinePlayer;
+import org.bukkit.Server;
+import org.bukkit.configuration.file.FileConfiguration;
 import org.bukkit.plugin.PluginManager;
 import org.bukkit.plugin.RegisteredServiceProvider;
 import org.bukkit.plugin.ServicesManager;
 import org.fourz.BarterShops.BarterShops;
-import org.fourz.rvnkcore.util.log.LogManager;
 import org.junit.jupiter.api.*;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
@@ -32,10 +33,16 @@ class EconomyManagerTest {
     private BarterShops plugin;
 
     @Mock
+    private Server server;
+
+    @Mock
     private PluginManager pluginManager;
 
     @Mock
     private ServicesManager servicesManager;
+
+    @Mock
+    private FileConfiguration config;
 
     @Mock
     private Economy economy;
@@ -53,12 +60,15 @@ class EconomyManagerTest {
     void setUp() {
         testPlayerUuid = UUID.randomUUID();
 
-        // Setup plugin mock
-        when(plugin.getServer().getPluginManager()).thenReturn(pluginManager);
-        when(plugin.getServer().getServicesManager()).thenReturn(servicesManager);
-        when(plugin.getConfig()).thenReturn(org.bukkit.configuration.Configuration.getConfiguration(null));
-        when(plugin.getConfig().getBoolean(anyString(), anyBoolean())).thenReturn(true);
-        when(plugin.getConfig().getDouble(anyString(), anyDouble())).thenAnswer(invocation -> {
+        // Setup server mock
+        when(plugin.getServer()).thenReturn(server);
+        when(server.getPluginManager()).thenReturn(pluginManager);
+        when(server.getServicesManager()).thenReturn(servicesManager);
+
+        // Setup config mock
+        when(plugin.getConfig()).thenReturn(config);
+        when(config.getBoolean(anyString(), anyBoolean())).thenReturn(true);
+        when(config.getDouble(anyString(), anyDouble())).thenAnswer(invocation -> {
             String key = invocation.getArgument(0);
             double defaultValue = invocation.getArgument(1);
 
@@ -173,7 +183,7 @@ class EconomyManagerTest {
         @DisplayName("withdraw succeeds with sufficient balance")
         void withdrawSucceedsWithSufficientBalance() throws ExecutionException, InterruptedException {
             when(economy.has(offlinePlayer, 250.0)).thenReturn(true);
-            EconomyResponse response = new EconomyResponse(250.0, 750.0, EconomyResponse.TransactionType.WITHDRAWAL, null);
+            EconomyResponse response = new EconomyResponse(250.0, 750.0, EconomyResponse.ResponseType.SUCCESS, null);
             when(economy.withdrawPlayer(offlinePlayer, 250.0)).thenReturn(response);
             when(economy.getBalance(offlinePlayer)).thenReturn(750.0);
 
@@ -192,7 +202,7 @@ class EconomyManagerTest {
             EconomyManager.TransactionResult result = economyManager.withdraw(testPlayerUuid, 2000.0).get();
 
             assertFalse(result.success());
-            assertEquals("Insufficient funds", result.errorMessage());
+            assertEquals("Insufficient funds", result.message());
         }
 
         @Test
@@ -204,7 +214,8 @@ class EconomyManagerTest {
 
             EconomyManager.TransactionResult result = noEconomyManager.withdraw(testPlayerUuid, 100.0).get();
 
-            assertTrue(result.economyDisabled());
+            assertFalse(result.success());
+            assertEquals("Economy is not enabled", result.message());
         }
     }
 
@@ -222,7 +233,7 @@ class EconomyManagerTest {
         @Test
         @DisplayName("deposit adds funds to player")
         void depositAddsFunds() throws ExecutionException, InterruptedException {
-            EconomyResponse response = new EconomyResponse(500.0, 1500.0, EconomyResponse.TransactionType.DEPOSIT, null);
+            EconomyResponse response = new EconomyResponse(500.0, 1500.0, EconomyResponse.ResponseType.SUCCESS, null);
             when(economy.depositPlayer(offlinePlayer, 500.0)).thenReturn(response);
             when(economy.getBalance(offlinePlayer)).thenReturn(1500.0);
 
@@ -242,7 +253,8 @@ class EconomyManagerTest {
 
             EconomyManager.TransactionResult result = noEconomyManager.deposit(testPlayerUuid, 100.0).get();
 
-            assertTrue(result.economyDisabled());
+            assertFalse(result.success());
+            assertEquals("Economy is not enabled", result.message());
         }
     }
 
@@ -323,7 +335,7 @@ class EconomyManagerTest {
         void setUpFeeCharging() {
             when(org.bukkit.Bukkit.getOfflinePlayer(testPlayerUuid)).thenReturn(offlinePlayer);
             when(economy.has(offlinePlayer, 100.0)).thenReturn(true);
-            EconomyResponse response = new EconomyResponse(100.0, 900.0, EconomyResponse.TransactionType.WITHDRAWAL, null);
+            EconomyResponse response = new EconomyResponse(100.0, 900.0, EconomyResponse.ResponseType.SUCCESS, null);
             when(economy.withdrawPlayer(offlinePlayer, 100.0)).thenReturn(response);
             when(economy.getBalance(offlinePlayer)).thenReturn(900.0);
         }
@@ -360,7 +372,7 @@ class EconomyManagerTest {
         void setUpTaxApplication() {
             when(org.bukkit.Bukkit.getOfflinePlayer(testPlayerUuid)).thenReturn(offlinePlayer);
             when(economy.has(offlinePlayer, 50.0)).thenReturn(true);
-            EconomyResponse response = new EconomyResponse(50.0, 950.0, EconomyResponse.TransactionType.WITHDRAWAL, null);
+            EconomyResponse response = new EconomyResponse(50.0, 950.0, EconomyResponse.ResponseType.SUCCESS, null);
             when(economy.withdrawPlayer(offlinePlayer, 50.0)).thenReturn(response);
             when(economy.getBalance(offlinePlayer)).thenReturn(950.0);
         }
@@ -438,7 +450,7 @@ class EconomyManagerTest {
         void getTotalFeesCollectedReturnsValue() throws ExecutionException, InterruptedException {
             when(org.bukkit.Bukkit.getOfflinePlayer(testPlayerUuid)).thenReturn(offlinePlayer);
             when(economy.has(offlinePlayer, 100.0)).thenReturn(true);
-            EconomyResponse response = new EconomyResponse(100.0, 900.0, EconomyResponse.TransactionType.WITHDRAWAL, null);
+            EconomyResponse response = new EconomyResponse(100.0, 900.0, EconomyResponse.ResponseType.SUCCESS, null);
             when(economy.withdrawPlayer(offlinePlayer, 100.0)).thenReturn(response);
             when(economy.getBalance(offlinePlayer)).thenReturn(900.0);
 
@@ -455,7 +467,7 @@ class EconomyManagerTest {
         void getTotalTaxesCollectedReturnsValue() throws ExecutionException, InterruptedException {
             when(org.bukkit.Bukkit.getOfflinePlayer(testPlayerUuid)).thenReturn(offlinePlayer);
             when(economy.has(offlinePlayer, 50.0)).thenReturn(true);
-            EconomyResponse response = new EconomyResponse(50.0, 950.0, EconomyResponse.TransactionType.WITHDRAWAL, null);
+            EconomyResponse response = new EconomyResponse(50.0, 950.0, EconomyResponse.ResponseType.SUCCESS, null);
             when(economy.withdrawPlayer(offlinePlayer, 50.0)).thenReturn(response);
             when(economy.getBalance(offlinePlayer)).thenReturn(950.0);
             UUID sellerUuid = UUID.randomUUID();

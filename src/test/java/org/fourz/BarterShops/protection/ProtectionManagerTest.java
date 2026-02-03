@@ -1,7 +1,9 @@
 package org.fourz.BarterShops.protection;
 
 import org.bukkit.Location;
+import org.bukkit.Server;
 import org.bukkit.World;
+import org.bukkit.configuration.file.FileConfiguration;
 import org.bukkit.entity.Player;
 import org.bukkit.plugin.Plugin;
 import org.bukkit.plugin.PluginManager;
@@ -30,7 +32,13 @@ class ProtectionManagerTest {
     private BarterShops plugin;
 
     @Mock
+    private Server server;
+
+    @Mock
     private PluginManager pluginManager;
+
+    @Mock
+    private FileConfiguration config;
 
     @Mock
     private Plugin worldGuardPlugin;
@@ -54,13 +62,16 @@ class ProtectionManagerTest {
     void setUp() {
         testPlayerUuid = UUID.randomUUID();
 
-        // Setup plugin mock
-        when(plugin.getServer().getPluginManager()).thenReturn(pluginManager);
-        when(plugin.getConfig()).thenReturn(org.bukkit.configuration.Configuration.getConfiguration(null));
-        when(plugin.getConfig().getBoolean("protection.enabled", true)).thenReturn(true);
-        when(plugin.getConfig().getInt("protection.auto-protect-radius", 3)).thenReturn(3);
-        when(plugin.getConfig().getInt("protection.max-shops-per-player", 5)).thenReturn(5);
-        when(plugin.getConfig().getString("protection.provider", "auto")).thenReturn("auto");
+        // Setup server mock
+        when(plugin.getServer()).thenReturn(server);
+        when(server.getPluginManager()).thenReturn(pluginManager);
+
+        // Setup config mock
+        when(plugin.getConfig()).thenReturn(config);
+        when(config.getBoolean("protection.enabled", true)).thenReturn(true);
+        when(config.getInt("protection.auto-protect-radius", 3)).thenReturn(3);
+        when(config.getInt("protection.max-shops-per-player", 5)).thenReturn(5);
+        when(config.getString("protection.provider", "auto")).thenReturn("auto");
 
         // Setup location mock
         when(testLocation.getWorld()).thenReturn(testWorld);
