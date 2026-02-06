@@ -200,9 +200,21 @@ Use consistent message prefixes in command handlers:
 
 ## Documentation References
 
+### Local Documentation
 - [README.md](README.md) - Features, usage, configuration
 - [ROADMAP.md](ROADMAP.md) - Planned features, technical roadmap
 - [docs/](docs/) - Component documentation (pending)
+
+### Archon Board Documents (BarterShops-specific)
+Documents on BarterShops board (`bd4e478b-772a-4b97-bd99-300552840815`):
+- **BarterShops Architecture Specification** - Plugin architecture, RVNKCore integration plan, sign system
+- **BarterShops Database API Specification** - Repository interfaces, DTO definitions, FallbackTracker patterns
+
+### Parent Board Standards (Cross-cutting)
+Documents on Ravenkraft Dev board (`4787f505-e92e-474d-ba54-f5ac7993ccfe`):
+- [Coding Standards](../../docs/standard/coding-standards.md) - Java 17+ conventions
+- [RVNKCore Integration](../../docs/standard/rvnkcore-integration.md) - ServiceRegistry usage patterns
+- [Database Patterns](../../docs/standard/database-patterns.md) - Repository pattern, HikariCP
 
 ## Archon MCP Integration
 

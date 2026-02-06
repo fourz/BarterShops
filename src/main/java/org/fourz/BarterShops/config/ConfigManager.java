@@ -79,7 +79,6 @@ public class ConfigManager {
     }
 
     public void cleanup() {
-        saveConfig();
         config = null;
     }
 }

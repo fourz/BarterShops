@@ -37,7 +37,7 @@ public class BarterShops extends JavaPlugin {
     private ProtectionManager protectionManager;
     private IRatingService ratingService;
     private IStatsService statsService;
-    private final LogManager logger;
+    private LogManager logger;
 
     // Database layer (impl-11)
     private ConnectionProviderImpl connectionProvider;
@@ -51,16 +51,14 @@ public class BarterShops extends JavaPlugin {
     private boolean rvnkCoreAvailable = false;
     private Object rvnkCoreInstance = null;
 
-    public BarterShops() {
-        this.logger = LogManager.getInstance(this, "BarterShops");
-    }
-
     @Override
     public void onEnable() {
         this.startTime = System.currentTimeMillis();
+        this.logger = LogManager.getInstance(this, "BarterShops");
 
         this.configManager = new ConfigManager(this);
         LogManager.setPluginLogLevel(this, configManager.getLogLevel());
+        logger.info("Log level set to: " + configManager.getLogLevel());
         this.notificationManager = new NotificationManager(this);
         this.templateManager = new TemplateManager(this);
         this.protectionManager = new ProtectionManager(this);
