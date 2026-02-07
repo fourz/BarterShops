@@ -10,11 +10,21 @@ import org.fourz.BarterShops.data.IConnectionProvider;
 import org.fourz.BarterShops.data.repository.IShopRepository;
 import org.fourz.BarterShops.data.repository.impl.ConnectionProviderImpl;
 import org.fourz.BarterShops.data.repository.impl.ShopRepositoryImpl;
+import org.fourz.BarterShops.economy.EconomyManager;
+import org.fourz.BarterShops.economy.ShopFeeCalculator;
 import org.fourz.BarterShops.notification.NotificationManager;
 import org.fourz.BarterShops.protection.ProtectionManager;
+import org.fourz.BarterShops.data.repository.IRatingRepository;
+import org.fourz.BarterShops.data.repository.ITradeRepository;
+import org.fourz.BarterShops.data.repository.impl.RatingRepositoryImpl;
+import org.fourz.BarterShops.data.repository.impl.TradeRepositoryImpl;
 import org.fourz.BarterShops.service.IShopService;
 import org.fourz.BarterShops.service.IRatingService;
 import org.fourz.BarterShops.service.IStatsService;
+import org.fourz.BarterShops.service.ITradeService;
+import org.fourz.BarterShops.service.impl.RatingServiceImpl;
+import org.fourz.BarterShops.service.impl.StatsServiceImpl;
+import org.fourz.BarterShops.service.impl.TradeServiceImpl;
 import org.fourz.BarterShops.sign.SignManager;
 import org.fourz.BarterShops.container.ContainerManager;
 import org.fourz.BarterShops.shop.ShopManager;
@@ -37,12 +47,16 @@ public class BarterShops extends JavaPlugin {
     private ProtectionManager protectionManager;
     private IRatingService ratingService;
     private IStatsService statsService;
+    private EconomyManager economyManager;
+    private ShopFeeCalculator feeCalculator;
     private LogManager logger;
 
     // Database layer (impl-11)
     private ConnectionProviderImpl connectionProvider;
     private FallbackTracker fallbackTracker;
     private IShopRepository shopRepository;
+    private ITradeRepository tradeRepository;
+    private TradeServiceImpl tradeService;
 
     // Plugin lifecycle tracking
     private long startTime;
@@ -62,6 +76,8 @@ public class BarterShops extends JavaPlugin {
         this.notificationManager = new NotificationManager(this);
         this.templateManager = new TemplateManager(this);
         this.protectionManager = new ProtectionManager(this);
+        this.economyManager = new EconomyManager(this);
+        this.feeCalculator = new ShopFeeCalculator(economyManager);
         this.commandManager = new CommandManager(this);
         this.signManager = new SignManager(this);
         this.containerManager = new ContainerManager(this);
@@ -72,11 +88,11 @@ public class BarterShops extends JavaPlugin {
         // Initialize database layer (impl-11)
         initializeDatabaseLayer();
 
-        // TODO: Initialize RatingService when rating system is ready
-        // this.ratingService = createRatingService();
+        // Initialize RatingService (requires database layer)
+        initializeRatingService();
 
-        // TODO: Initialize StatsService when rating system is integrated
-        // this.statsService = createStatsService();
+        // Initialize StatsService (requires ShopService + RatingService)
+        initializeStatsService();
 
         // Register with RVNKCore ServiceRegistry if available
         registerWithRVNKCore();
@@ -114,6 +130,8 @@ public class BarterShops extends JavaPlugin {
             this.connectionProvider = new ConnectionProviderImpl(this);
             this.connectionProvider.initialize();
             this.shopRepository = new ShopRepositoryImpl(this, connectionProvider, fallbackTracker);
+            this.tradeRepository = new TradeRepositoryImpl(this, connectionProvider, fallbackTracker);
+            this.tradeService = new TradeServiceImpl(this, tradeRepository, fallbackTracker);
 
             logger.info("Database layer initialized successfully (" + connectionProvider.getDatabaseType() + ")");
         } catch (Exception e) {
@@ -123,6 +141,40 @@ public class BarterShops extends JavaPlugin {
             if (fallbackTracker != null) {
                 fallbackTracker.enterFallbackMode("Database initialization failed: " + e.getMessage());
             }
+        }
+    }
+
+    /**
+     * Initializes the RatingService with its repository dependency.
+     */
+    private void initializeRatingService() {
+        if (connectionProvider == null || fallbackTracker == null) {
+            logger.info("RatingService skipped — database layer not available");
+            return;
+        }
+        try {
+            IRatingRepository ratingRepo = new RatingRepositoryImpl(this, connectionProvider, fallbackTracker);
+            this.ratingService = new RatingServiceImpl(this, ratingRepo, shopRepository);
+            logger.info("RatingService initialized");
+        } catch (Exception e) {
+            logger.warning("Failed to initialize RatingService: " + e.getMessage());
+        }
+    }
+
+    /**
+     * Initializes the StatsService with ShopService and RatingService dependencies.
+     */
+    private void initializeStatsService() {
+        Object shopServiceObj = createShopService();
+        if (shopServiceObj == null) {
+            logger.info("StatsService skipped — ShopServiceImpl not available");
+            return;
+        }
+        try {
+            this.statsService = new StatsServiceImpl(this, (IShopService) shopServiceObj, ratingService);
+            logger.info("StatsService initialized");
+        } catch (Exception e) {
+            logger.warning("Failed to initialize StatsService: " + e.getMessage());
         }
     }
 
@@ -185,22 +237,23 @@ public class BarterShops extends JavaPlugin {
                 logger.info("ShopServiceImpl not available - skipping IShopService registration");
             }
 
-            // TODO: Register IRatingService when RatingServiceImpl is integrated
-            // Object ratingService = createRatingService();
-            // if (ratingService != null) {
-            //     registerMethod.invoke(serviceRegistry, IRatingService.class, ratingService);
-            //     logger.info("Registered IRatingService with RVNKCore");
-            // }
+            // Register IRatingService
+            if (ratingService != null) {
+                registerMethod.invoke(serviceRegistry, IRatingService.class, ratingService);
+                logger.info("Registered IRatingService with RVNKCore");
+            }
 
-            // TODO: Register IStatsService when StatsServiceImpl is integrated
-            // Object statsService = createStatsService();
-            // if (statsService != null) {
-            //     registerMethod.invoke(serviceRegistry, IStatsService.class, statsService);
-            //     logger.info("Registered IStatsService with RVNKCore");
-            // }
+            // Register IStatsService
+            if (statsService != null) {
+                registerMethod.invoke(serviceRegistry, IStatsService.class, statsService);
+                logger.info("Registered IStatsService with RVNKCore");
+            }
 
-            // TODO: Register ITradeService when TradeServiceImpl is implemented
-            // registerMethod.invoke(serviceRegistry, ITradeService.class, tradeService);
+            // Register ITradeService
+            if (tradeService != null) {
+                registerMethod.invoke(serviceRegistry, ITradeService.class, tradeService);
+                logger.info("Registered ITradeService with RVNKCore");
+            }
 
             rvnkCoreAvailable = true;
             rvnkCoreInstance = coreInstance;
@@ -246,36 +299,6 @@ public class BarterShops extends JavaPlugin {
         }
     }
 
-    /**
-     * Creates the StatsServiceImpl instance for RVNKCore registration.
-     * Returns null if the implementation is not yet available.
-     *
-     * @return StatsServiceImpl instance or null
-     */
-    private Object createStatsService() {
-        try {
-            // Get ShopService first (required dependency)
-            Object shopService = createShopService();
-            if (shopService == null) {
-                logger.debug("StatsServiceImpl requires ShopServiceImpl - not available");
-                return null;
-            }
-
-            // Try to instantiate StatsServiceImpl if it exists
-            Class<?> implClass = Class.forName("org.fourz.BarterShops.service.impl.StatsServiceImpl");
-            return implClass.getConstructor(
-                BarterShops.class,
-                IShopService.class,
-                IRatingService.class
-            ).newInstance(this, shopService, ratingService);
-        } catch (ClassNotFoundException e) {
-            logger.debug("StatsServiceImpl not found - feat-07 pending");
-            return null;
-        } catch (Exception e) {
-            logger.warning("Failed to create StatsServiceImpl: " + e.getMessage());
-            return null;
-        }
-    }
 
     /**
      * Unregisters services from RVNKCore ServiceRegistry.
@@ -298,8 +321,8 @@ public class BarterShops extends JavaPlugin {
             // Unregister services in reverse order
             unregisterMethod.invoke(serviceRegistry, IStatsService.class);
             unregisterMethod.invoke(serviceRegistry, IShopService.class);
-            // unregisterMethod.invoke(serviceRegistry, IRatingService.class);
-            // unregisterMethod.invoke(serviceRegistry, ITradeService.class);
+            unregisterMethod.invoke(serviceRegistry, IRatingService.class);
+            unregisterMethod.invoke(serviceRegistry, ITradeService.class);
             // unregisterMethod.invoke(serviceRegistry, IShopDatabaseService.class);
 
             logger.info("Services unregistered from RVNKCore");
@@ -394,6 +417,17 @@ public class BarterShops extends JavaPlugin {
             }
         });
 
+        cleanupManager("tradeService", () -> {
+            tradeService = null;
+        });
+
+        cleanupManager("tradeRepository", () -> {
+            if (tradeRepository != null && tradeRepository instanceof TradeRepositoryImpl) {
+                ((TradeRepositoryImpl) tradeRepository).shutdown();
+                tradeRepository = null;
+            }
+        });
+
         cleanupManager("shopRepository", () -> {
             if (shopRepository != null && shopRepository instanceof ShopRepositoryImpl) {
                 ((ShopRepositoryImpl) shopRepository).shutdown();
@@ -484,5 +518,21 @@ public class BarterShops extends JavaPlugin {
 
     public FallbackTracker getFallbackTracker() {
         return fallbackTracker;
+    }
+
+    public EconomyManager getEconomyManager() {
+        return economyManager;
+    }
+
+    public ShopFeeCalculator getFeeCalculator() {
+        return feeCalculator;
+    }
+
+    public TradeServiceImpl getTradeService() {
+        return tradeService;
+    }
+
+    public ITradeRepository getTradeRepository() {
+        return tradeRepository;
     }
 }

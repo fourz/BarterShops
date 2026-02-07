@@ -8,6 +8,8 @@ import org.bukkit.command.TabCompleter;
 import org.bukkit.entity.Player;
 import org.fourz.BarterShops.BarterShops;
 import org.fourz.BarterShops.command.sub.*;
+import org.fourz.BarterShops.economy.EconomyManager;
+import org.fourz.BarterShops.economy.ShopFeeCalculator;
 import org.fourz.BarterShops.service.IRatingService;
 import org.fourz.BarterShops.service.IStatsService;
 import org.fourz.rvnkcore.util.log.LogManager;
@@ -70,6 +72,17 @@ public class ShopCommand implements CommandExecutor, TabCompleter {
             logger.debug("Registered statistics commands");
         } else {
             logger.debug("StatsService not available - statistics commands not registered");
+        }
+
+        // Economy commands (feat-02) - conditional on EconomyManager availability
+        EconomyManager economyManager = plugin.getEconomyManager();
+        if (economyManager != null) {
+            ShopFeeCalculator calculator = plugin.getFeeCalculator();
+            registerSubCommand("fee", new ShopFeeSubCommand(plugin, economyManager));
+            registerSubCommand("tax", new ShopTaxSubCommand(plugin, economyManager, calculator));
+            logger.debug("Registered economy commands (fee, tax)");
+        } else {
+            logger.debug("EconomyManager not available - economy commands not registered");
         }
 
         // Region protection commands

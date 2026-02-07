@@ -13,10 +13,24 @@ commands:
     aliases: [barter, shops]
 
 permissions:
+  bartershops.create:
+    description: Allows creating barter shops via signs
+    default: true
+  bartershops.configure:
+    description: Allows configuring shop signs (owner interaction)
+    default: true
   bartershops.list:
     description: Allows listing all shops
+    default: true
   bartershops.nearby:
     description: Allows finding nearby shops
+    default: true
+  bartershops.admin:
+    description: General admin bypass for shop operations
+    default: op
+  bartershops.stats.admin:
+    description: Allows viewing server-wide statistics
+    default: op
   bartershops.reload:
     description: Allows reloading the plugin configuration
     default: op
@@ -83,3 +97,10 @@ permissions:
   bartershops.region.status:
     description: Allows viewing protection system status
     default: true
+  # Debug permissions
+  bartershops.debug:
+    description: Allows access to debug and diagnostic commands
+    default: op
+  bartershops.admin.seed:
+    description: Allows seeding test data into the database
+    default: op
