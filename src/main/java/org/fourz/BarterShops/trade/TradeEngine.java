@@ -11,6 +11,8 @@ import org.fourz.BarterShops.service.ITradeService.TradeResultDTO;
 import org.fourz.BarterShops.sign.BarterSign;
 import org.fourz.rvnkcore.util.log.LogManager;
 
+import org.fourz.BarterShops.service.impl.TradeServiceImpl;
+
 import java.util.Map;
 import java.util.Optional;
 import java.util.UUID;
@@ -277,8 +279,17 @@ public class TradeEngine {
                 .pricePaid(session.getRequestedQuantity())
                 .build();
 
-        // TODO: Save to ITradeRepository when implementation exists
-        logger.debug("Trade logged: " + transactionId);
+        // Persist via TradeServiceImpl if available
+        TradeServiceImpl tradeService = plugin.getTradeService();
+        if (tradeService != null) {
+            tradeService.saveTrade(record)
+                .exceptionally(ex -> {
+                    logger.error("Failed to persist trade record: " + ex.getMessage());
+                    return record;
+                });
+        } else {
+            logger.debug("Trade logged (no persistence — TradeServiceImpl not available): " + transactionId);
+        }
     }
 
     /**

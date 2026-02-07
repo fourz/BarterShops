@@ -5,6 +5,7 @@ import org.bukkit.OfflinePlayer;
 import org.fourz.BarterShops.BarterShops;
 import org.fourz.BarterShops.data.dto.ShopDataDTO;
 import org.fourz.BarterShops.data.dto.StatsDataDTO;
+import org.fourz.BarterShops.data.dto.TradeRecordDTO;
 import org.fourz.BarterShops.service.IShopService;
 import org.fourz.BarterShops.service.IRatingService;
 import org.fourz.BarterShops.service.IStatsService;
@@ -433,81 +434,88 @@ public class StatsServiceImpl implements IStatsService {
     }
 
     // ========================================================
-    // Helper Methods (Mock Data - Replace with ITradeService)
+    // Helper Methods (delegates to TradeServiceImpl)
     // ========================================================
 
+    private TradeServiceImpl getTradeService() {
+        return plugin.getTradeService();
+    }
+
     /**
-     * Calculates player trade count.
-     * TODO: Replace with ITradeService when implemented.
+     * Calculates player trade count from repository.
      */
     private int calculatePlayerTrades(UUID playerUuid) {
-        // Mock data - will query trade repository in production
-        return new Random(playerUuid.hashCode()).nextInt(100);
+        TradeServiceImpl ts = getTradeService();
+        if (ts == null) return 0;
+        return ts.getPlayerTradeCount(playerUuid).join().intValue();
     }
 
     /**
-     * Calculates player items traded.
-     * TODO: Replace with ITradeService when implemented.
+     * Calculates player items traded from repository.
      */
     private int calculatePlayerItems(UUID playerUuid) {
-        // Mock data - will query trade repository in production
-        return calculatePlayerTrades(playerUuid) * 16; // Assume average of 16 items per trade
+        TradeServiceImpl ts = getTradeService();
+        if (ts == null) return 0;
+        List<TradeRecordDTO> trades = ts.getTradeHistory(playerUuid, 1000).join();
+        return trades.stream().mapToInt(TradeRecordDTO::quantity).sum();
     }
 
     /**
-     * Calculates total server trades.
-     * TODO: Replace with ITradeService when implemented.
+     * Calculates total server trade count from repository.
      */
     private int calculateTotalTrades() {
-        // Mock data - will query trade repository in production
-        List<ShopDataDTO> allShops = shopService.getAllShops().join();
-        return allShops.size() * 25; // Assume average of 25 trades per shop
+        TradeServiceImpl ts = getTradeService();
+        if (ts == null) return 0;
+        return ts.getTotalTradeCount().join().intValue();
     }
 
     /**
-     * Calculates total server items traded.
-     * TODO: Replace with ITradeService when implemented.
+     * Calculates total server items traded from repository.
      */
     private int calculateTotalItems() {
-        // Mock data - will query trade repository in production
-        return calculateTotalTrades() * 16; // Assume average of 16 items per trade
+        TradeServiceImpl ts = getTradeService();
+        if (ts == null) return 0;
+        List<TradeRecordDTO> trades = ts.getRecentTrades(10000).join();
+        return trades.stream().mapToInt(TradeRecordDTO::quantity).sum();
     }
 
     /**
-     * Calculates shop-specific trade count.
-     * TODO: Replace with ITradeService when implemented.
+     * Calculates shop-specific trade count from repository.
      */
     private int calculateShopTrades(String shopId) {
-        // Mock data - will query trade repository in production
-        return new Random(shopId.hashCode()).nextInt(50);
+        TradeServiceImpl ts = getTradeService();
+        if (ts == null) return 0;
+        return ts.getShopTradeCount(shopId).join().intValue();
     }
 
     /**
-     * Gets most traded items for a player.
-     * TODO: Replace with ITradeService when implemented.
+     * Gets most traded items for a player from trade history.
      */
     private Map<String, Integer> getMostTradedItemsForPlayer(UUID playerUuid) {
-        // Mock data - will query trade repository in production
-        Map<String, Integer> items = new HashMap<>();
-        items.put("DIAMOND", 32);
-        items.put("EMERALD", 24);
-        items.put("IRON_INGOT", 64);
-        return items;
+        TradeServiceImpl ts = getTradeService();
+        if (ts == null) return Map.of();
+        List<TradeRecordDTO> trades = ts.getTradeHistory(playerUuid, 1000).join();
+        return trades.stream()
+            .filter(t -> t.itemStackData() != null)
+            .collect(Collectors.groupingBy(
+                t -> t.itemStackData().contains(":") ? t.itemStackData().split(":")[0] : t.itemStackData(),
+                Collectors.summingInt(TradeRecordDTO::quantity)
+            ));
     }
 
     /**
-     * Gets most traded items globally.
-     * TODO: Replace with ITradeService when implemented.
+     * Gets most traded items globally from trade history.
      */
     private Map<String, Integer> getMostTradedItemsGlobal() {
-        // Mock data - will query trade repository in production
-        Map<String, Integer> items = new HashMap<>();
-        items.put("DIAMOND", 320);
-        items.put("EMERALD", 240);
-        items.put("IRON_INGOT", 640);
-        items.put("GOLD_INGOT", 180);
-        items.put("NETHERITE_INGOT", 45);
-        return items;
+        TradeServiceImpl ts = getTradeService();
+        if (ts == null) return Map.of();
+        List<TradeRecordDTO> trades = ts.getRecentTrades(10000).join();
+        return trades.stream()
+            .filter(t -> t.itemStackData() != null)
+            .collect(Collectors.groupingBy(
+                t -> t.itemStackData().contains(":") ? t.itemStackData().split(":")[0] : t.itemStackData(),
+                Collectors.summingInt(TradeRecordDTO::quantity)
+            ));
     }
 
     // ========================================================
