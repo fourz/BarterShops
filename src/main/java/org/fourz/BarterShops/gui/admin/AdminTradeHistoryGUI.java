@@ -74,12 +74,30 @@ public class AdminTradeHistoryGUI implements Listener {
             player.closeInventory();
         }
 
-        // Get all trades (async would be better)
-        List<TradeRecordDTO> allTrades = getAllTrades();
+        // Load trades asynchronously
+        getAllTrades().thenAccept(allTrades -> {
+            // Apply filter
+            List<TradeRecordDTO> filteredTrades = filterTrades(allTrades, filter);
 
-        // Apply filter
-        List<TradeRecordDTO> filteredTrades = filterTrades(allTrades, filter);
+            // Sync back to main thread for GUI operations
+            plugin.getServer().getScheduler().runTask(plugin, () -> {
+                buildAndOpenGui(player, filteredTrades, page, filter);
+            });
+        }).exceptionally(ex -> {
+            // Handle error on main thread
+            plugin.getServer().getScheduler().runTask(plugin, () -> {
+                player.sendMessage(ChatColor.RED + "Failed to load trade history: " + ex.getMessage());
+                logger.error("Failed to load trades for admin GUI: " + ex.getMessage());
+            });
+            return null;
+        });
+    }
 
+    /**
+     * Builds and opens the GUI with loaded trade data.
+     * Must be called on main thread.
+     */
+    private void buildAndOpenGui(Player player, List<TradeRecordDTO> filteredTrades, int page, TradeFilter filter) {
         // Calculate pagination
         int totalPages = (int) Math.ceil((double) filteredTrades.size() / ITEMS_PER_PAGE);
         if (totalPages == 0) totalPages = 1;
@@ -299,13 +317,20 @@ public class AdminTradeHistoryGUI implements Listener {
     }
 
     /**
-     * Gets all trades from the plugin.
-     * TODO: Replace with async repository call
+     * Gets all trades from the repository asynchronously.
      */
-    private List<TradeRecordDTO> getAllTrades() {
-        // For now, return empty list - would integrate with ITradeRepository
-        // when repository implementation is complete
-        return new ArrayList<>();
+    private java.util.concurrent.CompletableFuture<List<TradeRecordDTO>> getAllTrades() {
+        if (plugin.getTradeService() == null) {
+            logger.warning("TradeService is null, returning empty list");
+            return java.util.concurrent.CompletableFuture.completedFuture(new ArrayList<>());
+        }
+
+        // Use TradeServiceImpl's getRecentTrades method (limit 1000 for admin view)
+        return plugin.getTradeService().getRecentTrades(1000)
+            .exceptionally(ex -> {
+                logger.error("Failed to fetch trades from repository: " + ex.getMessage());
+                return new ArrayList<>();
+            });
     }
 
     /**

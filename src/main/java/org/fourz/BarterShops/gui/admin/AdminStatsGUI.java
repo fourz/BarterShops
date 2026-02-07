@@ -13,9 +13,11 @@ import org.bukkit.inventory.Inventory;
 import org.bukkit.inventory.ItemStack;
 import org.bukkit.inventory.meta.ItemMeta;
 import org.fourz.BarterShops.BarterShops;
+import org.fourz.BarterShops.data.dto.ShopDataDTO;
 import org.fourz.rvnkcore.util.log.LogManager;
 
 import java.util.*;
+import java.util.concurrent.CompletableFuture;
 
 /**
  * Admin GUI for viewing analytics and server-wide statistics.
@@ -60,6 +62,40 @@ public class AdminStatsGUI implements Listener {
             player.closeInventory();
         }
 
+        // Load all statistics asynchronously
+        CompletableFuture<ShopStats> shopStatsFuture = getShopStatistics();
+        CompletableFuture<TradeStats> tradeStatsFuture = getTradeStatistics();
+        CompletableFuture<PlayerStats> playerStatsFuture = getPlayerStatistics();
+
+        // Combine all futures
+        CompletableFuture.allOf(shopStatsFuture, tradeStatsFuture, playerStatsFuture)
+            .thenAccept(v -> {
+                ShopStats shopStats = shopStatsFuture.join();
+                TradeStats tradeStats = tradeStatsFuture.join();
+                PlayerStats playerStats = playerStatsFuture.join();
+                SystemStats systemStats = getSystemStatistics();
+
+                // Sync back to main thread for GUI operations
+                plugin.getServer().getScheduler().runTask(plugin, () -> {
+                    buildAndOpenGui(player, shopStats, tradeStats, playerStats, systemStats);
+                });
+            })
+            .exceptionally(ex -> {
+                // Handle error on main thread
+                plugin.getServer().getScheduler().runTask(plugin, () -> {
+                    player.sendMessage(ChatColor.RED + "Failed to load statistics: " + ex.getMessage());
+                    logger.error("Failed to load stats for admin GUI: " + ex.getMessage());
+                });
+                return null;
+            });
+    }
+
+    /**
+     * Builds and opens the GUI with loaded statistics.
+     * Must be called on main thread.
+     */
+    private void buildAndOpenGui(Player player, ShopStats shopStats, TradeStats tradeStats,
+                                   PlayerStats playerStats, SystemStats systemStats) {
         // Build the GUI
         String title = ChatColor.DARK_PURPLE + "BarterShops Analytics";
         Inventory gui = Bukkit.createInventory(null, GUI_SIZE, title);
@@ -69,12 +105,6 @@ public class AdminStatsGUI implements Listener {
         for (int i = 0; i < GUI_SIZE; i++) {
             gui.setItem(i, filler);
         }
-
-        // Get statistics
-        ShopStats shopStats = getShopStatistics();
-        TradeStats tradeStats = getTradeStatistics();
-        PlayerStats playerStats = getPlayerStatistics();
-        SystemStats systemStats = getSystemStatistics();
 
         // Shop statistics
         gui.setItem(SLOT_SHOP_STATS, createItem(Material.CHEST,
@@ -190,29 +220,138 @@ public class AdminStatsGUI implements Listener {
     }
 
     /**
-     * Gets shop statistics.
+     * Gets shop statistics asynchronously.
      */
-    private ShopStats getShopStatistics() {
-        // TODO: Integrate with IShopRepository when available
-        int totalShops = plugin.getSignManager().getBarterSigns().size();
-        return new ShopStats(totalShops, totalShops, 0, 0, 0);
+    private CompletableFuture<ShopStats> getShopStatistics() {
+        if (plugin.getShopRepository() == null) {
+            logger.warning("ShopRepository is null, returning placeholder stats");
+            return CompletableFuture.completedFuture(new ShopStats(0, 0, 0, 0, 0));
+        }
+
+        // Get all shops and calculate stats
+        return plugin.getShopRepository().findAll()
+            .thenApply(allShops -> {
+                int totalShops = allShops.size();
+                int activeShops = (int) allShops.stream().filter(s -> s.isActive()).count();
+                int inactiveShops = totalShops - activeShops;
+                int adminShops = (int) allShops.stream()
+                    .filter(s -> s.shopType() == ShopDataDTO.ShopType.ADMIN)
+                    .count();
+
+                // Calculate average items per shop (would need TradeItem data)
+                int avgItemsPerShop = 0;
+
+                return new ShopStats(totalShops, activeShops, inactiveShops, adminShops, avgItemsPerShop);
+            })
+            .exceptionally(ex -> {
+                logger.error("Failed to fetch shop statistics: " + ex.getMessage());
+                return new ShopStats(0, 0, 0, 0, 0);
+            });
     }
 
     /**
-     * Gets trade statistics.
+     * Gets trade statistics asynchronously.
      */
-    private TradeStats getTradeStatistics() {
-        // TODO: Integrate with ITradeRepository when available
-        return new TradeStats(0, 0, 0, 0, 0, 0);
+    private CompletableFuture<TradeStats> getTradeStatistics() {
+        if (plugin.getTradeRepository() == null) {
+            logger.warning("TradeRepository is null, returning placeholder stats");
+            return CompletableFuture.completedFuture(new TradeStats(0, 0, 0, 0, 0, 0));
+        }
+
+        // Get total trade count
+        CompletableFuture<Long> totalCountFuture = plugin.getTradeRepository().count();
+
+        // Get recent trades for today/week calculations
+        CompletableFuture<java.util.List<org.fourz.BarterShops.data.dto.TradeRecordDTO>> recentTradesFuture =
+            plugin.getTradeRepository().findRecent(1000);
+
+        return CompletableFuture.allOf(totalCountFuture, recentTradesFuture)
+            .thenApply(v -> {
+                long totalTrades = totalCountFuture.join();
+                java.util.List<org.fourz.BarterShops.data.dto.TradeRecordDTO> recentTrades = recentTradesFuture.join();
+
+                // Calculate completed/failed counts
+                int completedTrades = (int) recentTrades.stream()
+                    .filter(t -> t.status() == org.fourz.BarterShops.data.dto.TradeRecordDTO.TradeStatus.COMPLETED)
+                    .count();
+                int failedTrades = (int) recentTrades.stream()
+                    .filter(t -> t.status() == org.fourz.BarterShops.data.dto.TradeRecordDTO.TradeStatus.FAILED ||
+                                 t.status() == org.fourz.BarterShops.data.dto.TradeRecordDTO.TradeStatus.CANCELLED)
+                    .count();
+
+                // Calculate trades today
+                long oneDayAgo = System.currentTimeMillis() - (24 * 60 * 60 * 1000);
+                int tradesToday = (int) recentTrades.stream()
+                    .filter(t -> t.getTimestamp() >= oneDayAgo)
+                    .count();
+
+                // Calculate trades this week
+                long oneWeekAgo = System.currentTimeMillis() - (7 * 24 * 60 * 60 * 1000);
+                int tradesThisWeek = (int) recentTrades.stream()
+                    .filter(t -> t.getTimestamp() >= oneWeekAgo)
+                    .count();
+
+                // Calculate average trades per day (last 7 days)
+                int avgTradesPerDay = tradesThisWeek / 7;
+
+                return new TradeStats((int) totalTrades, completedTrades, failedTrades,
+                                      tradesToday, tradesThisWeek, avgTradesPerDay);
+            })
+            .exceptionally(ex -> {
+                logger.error("Failed to fetch trade statistics: " + ex.getMessage());
+                return new TradeStats(0, 0, 0, 0, 0, 0);
+            });
     }
 
     /**
-     * Gets player statistics.
+     * Gets player statistics asynchronously.
      */
-    private PlayerStats getPlayerStatistics() {
-        // TODO: Integrate with repositories when available
-        int activeSessions = plugin.getShopManager().getActiveSessions().size();
-        return new PlayerStats(0, 0, activeSessions, "N/A", "N/A");
+    private CompletableFuture<PlayerStats> getPlayerStatistics() {
+        if (plugin.getTradeRepository() == null || plugin.getShopRepository() == null) {
+            logger.warning("Repositories are null, returning placeholder stats");
+            int activeSessions = plugin.getShopManager() != null ?
+                plugin.getShopManager().getActiveSessions().size() : 0;
+            return CompletableFuture.completedFuture(new PlayerStats(0, 0, activeSessions, "N/A", "N/A"));
+        }
+
+        // Get recent trades to analyze player activity
+        return plugin.getTradeRepository().findRecent(1000)
+            .thenApply(recentTrades -> {
+                // Count unique sellers and buyers
+                Set<UUID> uniqueSellers = new HashSet<>();
+                Set<UUID> uniqueBuyers = new HashSet<>();
+                Map<UUID, Integer> sellerCounts = new HashMap<>();
+                Map<UUID, Integer> buyerCounts = new HashMap<>();
+
+                for (var trade : recentTrades) {
+                    uniqueSellers.add(trade.sellerUuid());
+                    uniqueBuyers.add(trade.buyerUuid());
+                    sellerCounts.put(trade.sellerUuid(),
+                        sellerCounts.getOrDefault(trade.sellerUuid(), 0) + 1);
+                    buyerCounts.put(trade.buyerUuid(),
+                        buyerCounts.getOrDefault(trade.buyerUuid(), 0) + 1);
+                }
+
+                // Find top seller and buyer
+                String topSeller = sellerCounts.isEmpty() ? "N/A" :
+                    Bukkit.getOfflinePlayer(Collections.max(sellerCounts.entrySet(),
+                        Map.Entry.comparingByValue()).getKey()).getName();
+                String topBuyer = buyerCounts.isEmpty() ? "N/A" :
+                    Bukkit.getOfflinePlayer(Collections.max(buyerCounts.entrySet(),
+                        Map.Entry.comparingByValue()).getKey()).getName();
+
+                int activeSessions = plugin.getShopManager() != null ?
+                    plugin.getShopManager().getActiveSessions().size() : 0;
+
+                return new PlayerStats(uniqueSellers.size(), uniqueBuyers.size(),
+                                       activeSessions, topSeller, topBuyer);
+            })
+            .exceptionally(ex -> {
+                logger.error("Failed to fetch player statistics: " + ex.getMessage());
+                int activeSessions = plugin.getShopManager() != null ?
+                    plugin.getShopManager().getActiveSessions().size() : 0;
+                return new PlayerStats(0, 0, activeSessions, "N/A", "N/A");
+            });
     }
 
     /**
