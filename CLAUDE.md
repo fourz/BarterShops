@@ -50,18 +50,6 @@ mvn clean package
 - `b2bc4d7e` - SparkedHost test server
 - `1eb313b1-40f7-4209-aa9d-352128214206` - Local MCSS dev server
 
-## Local MCSS Development
-
-Configure `.vscode/project.json` for local MCSS deployment:
-```json
-{
-    "OutputFile": "..\\target\\BarterShops-1.0-SNAPSHOT.jar",
-    "DestinationPath": "D:\\Minecraft\\MCSS\\servers\\RVNK Dev\\plugins",
-    "PluginFolder": "BarterShops",
-    "API": { "serverid": "...", "key": "...", "hostname": "localhost", "port": 25560 }
-}
-```
-
 ## Architecture
 
 ### Core Class Structure
@@ -72,16 +60,33 @@ org.fourz.BarterShops
 ├── ManagerCore.java           # Core manager registration
 ├── command/
 │   ├── CommandManager.java    # Command registration
-│   ├── ShopCommand.java       # Main /shop command dispatcher
+│   ├── ShopCommand.java       # Main /shop command dispatcher (19 subcommands)
 │   ├── SubCommand.java        # Abstract subcommand interface
 │   ├── BaseCommand.java       # Base command implementation
-│   └── sub/
+│   ├── SeedSubCommand.java    # Test data seeding
+│   ├── ListCommand.java       # Legacy list command
+│   ├── NearbyCommand.java     # Legacy nearby command
+│   ├── ReloadCommand.java     # Legacy reload command
+│   └── sub/                   # All subcommand implementations
 │       ├── ShopCreateSubCommand.java
 │       ├── ShopListSubCommand.java
 │       ├── ShopInfoSubCommand.java
 │       ├── ShopRemoveSubCommand.java
 │       ├── ShopNearbySubCommand.java
-│       └── ShopAdminSubCommand.java
+│       ├── ShopAdminSubCommand.java
+│       ├── ShopAdminGUISubCommand.java
+│       ├── ShopTemplateSubCommand.java   # feat-04
+│       ├── ShopNotificationsSubCommand.java
+│       ├── ShopRateSubCommand.java       # feat-06 (conditional: IRatingService)
+│       ├── ShopReviewsSubCommand.java    # feat-06 (conditional: IRatingService)
+│       ├── ShopStatsSubCommand.java      # feat-07 (conditional: IStatsService)
+│       ├── ShopRegionSubCommand.java     # feat-05
+│       ├── ShopFeeSubCommand.java        # feat-02 (conditional: EconomyManager)
+│       ├── ShopTaxSubCommand.java        # feat-02 (conditional: EconomyManager)
+│       ├── ShopInspectSubCommand.java
+│       ├── ShopClearSubCommand.java
+│       ├── ShopReloadSubCommand.java
+│       └── ShopDebugSubCommand.java      # feat-01
 ├── config/
 │   └── ConfigManager.java     # Configuration (config.yml, messages)
 ├── data/
@@ -91,29 +96,69 @@ org.fourz.BarterShops
 │   ├── SQLiteDatabaseManager.java
 │   ├── IConnectionProvider.java
 │   ├── FallbackTracker.java   # Database fallback detection
+│   ├── ShopsTestDataGenerator.java  # Test data generation
 │   ├── dto/                   # Data Transfer Objects (Java records)
 │   │   ├── ShopDataDTO.java
 │   │   ├── TradeItemDTO.java
-│   │   └── TradeRecordDTO.java
+│   │   ├── TradeRecordDTO.java
+│   │   ├── RatingDataDTO.java     # feat-06
+│   │   └── StatsDataDTO.java      # feat-07
 │   └── repository/            # Repository pattern for data access
 │       ├── IShopRepository.java
-│       └── ITradeRepository.java
+│       ├── ITradeRepository.java
+│       ├── IRatingRepository.java  # feat-06
+│       └── impl/
+│           ├── ConnectionProviderImpl.java
+│           ├── ShopRepositoryImpl.java
+│           ├── TradeRepositoryImpl.java
+│           └── RatingRepositoryImpl.java  # feat-06
 ├── service/
 │   ├── IShopService.java          # Service interface (RVNKCore integration)
 │   ├── ITradeService.java         # Trade service interface
+│   ├── IRatingService.java        # Rating service interface (feat-06)
+│   ├── IStatsService.java         # Statistics service interface (feat-07)
 │   ├── IShopDatabaseService.java  # Database service interface
 │   └── impl/
-│       └── ShopServiceImpl.java   # Concrete service implementation
+│       ├── ShopServiceImpl.java   # Concrete service implementation
+│       ├── RatingServiceImpl.java # feat-06
+│       └── StatsServiceImpl.java  # feat-07
+├── economy/                       # feat-02
+│   ├── IEconomyService.java      # Economy service interface
+│   ├── EconomyManager.java       # Vault integration, fees, taxes
+│   └── ShopFeeCalculator.java    # Fee calculation with rarity multipliers
+├── protection/                    # feat-05
+│   ├── ProtectionManager.java    # Region protection orchestrator
+│   ├── IProtectionProvider.java  # Provider interface
+│   ├── WorldGuardProvider.java   # WorldGuard integration
+│   ├── GriefPreventionProvider.java  # GriefPrevention integration
+│   └── NoOpProtectionProvider.java   # No-op fallback
+├── template/                      # feat-04
+│   ├── TemplateManager.java      # Template lifecycle
+│   └── ShopTemplate.java         # Template data model
+├── notification/
+│   ├── NotificationManager.java  # Multi-channel notifications
+│   ├── NotificationType.java     # Notification event types
+│   └── NotificationPreferencesDTO.java
+├── gui/
+│   └── admin/
+│       ├── AdminShopGUI.java         # Admin shop management GUI
+│       ├── AdminTradeHistoryGUI.java # Trade history viewer
+│       └── AdminStatsGUI.java        # Statistics dashboard
+├── api/                           # feat-03
+│   ├── ApiServer.java            # Embedded Jetty server
+│   ├── ShopApiServlet.java       # HTTP request routing
+│   ├── ShopApiEndpoint.java      # Endpoint interface
+│   └── ShopApiEndpointImpl.java  # Endpoint implementation
 ├── shop/
 │   ├── ShopManager.java       # Shop lifecycle management
 │   ├── ShopSession.java       # Active shop sessions
-│   └── ShopMode.java          # Shop operational modes
+│   └── ShopMode.java          # Shop operational modes (see Dual-Mode Note)
 ├── sign/
 │   ├── SignManager.java       # Sign creation and validation
 │   ├── SignInteraction.java   # Player-sign interaction handling
 │   ├── SignDisplay.java       # Sign text rendering (SignSide API)
 │   ├── BarterSign.java        # Sign data model
-│   ├── SignMode.java          # Sign modes (SETUP, MAIN, TYPE, HELP, DELETE)
+│   ├── SignMode.java          # Sign modes (see Dual-Mode Note)
 │   ├── SignType.java          # Sign type enumeration
 │   └── SignUtil.java          # Sign utility methods
 ├── container/
@@ -133,19 +178,40 @@ org.fourz.BarterShops
 **Database-First**: SQLite/MySQL with automatic fallback detection (FallbackTracker)
 **Subcommand Pattern**: ShopCommand dispatches to Shop*SubCommand implementations
 **Service Registry**: IShopService registered with RVNKCore (reflection-based, optional)
-**Repository Pattern**: IShopRepository, ITradeRepository for async data access
-**DTO Layer**: Java records for data transfer (ShopDataDTO, TradeItemDTO, TradeRecordDTO)
+**Repository Pattern**: IShopRepository, ITradeRepository, IRatingRepository for async data access
+**DTO Layer**: Java records for data transfer (ShopDataDTO, TradeItemDTO, TradeRecordDTO, RatingDataDTO, StatsDataDTO)
+
+### Sign UI System (BarterSignsPlus Lineage)
+
+The sign interaction model is derived from **BarterSignsPlus**, adapted for the modern subcommand architecture:
+
+| Feature | BarterSignsPlus (Reference) | BarterShops (Current) |
+|---------|---------------------------|----------------------|
+| Trigger phrase | `[barter]` on line 1 | `[barter]` on line 1 |
+| Container detection | Wall sign -> behind, standing -> below | Wall sign -> behind, standing -> below |
+| Owner left-click | Configure mode | Configure mode (enter SETUP) |
+| Owner right-click | Cycle menu (ActionMenu) | Cycle modes: SETUP->TYPE->BOARD->DELETE->SETUP |
+| Customer right-click | Browse/purchase | Initiate trade (TradeEngine + GUI) |
+| Customer left-click | Confirm transaction | N/A (GUI-based confirmation) |
+| Persistence | Flatfile YAML | SQLite/MySQL via repository pattern |
+| Commands | None (sign-only) | 19 subcommands + sign UI |
+
+**Dual-Mode Enum Note**: Two overlapping mode enums exist:
+- `sign.SignMode`: SETUP, BOARD, TYPE, HELP, DELETE (used by SignInteraction/SignDisplay)
+- `shop.ShopMode`: SETUP_SELL, SETUP_STACK, TYPE, DELETE, BOARD_SETUP, BOARD_DISPLAY, HELP (used by ShopManager/SignManager)
+
+`SignManager.calculateNextMode()` uses `ShopMode`, while `SignInteraction.handleOwnerRightClick()` uses `SignMode`. These are not mapped to each other - potential source of state confusion. Future refactoring should unify or create an explicit mapping between them.
 
 ### Trade Flow
 
 ```
-1. Player right-clicks sign → SignInteraction
-2. Sign validates shop state → SignManager
-3. Trade initiated → TradeEngine
-4. Inventory validation → TradeValidator
-5. GUI confirmation → TradeConfirmationGUI
-6. Execute trade → TradeEngine
-7. Persist record → ITradeRepository (async)
+1. Player right-clicks sign -> SignInteraction
+2. Sign validates shop state -> SignManager
+3. Trade initiated -> TradeEngine
+4. Inventory validation -> TradeValidator
+5. GUI confirmation -> TradeConfirmationGUI
+6. Execute trade -> TradeEngine
+7. Persist record -> ITradeRepository (async)
 ```
 
 ### Shop Creation Flow
@@ -154,19 +220,19 @@ org.fourz.BarterShops
 1. Player places chest
 2. Player attaches sign with [barter] tag
 3. SignManager validates location/permissions
-4. Shop created → ShopManager
-5. Shop persisted → IShopRepository (async)
-6. Sign updated with shop ID → SignDisplay
+4. Shop created -> ShopManager
+5. Shop persisted -> IShopRepository (async)
+6. Sign updated with shop ID -> SignDisplay
 ```
 
 ## Command Formatting Standards
 
 Use consistent message prefixes in command handlers:
-- `&c▶` - Usage instructions
-- `&6⚙` - Operations in progress
-- `&a✓` - Success messages
-- `&c✖` - Error messages
-- `&e⚠` - Warnings
+- `&c>` - Usage instructions
+- `&6*` - Operations in progress
+- `&a+` - Success messages
+- `&cx` - Error messages
+- `&e!` - Warnings
 - `&7   ` - Additional tips
 
 **Console/Debug**: No emojis, no color codes. Use `LogManager` from RVNKCore for all logging.
@@ -177,24 +243,50 @@ Use consistent message prefixes in command handlers:
 |------------|---------|---------|
 | spigot-api | 1.21-R0.1-SNAPSHOT | Bukkit API |
 | RVNKCore | 1.3.0-alpha | Shared logging, ServiceRegistry (softdepend) |
+| Vault | 1.7+ | Economy integration (softdepend) |
 | snakeyaml | 2.0 | YAML configuration |
-| jetty-servlet | 9.4.44.v20210927 | Web integration (future REST API) |
+| jetty-servlet | 9.4.44.v20210927 | Web integration (REST API) |
 | jetty-util | 9.4.44.v20210927 | Jetty utilities |
 | PlaceholderAPI | 2.11.6 | Placeholder integration (optional) |
 | LuckPerms | 5.4 | Permissions integration (optional) |
+| WorldGuard | 7.0+ | Region protection (optional) |
+| GriefPrevention | 16.18+ | Claim protection (optional) |
 
 **Java Version**: 21+ (compile target)
 
 ## Shop Commands
 
+### Always Registered (16 commands + help)
+
 | Command | Description | Permission |
 |---------|-------------|------------|
-| `/shop create` | Create a new barter shop | `bartershops.create` |
+| `/shop create <name>` | Create a new barter shop | `bartershops.create` |
 | `/shop list` | List all your shops | `bartershops.list` |
 | `/shop info <id>` | View shop details | `bartershops.info` |
 | `/shop remove <id>` | Remove a shop | `bartershops.remove` |
 | `/shop nearby [radius]` | Find nearby shops | `bartershops.nearby` |
+| `/shop template <action>` | Manage shop templates | `bartershops.template` |
+| `/shop notifications <channel> <on\|off>` | Manage notifications | `bartershops.notifications` |
+| `/shop fee list` | View listing fees (Vault optional) | `bartershops.economy.fee` |
+| `/shop tax info\|calculate` | View/calculate taxes (Vault optional) | `bartershops.economy.tax` |
+| `/shop region status\|info` | View region protection | `bartershops.region.*` |
 | `/shop admin <...>` | Admin commands | `bartershops.admin` |
+| `/shop admingui` | Open admin GUI | `bartershops.admin.gui` |
+| `/shop inspect <id>` | Inspect any shop (admin) | `bartershops.admin.inspect` |
+| `/shop clear <id>` | Clear shop inventory (admin) | `bartershops.admin.clear` |
+| `/shop reload` | Reload configuration | `bartershops.admin.reload` |
+| `/shop debug` | Debug information | `bartershops.admin.debug` |
+| `/shop help` | Show help (special case, not registered) | None |
+
+### Conditional Commands (require service availability)
+
+| Command | Requires | Permission |
+|---------|----------|------------|
+| `/shop rate <id> <1-5> [review]` | IRatingService | Default |
+| `/shop reviews <id>` | IRatingService | Default |
+| `/shop stats [player\|server]` | IStatsService | `bartershops.stats` |
+
+**Note**: fee/tax commands always register (EconomyManager is always created with graceful Vault fallback). rate/reviews register when RatingService is initialized. stats registers when StatsService is initialized. The plugin runs fully without Vault - it is barter-based by nature.
 
 **Aliases**: `/barter`, `/shops`
 
@@ -202,8 +294,11 @@ Use consistent message prefixes in command handlers:
 
 ### Local Documentation
 - [README.md](README.md) - Features, usage, configuration
+- [USER_GUIDE.md](USER_GUIDE.md) - Complete player guide
+- [ADMIN_GUIDE.md](ADMIN_GUIDE.md) - Installation, configuration, permissions
+- [DEVELOPER_GUIDE.md](DEVELOPER_GUIDE.md) - API usage, integration
+- [API_REFERENCE.md](API_REFERENCE.md) - REST API endpoints
 - [ROADMAP.md](ROADMAP.md) - Planned features, technical roadmap
-- [docs/](docs/) - Component documentation (pending)
 
 ### Archon Board Documents (BarterShops-specific)
 Documents on BarterShops board (`bd4e478b-772a-4b97-bd99-300552840815`):
@@ -240,32 +335,39 @@ rag_search_knowledge_base(query="Bukkit sign interaction")
 manage_task("update", task_id="...", status="done")
 ```
 
-### Current Development Status (Jan 2026)
+### Current Development Status (Feb 2026)
 
-**Completed (v1.0):**
+**Completed:**
 
 - Core plugin structure with manager lifecycle
-- Sign-based shop creation and validation
+- Sign-based shop creation and validation (BarterSignsPlus lineage)
 - Chest container management
-- Command framework (ShopCommand + subcommands)
-- Database abstraction (SQLite/MySQL with factory)
+- Command framework (ShopCommand + 19 subcommands)
+- Database abstraction (SQLite/MySQL with factory + FallbackTracker)
 - RVNKCore integration (LogManager, ServiceRegistry)
-- DTO layer (ShopDataDTO, TradeItemDTO, TradeRecordDTO)
+- DTO layer (ShopDataDTO, TradeItemDTO, TradeRecordDTO, RatingDataDTO, StatsDataDTO)
+- Repository pattern (ShopRepositoryImpl, TradeRepositoryImpl, RatingRepositoryImpl)
+- Economy integration (EconomyManager, ShopFeeCalculator, Vault) - feat-02
+- REST API (ApiServer, ShopApiServlet, endpoints) - feat-03
+- Shop templates (TemplateManager, ShopTemplate) - feat-04
+- Region protection (WorldGuard, GriefPrevention providers) - feat-05
+- Rating/review system (IRatingService, RatingServiceImpl, IRatingRepository) - feat-06
+- Statistics system (IStatsService, StatsServiceImpl, StatsDataDTO) - feat-07
+- Admin GUI (AdminShopGUI, AdminTradeHistoryGUI, AdminStatsGUI)
+- Notification system (multi-channel, per-type preferences)
+- Trade engine and validation logic
+- GUI confirmation system for trades
 
 **In Progress:**
 
-- impl-11: ShopServiceImpl implementation (RVNKCore registration)
-- Trade engine and validation logic
-- Repository pattern implementation (async CompletableFuture)
-- GUI confirmation system for trades
+- RatingService/StatsService runtime initialization (services exist but not auto-started in onEnable)
+- Sign protection hardening (onSignBreak handler is stub-only)
 
 **Pending:**
 
-- REST API endpoints (RVNKCore RestAPIService)
-- Shop statistics and analytics
-- Advanced trade types (currency, partial stacks)
-- Web dashboard integration
 - PlaceholderAPI expansion support
+- Web dashboard integration
+- Sign mode enum unification (SignMode vs ShopMode)
 
 ## Development Checklist
 

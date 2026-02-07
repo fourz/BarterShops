@@ -166,9 +166,9 @@ api:
 | `/shop info <id>` | View shop details | Default |
 | `/shop remove <id>` | Delete a shop | Default |
 | `/shop nearby [radius]` | Find nearby shops | `bartershops.nearby` |
-| `/shop rate <id> <1-5> [review]` | Rate a shop | Default |
-| `/shop reviews <id>` | View shop reviews | Default |
-| `/shop stats [player\|server]` | View statistics | `bartershops.stats` |
+| `/shop rate <id> <1-5> [review]` | Rate a shop * | Default |
+| `/shop reviews <id>` | View shop reviews * | Default |
+| `/shop stats [player\|server]` | View statistics * | `bartershops.stats` |
 | `/shop template <action> [args]` | Manage templates | `bartershops.template` |
 | `/shop notifications <channel> <on\|off>` | Manage notifications | `bartershops.notifications` |
 | `/shop fee list` | View listing fees | `bartershops.economy.fee` |
@@ -183,6 +183,10 @@ api:
 | `/shop admin inspect <id>` | Inspect any shop | `bartershops.admin.inspect` |
 | `/shop admin clear <id>` | Clear shop inventory | `bartershops.admin.clear` |
 | `/shop admin gui` | Open admin GUI | `bartershops.admin.gui` |
+| `/shop admingui` | Open admin GUI (shortcut) | `bartershops.admin.gui` |
+| `/shop debug` | Debug information | `bartershops.admin.debug` |
+
+\* Conditional: requires RatingService/StatsService initialization (services exist but not auto-started yet)
 
 **Aliases**: `/barter`, `/shops`
 

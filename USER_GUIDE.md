@@ -315,7 +315,7 @@ Most Traded Items:
 
 ## Economy Features
 
-BarterShops integrates with Vault for economy features.
+BarterShops integrates with Vault for economy features. The plugin works fully without Vault (barter-based by nature). Economy commands are always available; fee/tax features activate when Vault is installed.
 
 ### Listing Fees
 
