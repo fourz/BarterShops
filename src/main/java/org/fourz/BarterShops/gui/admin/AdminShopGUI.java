@@ -68,9 +68,27 @@ public class AdminShopGUI implements Listener {
             player.closeInventory();
         }
 
-        // Get all shops (async would be better, but keeping it simple for now)
-        List<ShopDataDTO> allShops = getAllShops();
+        // Load shops asynchronously
+        getAllShops().thenAccept(allShops -> {
+            // Sync back to main thread for GUI operations
+            plugin.getServer().getScheduler().runTask(plugin, () -> {
+                buildAndOpenGui(player, allShops, page);
+            });
+        }).exceptionally(ex -> {
+            // Handle error on main thread
+            plugin.getServer().getScheduler().runTask(plugin, () -> {
+                player.sendMessage(ChatColor.RED + "Failed to load shops: " + ex.getMessage());
+                logger.error("Failed to load shops for admin GUI: " + ex.getMessage());
+            });
+            return null;
+        });
+    }
 
+    /**
+     * Builds and opens the GUI with loaded shop data.
+     * Must be called on main thread.
+     */
+    private void buildAndOpenGui(Player player, List<ShopDataDTO> allShops, int page) {
         // Calculate pagination
         int totalPages = (int) Math.ceil((double) allShops.size() / ITEMS_PER_PAGE);
         if (totalPages == 0) totalPages = 1;
@@ -248,13 +266,19 @@ public class AdminShopGUI implements Listener {
     }
 
     /**
-     * Gets all shops from the plugin.
-     * TODO: Replace with async repository call
+     * Gets all shops from the repository asynchronously.
      */
-    private List<ShopDataDTO> getAllShops() {
-        // For now, return empty list - would integrate with IShopRepository
-        // when repository implementation is complete
-        return new ArrayList<>();
+    private java.util.concurrent.CompletableFuture<List<ShopDataDTO>> getAllShops() {
+        if (plugin.getShopRepository() == null) {
+            logger.warning("ShopRepository is null, returning empty list");
+            return java.util.concurrent.CompletableFuture.completedFuture(new ArrayList<>());
+        }
+
+        return plugin.getShopRepository().findAll()
+            .exceptionally(ex -> {
+                logger.error("Failed to fetch shops from repository: " + ex.getMessage());
+                return new ArrayList<>();
+            });
     }
 
     /**
