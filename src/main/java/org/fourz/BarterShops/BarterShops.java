@@ -31,6 +31,7 @@ import org.fourz.BarterShops.shop.ShopManager;
 import org.fourz.BarterShops.trade.TradeEngine;
 import org.fourz.BarterShops.trade.TradeConfirmationGUI;
 import org.fourz.BarterShops.template.TemplateManager;
+import org.fourz.BarterShops.util.PlayerLookup;
 import org.fourz.rvnkcore.util.log.LogManager;
 
 public class BarterShops extends JavaPlugin {
@@ -50,6 +51,7 @@ public class BarterShops extends JavaPlugin {
     private EconomyManager economyManager;
     private ShopFeeCalculator feeCalculator;
     private LogManager logger;
+    private PlayerLookup playerLookup;
 
     // Database layer (impl-11)
     private ConnectionProviderImpl connectionProvider;
@@ -101,6 +103,9 @@ public class BarterShops extends JavaPlugin {
 
         // Register with RVNKCore ServiceRegistry if available
         registerWithRVNKCore();
+
+        // Initialize PlayerLookup (after RVNKCore registration so PlayerService is available)
+        this.playerLookup = new PlayerLookup(this);
 
         logger.info("BarterShops has been loaded");
     }
@@ -539,5 +544,9 @@ public class BarterShops extends JavaPlugin {
 
     public ITradeRepository getTradeRepository() {
         return tradeRepository;
+    }
+
+    public PlayerLookup getPlayerLookup() {
+        return playerLookup;
     }
 }

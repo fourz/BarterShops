@@ -74,8 +74,7 @@ public class StatsServiceImpl implements IStatsService {
             logger.debug("Calculating player stats for " + playerUuid);
 
             // Get player name
-            OfflinePlayer player = Bukkit.getOfflinePlayer(playerUuid);
-            String playerName = player.getName() != null ? player.getName() : "Unknown";
+            String playerName = plugin.getPlayerLookup().getPlayerName(playerUuid);
 
             // Gather statistics
             int shopsOwned = shopService.getShopCountByOwner(playerUuid).join();
@@ -370,8 +369,7 @@ public class StatsServiceImpl implements IStatsService {
                         ratingCount = ratingService.getRatingCount(shop.shopId()).join();
                     }
 
-                    OfflinePlayer owner = Bukkit.getOfflinePlayer(shop.ownerUuid());
-                    String ownerName = owner.getName() != null ? owner.getName() : "Unknown";
+                    String ownerName = plugin.getPlayerLookup().getPlayerName(shop.ownerUuid());
 
                     return new StatsDataDTO.TopShop(
                         shop.shopId(), shop.shopName(), shop.ownerUuid(),
@@ -402,8 +400,7 @@ public class StatsServiceImpl implements IStatsService {
                         ratingCount = ratingService.getRatingCount(shop.shopId()).join();
                     }
 
-                    OfflinePlayer owner = Bukkit.getOfflinePlayer(shop.ownerUuid());
-                    String ownerName = owner.getName() != null ? owner.getName() : "Unknown";
+                    String ownerName = plugin.getPlayerLookup().getPlayerName(shop.ownerUuid());
 
                     return new StatsDataDTO.TopShop(
                         shop.shopId(), shop.shopName(), shop.ownerUuid(),

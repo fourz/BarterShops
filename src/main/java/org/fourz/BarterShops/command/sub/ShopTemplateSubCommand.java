@@ -216,8 +216,7 @@ public class ShopTemplateSubCommand implements SubCommand {
             if (template.isServerPreset()) {
                 ownerName = "SERVER";
             } else if (template.owner() != null) {
-                OfflinePlayer owner = Bukkit.getOfflinePlayer(template.owner());
-                ownerName = owner.getName() != null ? owner.getName() : "Unknown";
+                ownerName = plugin.getPlayerLookup().getPlayerName(template.owner());
             } else {
                 ownerName = "Unknown";
             }
@@ -300,9 +299,8 @@ public class ShopTemplateSubCommand implements SubCommand {
         if (template.isServerPreset()) {
             sender.sendMessage(ChatColor.GRAY + "Owner: " + ChatColor.GOLD + "SERVER PRESET");
         } else if (template.owner() != null) {
-            OfflinePlayer owner = Bukkit.getOfflinePlayer(template.owner());
-            String ownerName = owner.getName() != null ? owner.getName() : "Unknown";
-            sender.sendMessage(ChatColor.GRAY + "Owner: " + ChatColor.WHITE + ownerName);
+            sender.sendMessage(ChatColor.GRAY + "Owner: " + ChatColor.WHITE +
+                    plugin.getPlayerLookup().getPlayerName(template.owner()));
         }
 
         if (!template.description().isEmpty()) {

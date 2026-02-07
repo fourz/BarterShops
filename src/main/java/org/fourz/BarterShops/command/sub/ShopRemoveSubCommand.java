@@ -62,7 +62,7 @@ public class ShopRemoveSubCommand implements SubCommand {
         if (!confirmed) {
             sender.sendMessage(ChatColor.YELLOW + "Are you sure you want to remove this shop?");
             sender.sendMessage(ChatColor.GRAY + "Owner: " +
-                    Bukkit.getOfflinePlayer(sign.getOwner()).getName());
+                    plugin.getPlayerLookup().getPlayerName(sign.getOwner()));
             sender.sendMessage(ChatColor.GRAY + "Location: " +
                     location.getBlockX() + ", " + location.getBlockY() + ", " + location.getBlockZ());
             sender.sendMessage(ChatColor.RED + "Run: /shop remove " + shopId + " --confirm");

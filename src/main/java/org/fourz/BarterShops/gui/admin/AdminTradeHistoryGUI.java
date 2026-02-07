@@ -180,9 +180,9 @@ public class AdminTradeHistoryGUI implements Listener {
                 trade.transactionId().substring(0, 8) + "...");
         lore.add(ChatColor.GRAY + "Shop ID: " + ChatColor.WHITE + trade.shopId());
         lore.add(ChatColor.GRAY + "Buyer: " + ChatColor.WHITE +
-                Bukkit.getOfflinePlayer(trade.buyerUuid()).getName());
+                plugin.getPlayerLookup().getPlayerName(trade.buyerUuid()));
         lore.add(ChatColor.GRAY + "Seller: " + ChatColor.WHITE +
-                Bukkit.getOfflinePlayer(trade.sellerUuid()).getName());
+                plugin.getPlayerLookup().getPlayerName(trade.sellerUuid()));
         lore.add(ChatColor.GRAY + "Quantity: " + ChatColor.WHITE + trade.quantity());
         lore.add(ChatColor.GRAY + "Price: " + ChatColor.WHITE +
                 trade.pricePaid() + " " + trade.currencyMaterial());
@@ -294,9 +294,9 @@ public class AdminTradeHistoryGUI implements Listener {
         player.sendMessage(ChatColor.YELLOW + "Transaction ID: " + ChatColor.WHITE + trade.transactionId());
         player.sendMessage(ChatColor.YELLOW + "Shop ID: " + ChatColor.WHITE + trade.shopId());
         player.sendMessage(ChatColor.YELLOW + "Buyer: " + ChatColor.WHITE +
-                Bukkit.getOfflinePlayer(trade.buyerUuid()).getName());
+                plugin.getPlayerLookup().getPlayerName(trade.buyerUuid()));
         player.sendMessage(ChatColor.YELLOW + "Seller: " + ChatColor.WHITE +
-                Bukkit.getOfflinePlayer(trade.sellerUuid()).getName());
+                plugin.getPlayerLookup().getPlayerName(trade.sellerUuid()));
         player.sendMessage(ChatColor.YELLOW + "Item: " + ChatColor.WHITE + trade.itemStackData());
         player.sendMessage(ChatColor.YELLOW + "Quantity: " + ChatColor.WHITE + trade.quantity());
         player.sendMessage(ChatColor.YELLOW + "Currency: " + ChatColor.WHITE + trade.currencyMaterial());

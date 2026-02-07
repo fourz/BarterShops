@@ -65,7 +65,7 @@ public class ShopClearSubCommand implements SubCommand {
         chestState.getInventory().clear();
 
         // Log the action
-        String ownerName = Bukkit.getOfflinePlayer(sign.getOwner()).getName();
+        String ownerName = plugin.getPlayerLookup().getPlayerName(sign.getOwner());
         logger.info("Admin " + sender.getName() + " cleared shop " + shopId +
                 " (owner: " + ownerName + ") - " + clearedItems + " item stacks removed");
 

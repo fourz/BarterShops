@@ -35,7 +35,7 @@ public class ListCommand implements BaseCommand {
             Location location = entry.getKey();
             BarterSign sign = entry.getValue();
 
-            String ownerName = plugin.getServer().getOfflinePlayer(sign.getOwner()).getName();
+            String ownerName = plugin.getPlayerLookup().getPlayerName(sign.getOwner());
             if (ownerName.length() > 15) ownerName = ownerName.substring(0, 12) + "...";
 
             String locationStr = String.format("%d,%d,%d",

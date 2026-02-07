@@ -157,7 +157,7 @@ public class AdminShopGUI implements Listener {
         List<String> lore = new ArrayList<>();
         lore.add(ChatColor.GRAY + "ID: " + ChatColor.WHITE + shop.shopId());
         lore.add(ChatColor.GRAY + "Owner: " + ChatColor.WHITE +
-                Bukkit.getOfflinePlayer(shop.ownerUuid()).getName());
+                plugin.getPlayerLookup().getPlayerName(shop.ownerUuid()));
         lore.add(ChatColor.GRAY + "Type: " + ChatColor.WHITE + shop.shopType());
         lore.add(ChatColor.GRAY + "Location: " + ChatColor.WHITE +
                 shop.locationWorld() + " (" +
@@ -234,7 +234,7 @@ public class AdminShopGUI implements Listener {
             // View shop details
             player.sendMessage(ChatColor.GOLD + "=== Shop #" + shop.shopId() + " Details ===");
             player.sendMessage(ChatColor.YELLOW + "Owner: " + ChatColor.WHITE +
-                    Bukkit.getOfflinePlayer(shop.ownerUuid()).getName());
+                    plugin.getPlayerLookup().getPlayerName(shop.ownerUuid()));
             player.sendMessage(ChatColor.YELLOW + "Name: " + ChatColor.WHITE + shop.shopName());
             player.sendMessage(ChatColor.YELLOW + "Type: " + ChatColor.WHITE + shop.shopType());
             player.sendMessage(ChatColor.YELLOW + "Status: " +

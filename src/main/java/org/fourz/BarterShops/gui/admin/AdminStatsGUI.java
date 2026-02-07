@@ -334,11 +334,11 @@ public class AdminStatsGUI implements Listener {
 
                 // Find top seller and buyer
                 String topSeller = sellerCounts.isEmpty() ? "N/A" :
-                    Bukkit.getOfflinePlayer(Collections.max(sellerCounts.entrySet(),
-                        Map.Entry.comparingByValue()).getKey()).getName();
+                    plugin.getPlayerLookup().getPlayerName(Collections.max(sellerCounts.entrySet(),
+                        Map.Entry.comparingByValue()).getKey());
                 String topBuyer = buyerCounts.isEmpty() ? "N/A" :
-                    Bukkit.getOfflinePlayer(Collections.max(buyerCounts.entrySet(),
-                        Map.Entry.comparingByValue()).getKey()).getName();
+                    plugin.getPlayerLookup().getPlayerName(Collections.max(buyerCounts.entrySet(),
+                        Map.Entry.comparingByValue()).getKey());
 
                 int activeSessions = plugin.getShopManager() != null ?
                     plugin.getShopManager().getActiveSessions().size() : 0;

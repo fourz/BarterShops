@@ -92,8 +92,7 @@ public class ShopReviewsSubCommand implements SubCommand {
 
                     for (int i = 0; i < displayCount; i++) {
                         RatingDataDTO review = reviews.get(i);
-                        String playerName = Bukkit.getOfflinePlayer(review.raterUuid()).getName();
-                        if (playerName == null) playerName = "Unknown";
+                        String playerName = plugin.getPlayerLookup().getPlayerName(review.raterUuid());
 
                         sender.sendMessage(ChatColor.YELLOW + getStarDisplay(review.rating()) +
                             ChatColor.GRAY + " - " + playerName +

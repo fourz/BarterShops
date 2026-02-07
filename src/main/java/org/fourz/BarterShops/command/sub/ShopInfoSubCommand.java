@@ -51,7 +51,7 @@ public class ShopInfoSubCommand implements SubCommand {
         sender.sendMessage(ChatColor.GOLD + "===== Shop Info =====");
         sender.sendMessage(ChatColor.YELLOW + "ID: " + ChatColor.WHITE + shopId);
         sender.sendMessage(ChatColor.YELLOW + "Owner: " + ChatColor.WHITE +
-                Bukkit.getOfflinePlayer(sign.getOwner()).getName());
+                plugin.getPlayerLookup().getPlayerName(sign.getOwner()));
         sender.sendMessage(ChatColor.YELLOW + "Type: " + ChatColor.WHITE + sign.getType());
         sender.sendMessage(ChatColor.YELLOW + "Mode: " + ChatColor.WHITE + sign.getMode());
         sender.sendMessage(ChatColor.YELLOW + "Location: " + ChatColor.WHITE +

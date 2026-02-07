@@ -87,7 +87,7 @@ public class ShopListSubCommand implements SubCommand {
 
         // Header
         String header = filterOwner != null
-                ? "=== Shops by " + Bukkit.getOfflinePlayer(filterOwner).getName() + " ==="
+                ? "=== Shops by " + plugin.getPlayerLookup().getPlayerName(filterOwner) + " ==="
                 : "=== All Barter Shops ===";
         sender.sendMessage(ChatColor.GREEN + header);
         sender.sendMessage(ChatColor.GRAY + String.format("%-16s %-12s %-20s %-10s",
@@ -100,8 +100,7 @@ public class ShopListSubCommand implements SubCommand {
             Location location = entry.getKey();
             BarterSign sign = entry.getValue();
 
-            String ownerName = Bukkit.getOfflinePlayer(sign.getOwner()).getName();
-            if (ownerName == null) ownerName = "Unknown";
+            String ownerName = plugin.getPlayerLookup().getPlayerName(sign.getOwner());
             if (ownerName.length() > 15) ownerName = ownerName.substring(0, 12) + "...";
 
             String locationStr = String.format("%d,%d,%d",
@@ -123,7 +122,7 @@ public class ShopListSubCommand implements SubCommand {
 
         if (totalPages > 1) {
             String navHint = filterOwner != null
-                    ? "/shop list " + Bukkit.getOfflinePlayer(filterOwner).getName() + " <page>"
+                    ? "/shop list " + plugin.getPlayerLookup().getPlayerName(filterOwner) + " <page>"
                     : "/shop list <page>";
             sender.sendMessage(ChatColor.GRAY + "Use " + navHint + " to navigate pages");
         }

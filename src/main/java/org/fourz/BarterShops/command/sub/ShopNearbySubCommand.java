@@ -77,8 +77,7 @@ public class ShopNearbySubCommand implements SubCommand {
             Location shopLocation = entry.getKey();
             BarterSign sign = entry.getValue();
 
-            String ownerName = Bukkit.getOfflinePlayer(sign.getOwner()).getName();
-            if (ownerName == null) ownerName = "Unknown";
+            String ownerName = plugin.getPlayerLookup().getPlayerName(sign.getOwner());
             if (ownerName.length() > 15) ownerName = ownerName.substring(0, 12) + "...";
 
             int distance = (int) shopLocation.distance(playerLoc);

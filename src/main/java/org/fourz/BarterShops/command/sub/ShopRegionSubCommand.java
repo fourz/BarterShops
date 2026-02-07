@@ -161,7 +161,7 @@ public class ShopRegionSubCommand implements SubCommand {
         sender.sendMessage(ChatColor.GOLD + "===== Shop Protection Info =====");
         sender.sendMessage(ChatColor.YELLOW + "Shop ID: " + ChatColor.WHITE + info.shopId());
         sender.sendMessage(ChatColor.YELLOW + "Owner: " + ChatColor.WHITE +
-                (info.owner() != null ? Bukkit.getOfflinePlayer(info.owner()).getName() : "Unknown"));
+                (info.owner() != null ? plugin.getPlayerLookup().getPlayerName(info.owner()) : "Unknown"));
         sender.sendMessage(ChatColor.YELLOW + "Provider: " + ChatColor.WHITE + info.providerType());
         sender.sendMessage(ChatColor.YELLOW + "Radius: " + ChatColor.WHITE + info.radius() + " blocks");
         sender.sendMessage(ChatColor.YELLOW + "Center: " + ChatColor.WHITE + formatLocation(info.center()));
