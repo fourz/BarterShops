@@ -2,7 +2,7 @@ package org.fourz.BarterShops.command.sub;
 
 import org.bukkit.Bukkit;
 import org.bukkit.ChatColor;
-import org.bukkit.block.Block;
+import org.bukkit.Location;
 import org.bukkit.command.CommandSender;
 import org.fourz.BarterShops.BarterShops;
 import org.fourz.BarterShops.command.SubCommand;
@@ -30,14 +30,14 @@ public class ShopInspectSubCommand implements SubCommand {
         }
 
         String shopId = args[0];
-        Optional<Map.Entry<Block, BarterSign>> shopEntry = findShopById(shopId);
+        Optional<Map.Entry<Location, BarterSign>> shopEntry = findShopById(shopId);
 
         if (shopEntry.isEmpty()) {
             sender.sendMessage(ChatColor.RED + "Shop not found: " + shopId);
             return true;
         }
 
-        Block block = shopEntry.get().getKey();
+        Location location = shopEntry.get().getKey();
         BarterSign sign = shopEntry.get().getValue();
 
         // Display detailed admin inspection
@@ -50,8 +50,8 @@ public class ShopInspectSubCommand implements SubCommand {
         sender.sendMessage(ChatColor.YELLOW + "Mode: " + ChatColor.WHITE + sign.getMode());
         sender.sendMessage(ChatColor.YELLOW + "Location: " + ChatColor.WHITE +
                 String.format("%s: %d, %d, %d",
-                        block.getWorld().getName(),
-                        block.getX(), block.getY(), block.getZ()));
+                        location.getWorld().getName(),
+                        location.getBlockX(), location.getBlockY(), location.getBlockZ()));
         sender.sendMessage(ChatColor.YELLOW + "Active: " + ChatColor.WHITE + "Yes");
 
         // Trade history placeholder (will use ITradeRepository when available)
@@ -61,8 +61,8 @@ public class ShopInspectSubCommand implements SubCommand {
         return true;
     }
 
-    private Optional<Map.Entry<Block, BarterSign>> findShopById(String id) {
-        Map<Block, BarterSign> shops = plugin.getSignManager().getBarterSigns();
+    private Optional<Map.Entry<Location, BarterSign>> findShopById(String id) {
+        Map<Location, BarterSign> shops = plugin.getSignManager().getBarterSigns();
 
         if (id.contains(",")) {
             String[] parts = id.split(",");
@@ -74,8 +74,8 @@ public class ShopInspectSubCommand implements SubCommand {
 
                     return shops.entrySet().stream()
                             .filter(entry -> {
-                                Block b = entry.getKey();
-                                return b.getX() == x && b.getY() == y && b.getZ() == z;
+                                Location loc = entry.getKey();
+                                return loc.getBlockX() == x && loc.getBlockY() == y && loc.getBlockZ() == z;
                             })
                             .findFirst();
                 } catch (NumberFormatException ignored) {}
@@ -84,7 +84,7 @@ public class ShopInspectSubCommand implements SubCommand {
 
         try {
             int index = Integer.parseInt(id) - 1;
-            List<Map.Entry<Block, BarterSign>> shopList = new ArrayList<>(shops.entrySet());
+            List<Map.Entry<Location, BarterSign>> shopList = new ArrayList<>(shops.entrySet());
             if (index >= 0 && index < shopList.size()) {
                 return Optional.of(shopList.get(index));
             }
@@ -117,7 +117,7 @@ public class ShopInspectSubCommand implements SubCommand {
     public List<String> getTabCompletions(CommandSender sender, String[] args) {
         List<String> completions = new ArrayList<>();
         if (args.length == 1) {
-            Map<Block, BarterSign> shops = plugin.getSignManager().getBarterSigns();
+            Map<Location, BarterSign> shops = plugin.getSignManager().getBarterSigns();
             for (int i = 1; i <= Math.min(shops.size(), 10); i++) {
                 if (String.valueOf(i).startsWith(args[0])) {
                     completions.add(String.valueOf(i));

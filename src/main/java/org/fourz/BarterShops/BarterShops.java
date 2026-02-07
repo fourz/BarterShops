@@ -88,6 +88,11 @@ public class BarterShops extends JavaPlugin {
         // Initialize database layer (impl-11)
         initializeDatabaseLayer();
 
+        // Hydrate signs from database (bug-10: was dead code before this fix)
+        if (signManager != null && shopRepository != null) {
+            signManager.loadSignsFromDatabase();
+        }
+
         // Initialize RatingService (requires database layer)
         initializeRatingService();
 

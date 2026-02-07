@@ -2,7 +2,7 @@ package org.fourz.BarterShops.command.sub;
 
 import org.bukkit.Bukkit;
 import org.bukkit.ChatColor;
-import org.bukkit.block.Block;
+import org.bukkit.Location;
 import org.bukkit.command.CommandSender;
 import org.bukkit.entity.Player;
 import org.fourz.BarterShops.BarterShops;
@@ -37,7 +37,7 @@ public class ShopRemoveSubCommand implements SubCommand {
         String shopId = args[0];
 
         // Find shop by ID
-        Optional<Map.Entry<Block, BarterSign>> shopEntry = findShopById(shopId);
+        Optional<Map.Entry<Location, BarterSign>> shopEntry = findShopById(shopId);
 
         if (shopEntry.isEmpty()) {
             sender.sendMessage(ChatColor.RED + "Shop not found: " + shopId);
@@ -45,7 +45,7 @@ public class ShopRemoveSubCommand implements SubCommand {
             return true;
         }
 
-        Block block = shopEntry.get().getKey();
+        Location location = shopEntry.get().getKey();
         BarterSign sign = shopEntry.get().getValue();
 
         // Check ownership (unless admin)
@@ -64,23 +64,23 @@ public class ShopRemoveSubCommand implements SubCommand {
             sender.sendMessage(ChatColor.GRAY + "Owner: " +
                     Bukkit.getOfflinePlayer(sign.getOwner()).getName());
             sender.sendMessage(ChatColor.GRAY + "Location: " +
-                    block.getX() + ", " + block.getY() + ", " + block.getZ());
+                    location.getBlockX() + ", " + location.getBlockY() + ", " + location.getBlockZ());
             sender.sendMessage(ChatColor.RED + "Run: /shop remove " + shopId + " --confirm");
             return true;
         }
 
         // Remove the shop
-        plugin.getSignManager().getBarterSigns().remove(block);
+        plugin.getSignManager().getBarterSigns().remove(location);
 
         sender.sendMessage(ChatColor.GREEN + "Shop removed successfully.");
         sender.sendMessage(ChatColor.GRAY + "Location: " +
-                block.getX() + ", " + block.getY() + ", " + block.getZ());
+                location.getBlockX() + ", " + location.getBlockY() + ", " + location.getBlockZ());
 
         return true;
     }
 
-    private Optional<Map.Entry<Block, BarterSign>> findShopById(String id) {
-        Map<Block, BarterSign> shops = plugin.getSignManager().getBarterSigns();
+    private Optional<Map.Entry<Location, BarterSign>> findShopById(String id) {
+        Map<Location, BarterSign> shops = plugin.getSignManager().getBarterSigns();
 
         // Try to match by location coordinates (x,y,z format)
         if (id.contains(",")) {
@@ -93,8 +93,8 @@ public class ShopRemoveSubCommand implements SubCommand {
 
                     return shops.entrySet().stream()
                             .filter(entry -> {
-                                Block b = entry.getKey();
-                                return b.getX() == x && b.getY() == y && b.getZ() == z;
+                                Location loc = entry.getKey();
+                                return loc.getBlockX() == x && loc.getBlockY() == y && loc.getBlockZ() == z;
                             })
                             .findFirst();
                 } catch (NumberFormatException ignored) {
@@ -105,7 +105,7 @@ public class ShopRemoveSubCommand implements SubCommand {
         // Try to match by index number
         try {
             int index = Integer.parseInt(id) - 1;
-            List<Map.Entry<Block, BarterSign>> shopList = new ArrayList<>(shops.entrySet());
+            List<Map.Entry<Location, BarterSign>> shopList = new ArrayList<>(shops.entrySet());
             if (index >= 0 && index < shopList.size()) {
                 return Optional.of(shopList.get(index));
             }
@@ -143,9 +143,9 @@ public class ShopRemoveSubCommand implements SubCommand {
             String partial = args[0].toLowerCase();
 
             // Suggest shop numbers owned by the sender
-            Map<Block, BarterSign> shops = plugin.getSignManager().getBarterSigns();
+            Map<Location, BarterSign> shops = plugin.getSignManager().getBarterSigns();
             int index = 1;
-            for (Map.Entry<Block, BarterSign> entry : shops.entrySet()) {
+            for (Map.Entry<Location, BarterSign> entry : shops.entrySet()) {
                 // Only suggest shops the player owns (or all if admin)
                 if (sender instanceof Player player) {
                     if (!entry.getValue().getOwner().equals(player.getUniqueId()) &&

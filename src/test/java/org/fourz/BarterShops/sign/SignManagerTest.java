@@ -1,7 +1,9 @@
 package org.fourz.BarterShops.sign;
 
+import org.bukkit.Location;
 import org.bukkit.Material;
 import org.bukkit.Server;
+import org.bukkit.World;
 import org.bukkit.block.Block;
 import org.bukkit.block.BlockFace;
 import org.bukkit.block.Container;
@@ -19,7 +21,6 @@ import org.bukkit.plugin.PluginManager;
 import org.fourz.BarterShops.BarterShops;
 import org.fourz.BarterShops.config.ConfigManager;
 import org.fourz.BarterShops.shop.ShopManager;
-import org.fourz.BarterShops.shop.ShopSession;
 import org.fourz.rvnkcore.util.log.LogManager;
 import org.junit.jupiter.api.*;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -85,10 +86,11 @@ class SignManagerTest {
     private ConfigManager configManager;
 
     @Mock
-    private ShopSession shopSession;
+    private World world;
 
     private SignManager signManager;
     private UUID playerUuid;
+    private Location signLocation;
 
     @BeforeEach
     void setUp() {
@@ -105,6 +107,10 @@ class SignManagerTest {
         // Setup player
         when(player.getUniqueId()).thenReturn(playerUuid);
         when(player.getName()).thenReturn("TestPlayer");
+
+        // Setup location
+        signLocation = new Location(world, 10, 64, 20);
+        when(signBlock.getLocation()).thenReturn(signLocation);
 
         // Setup sign
         when(sign.getBlock()).thenReturn(signBlock);
@@ -156,15 +162,16 @@ class SignManagerTest {
             verify(player).sendMessage("Shop created successfully! Punch sign to configure.");
             verify(signChangeEvent, never()).setCancelled(true);
 
-            Map<Block, BarterSign> barterSigns = signManager.getBarterSigns();
+            Map<Location, BarterSign> barterSigns = signManager.getBarterSigns();
             assertEquals(1, barterSigns.size());
-            assertTrue(barterSigns.containsKey(signBlock));
+            assertTrue(barterSigns.containsKey(signLocation));
 
-            BarterSign createdSign = barterSigns.get(signBlock);
+            BarterSign createdSign = barterSigns.get(signLocation);
             assertNotNull(createdSign);
             assertEquals(playerUuid, createdSign.getOwner());
             assertEquals(SignMode.SETUP, createdSign.getMode());
             assertEquals(SignType.STACKABLE, createdSign.getType());
+            assertEquals(signLocation, createdSign.getSignLocation());
         }
 
         @Test
@@ -208,7 +215,6 @@ class SignManagerTest {
     class SignInteractionTests {
 
         private PlayerInteractEvent interactEvent;
-        private BarterSign barterSign;
 
         @BeforeEach
         void setUpInteraction() {
@@ -217,29 +223,6 @@ class SignManagerTest {
             when(signBlock.getState()).thenReturn(sign);
             when(interactEvent.getPlayer()).thenReturn(player);
             when(interactEvent.getHand()).thenReturn(EquipmentSlot.HAND);
-
-            barterSign = new BarterSign.Builder()
-                .id(UUID.randomUUID().toString())
-                .owner(playerUuid)
-                .container(container)
-                .mode(SignMode.SETUP)
-                .type(SignType.STACKABLE)
-                .signSideDisplayFront(signSide)
-                .signSideDisplayBack(signSide)
-                .build();
-
-            when(shopManager.getSession(player)).thenReturn(shopSession);
-            when(shopSession.getCurrentMode()).thenReturn(org.fourz.BarterShops.shop.ShopMode.BOARD_DISPLAY);
-
-            try (MockedStatic<LogManager> logManagerStatic = mockStatic(LogManager.class)) {
-                logManagerStatic.when(() -> LogManager.getInstance(any(), anyString())).thenReturn(logger);
-                signManager = new SignManager(plugin);
-            }
-
-            // Manually add barter sign to map
-            signManager.getBarterSigns();
-            Map<Block, BarterSign> signs = signManager.getBarterSigns();
-            // Since getBarterSigns returns unmodifiable, we need to use reflection or test differently
         }
 
         @Test
@@ -255,7 +238,6 @@ class SignManagerTest {
             signManager.onSignClick(interactEvent);
 
             verify(interactEvent).setCancelled(true);
-            // SignInteraction.handleLeftClick is called internally
         }
 
         @Test
@@ -271,7 +253,6 @@ class SignManagerTest {
             signManager.onSignClick(interactEvent);
 
             verify(interactEvent).setCancelled(true);
-            // SignInteraction.handleRightClick is called internally if barterSign exists
         }
 
         @Test
@@ -300,7 +281,7 @@ class SignManagerTest {
     class BarterSignsMapTests {
 
         @Test
-        @DisplayName("BarterSigns map put and get works correctly")
+        @DisplayName("BarterSigns map uses Location keys correctly")
         void barterSignsMap_putAndGet_worksCorrectly() {
             try (MockedStatic<LogManager> logManagerStatic = mockStatic(LogManager.class)) {
                 logManagerStatic.when(() -> LogManager.getInstance(any(), anyString())).thenReturn(logger);
@@ -321,11 +302,11 @@ class SignManagerTest {
 
             signManager.onSignChange(signChangeEvent);
 
-            Map<Block, BarterSign> barterSigns = signManager.getBarterSigns();
+            Map<Location, BarterSign> barterSigns = signManager.getBarterSigns();
             assertFalse(barterSigns.isEmpty());
-            assertTrue(barterSigns.containsKey(signBlock));
+            assertTrue(barterSigns.containsKey(signLocation));
 
-            BarterSign retrievedSign = barterSigns.get(signBlock);
+            BarterSign retrievedSign = barterSigns.get(signLocation);
             assertNotNull(retrievedSign);
             assertEquals(playerUuid, retrievedSign.getOwner());
         }
@@ -363,6 +344,121 @@ class SignManagerTest {
             signManager.cleanup();
 
             assertTrue(signManager.getBarterSigns().isEmpty());
+        }
+    }
+
+    // ====== Sign Protection Tests ======
+
+    @Nested
+    @DisplayName("Sign Protection")
+    class SignProtectionTests {
+
+        @BeforeEach
+        void setUpProtection() {
+            try (MockedStatic<LogManager> logManagerStatic = mockStatic(LogManager.class)) {
+                logManagerStatic.when(() -> LogManager.getInstance(any(), anyString())).thenReturn(logger);
+                signManager = new SignManager(plugin);
+            }
+
+            // Create a sign via event
+            SignChangeEvent signChangeEvent = mock(SignChangeEvent.class);
+            when(signChangeEvent.getLine(0)).thenReturn("[barter]");
+            when(signChangeEvent.getPlayer()).thenReturn(player);
+            when(signChangeEvent.getBlock()).thenReturn(signBlock);
+            when(signBlock.getState()).thenReturn(sign);
+            when(sign.getBlockData()).thenReturn(wallSign);
+            when(wallSign.getFacing()).thenReturn(BlockFace.NORTH);
+            when(signBlock.getRelative(BlockFace.SOUTH)).thenReturn(mock(Block.class));
+            when(signBlock.getRelative(BlockFace.SOUTH).getState()).thenReturn(container);
+            when(player.hasPermission("bartershops.create")).thenReturn(true);
+
+            signManager.onSignChange(signChangeEvent);
+        }
+
+        @Test
+        @DisplayName("Non-owner cannot break shop sign")
+        void onSignBreak_nonOwner_cancelled() {
+            Player stranger = mock(Player.class);
+            when(stranger.getUniqueId()).thenReturn(UUID.randomUUID());
+            when(stranger.hasPermission("bartershops.admin")).thenReturn(false);
+
+            org.bukkit.event.block.BlockBreakEvent breakEvent = mock(org.bukkit.event.block.BlockBreakEvent.class);
+            when(breakEvent.getBlock()).thenReturn(signBlock);
+            when(breakEvent.getPlayer()).thenReturn(stranger);
+
+            signManager.onSignBreak(breakEvent);
+
+            verify(breakEvent).setCancelled(true);
+            assertFalse(signManager.getBarterSigns().isEmpty());
+        }
+
+        @Test
+        @DisplayName("Owner cannot break sign without DELETE mode")
+        void onSignBreak_ownerNotDeleteMode_cancelled() {
+            when(player.hasPermission("bartershops.admin")).thenReturn(false);
+
+            org.bukkit.event.block.BlockBreakEvent breakEvent = mock(org.bukkit.event.block.BlockBreakEvent.class);
+            when(breakEvent.getBlock()).thenReturn(signBlock);
+            when(breakEvent.getPlayer()).thenReturn(player);
+
+            // Sign is in SETUP mode (default after creation)
+            signManager.onSignBreak(breakEvent);
+
+            verify(breakEvent).setCancelled(true);
+            assertFalse(signManager.getBarterSigns().isEmpty());
+        }
+
+        @Test
+        @DisplayName("Owner can break sign in DELETE mode")
+        void onSignBreak_ownerDeleteMode_removed() {
+            when(player.hasPermission("bartershops.admin")).thenReturn(false);
+
+            // Set the sign to DELETE mode
+            BarterSign barterSign = signManager.getBarterSigns().get(signLocation);
+            barterSign.setMode(SignMode.DELETE);
+
+            org.bukkit.event.block.BlockBreakEvent breakEvent = mock(org.bukkit.event.block.BlockBreakEvent.class);
+            when(breakEvent.getBlock()).thenReturn(signBlock);
+            when(breakEvent.getPlayer()).thenReturn(player);
+
+            signManager.onSignBreak(breakEvent);
+
+            verify(breakEvent, never()).setCancelled(true);
+            assertTrue(signManager.getBarterSigns().isEmpty());
+        }
+
+        @Test
+        @DisplayName("Admin can break sign regardless of mode")
+        void onSignBreak_admin_removed() {
+            Player admin = mock(Player.class);
+            when(admin.getUniqueId()).thenReturn(UUID.randomUUID());
+            when(admin.getName()).thenReturn("Admin");
+            when(admin.hasPermission("bartershops.admin")).thenReturn(true);
+
+            org.bukkit.event.block.BlockBreakEvent breakEvent = mock(org.bukkit.event.block.BlockBreakEvent.class);
+            when(breakEvent.getBlock()).thenReturn(signBlock);
+            when(breakEvent.getPlayer()).thenReturn(admin);
+
+            signManager.onSignBreak(breakEvent);
+
+            verify(breakEvent, never()).setCancelled(true);
+            assertTrue(signManager.getBarterSigns().isEmpty());
+        }
+
+        @Test
+        @DisplayName("Break event on non-shop block passes through")
+        void onSignBreak_nonShopBlock_passesThrough() {
+            Block otherBlock = mock(Block.class);
+            Location otherLoc = new Location(world, 99, 99, 99);
+            when(otherBlock.getLocation()).thenReturn(otherLoc);
+
+            org.bukkit.event.block.BlockBreakEvent breakEvent = mock(org.bukkit.event.block.BlockBreakEvent.class);
+            when(breakEvent.getBlock()).thenReturn(otherBlock);
+            when(breakEvent.getPlayer()).thenReturn(player);
+
+            signManager.onSignBreak(breakEvent);
+
+            verify(breakEvent, never()).setCancelled(anyBoolean());
         }
     }
 }

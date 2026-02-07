@@ -1,5 +1,6 @@
 package org.fourz.BarterShops.sign;
 
+import org.bukkit.Location;
 import org.bukkit.block.Container;
 import org.bukkit.block.sign.SignSide;
 
@@ -8,6 +9,7 @@ import java.util.UUID;
 public class BarterSign {
     private final String id;
     private final UUID owner;
+    private final Location signLocation;
     private String group;
     private SignType type;
     private Container container;
@@ -19,6 +21,7 @@ public class BarterSign {
     private BarterSign(Builder builder) {
         this.id = builder.id;
         this.owner = builder.owner;
+        this.signLocation = builder.signLocation;
         this.group = builder.group;
         this.type = builder.type;
         this.container = builder.container;
@@ -31,6 +34,7 @@ public class BarterSign {
     // Getters
     public String getId() { return id; }
     public UUID getOwner() { return owner; }
+    public Location getSignLocation() { return signLocation; }
     public String getGroup() { return group; }
     public SignType getType() { return type; }
     public Container getContainer() { return container; }
@@ -45,6 +49,7 @@ public class BarterSign {
     public static class Builder {
         private String id;
         private UUID owner;
+        private Location signLocation;
         private String group;
         private SignType type;
         private Container container;
@@ -55,6 +60,7 @@ public class BarterSign {
 
         public Builder id(String id) { this.id = id; return this; }
         public Builder owner(UUID owner) { this.owner = owner; return this; }
+        public Builder signLocation(Location signLocation) { this.signLocation = signLocation; return this; }
         public Builder group(String group) { this.group = group; return this; }
         public Builder type(SignType type) { this.type = type; return this; }
         public Builder container(Container container) {

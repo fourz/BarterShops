@@ -2,7 +2,7 @@ package org.fourz.BarterShops.command;
 
 import org.bukkit.command.CommandSender;
 import org.bukkit.entity.Player;
-import org.bukkit.block.Block;
+import org.bukkit.Location;
 import org.bukkit.ChatColor;
 import org.fourz.BarterShops.BarterShops;
 import org.fourz.BarterShops.sign.BarterSign;
@@ -17,8 +17,8 @@ public class ListCommand implements BaseCommand {
 
     @Override
     public void execute(CommandSender sender, String[] args) {
-        Map<Block, BarterSign> shops = plugin.getSignManager().getBarterSigns();
-        
+        Map<Location, BarterSign> shops = plugin.getSignManager().getBarterSigns();
+
         if (shops.isEmpty()) {
             sender.sendMessage(ChatColor.YELLOW + "No shops found!");
             return;
@@ -26,30 +26,30 @@ public class ListCommand implements BaseCommand {
 
         // Header
         sender.sendMessage(ChatColor.GREEN + "=== Barter Shops ===");
-        sender.sendMessage(ChatColor.GRAY + String.format("%-16s %-12s %-24s %-10s", 
+        sender.sendMessage(ChatColor.GRAY + String.format("%-16s %-12s %-24s %-10s",
             "Owner", "Type", "Location", "Mode"));
         sender.sendMessage(ChatColor.GRAY + "------------------------------------------------");
 
         // Shop entries
-        for (Map.Entry<Block, BarterSign> entry : shops.entrySet()) {
-            Block block = entry.getKey();
+        for (Map.Entry<Location, BarterSign> entry : shops.entrySet()) {
+            Location location = entry.getKey();
             BarterSign sign = entry.getValue();
-            
+
             String ownerName = plugin.getServer().getOfflinePlayer(sign.getOwner()).getName();
             if (ownerName.length() > 15) ownerName = ownerName.substring(0, 12) + "...";
-            
-            String location = String.format("%d,%d,%d", 
-                block.getX(), block.getY(), block.getZ());
-            
+
+            String locationStr = String.format("%d,%d,%d",
+                location.getBlockX(), location.getBlockY(), location.getBlockZ());
+
             String row = String.format("%-16s %-12s %-24s %-10s",
                 ownerName,
                 sign.getType(),
-                location,
+                locationStr,
                 sign.getMode());
-                
+
             sender.sendMessage(ChatColor.WHITE + row);
         }
-        
+
         // Footer
         sender.sendMessage(ChatColor.GRAY + "------------------------------------------------");
         sender.sendMessage(ChatColor.GREEN + "Total shops: " + ChatColor.WHITE + shops.size());

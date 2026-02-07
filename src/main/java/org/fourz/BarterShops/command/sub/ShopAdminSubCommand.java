@@ -77,7 +77,14 @@ public class ShopAdminSubCommand implements SubCommand {
         try {
             plugin.reloadConfig();
             plugin.getConfigManager().reloadConfig();
-            sender.sendMessage(ChatColor.GREEN + "Configuration reloaded successfully!");
+
+            // Re-hydrate signs from database (bug-10 fix)
+            if (plugin.getSignManager() != null && plugin.getShopRepository() != null) {
+                plugin.getSignManager().loadSignsFromDatabase();
+                sender.sendMessage(ChatColor.GREEN + "Configuration and shop data reloaded successfully!");
+            } else {
+                sender.sendMessage(ChatColor.GREEN + "Configuration reloaded successfully!");
+            }
         } catch (Exception e) {
             sender.sendMessage(ChatColor.RED + "Failed to reload configuration: " + e.getMessage());
             return false;

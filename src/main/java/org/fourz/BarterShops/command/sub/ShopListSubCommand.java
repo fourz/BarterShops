@@ -2,8 +2,8 @@ package org.fourz.BarterShops.command.sub;
 
 import org.bukkit.Bukkit;
 import org.bukkit.ChatColor;
+import org.bukkit.Location;
 import org.bukkit.OfflinePlayer;
-import org.bukkit.block.Block;
 import org.bukkit.command.CommandSender;
 import org.bukkit.entity.Player;
 import org.fourz.BarterShops.BarterShops;
@@ -32,7 +32,7 @@ public class ShopListSubCommand implements SubCommand {
 
     @Override
     public boolean execute(CommandSender sender, String[] args) {
-        Map<Block, BarterSign> allShops = plugin.getSignManager().getBarterSigns();
+        Map<Location, BarterSign> allShops = plugin.getSignManager().getBarterSigns();
 
         // Filter by player if specified
         UUID filterOwner = null;
@@ -66,7 +66,7 @@ public class ShopListSubCommand implements SubCommand {
 
         // Filter shops
         final UUID ownerFilter = filterOwner;
-        List<Map.Entry<Block, BarterSign>> filteredShops = allShops.entrySet().stream()
+        List<Map.Entry<Location, BarterSign>> filteredShops = allShops.entrySet().stream()
                 .filter(entry -> ownerFilter == null || entry.getValue().getOwner().equals(ownerFilter))
                 .collect(Collectors.toList());
 
@@ -96,21 +96,21 @@ public class ShopListSubCommand implements SubCommand {
 
         // Shop entries
         for (int i = startIndex; i < endIndex; i++) {
-            Map.Entry<Block, BarterSign> entry = filteredShops.get(i);
-            Block block = entry.getKey();
+            Map.Entry<Location, BarterSign> entry = filteredShops.get(i);
+            Location location = entry.getKey();
             BarterSign sign = entry.getValue();
 
             String ownerName = Bukkit.getOfflinePlayer(sign.getOwner()).getName();
             if (ownerName == null) ownerName = "Unknown";
             if (ownerName.length() > 15) ownerName = ownerName.substring(0, 12) + "...";
 
-            String location = String.format("%d,%d,%d",
-                    block.getX(), block.getY(), block.getZ());
+            String locationStr = String.format("%d,%d,%d",
+                    location.getBlockX(), location.getBlockY(), location.getBlockZ());
 
             String row = String.format("%-16s %-12s %-20s %-10s",
                     ownerName,
                     sign.getType(),
-                    location,
+                    locationStr,
                     sign.getMode());
 
             sender.sendMessage(ChatColor.WHITE + row);

@@ -2,10 +2,14 @@ package org.fourz.BarterShops.data;
 
 import org.fourz.rvnkcore.testing.TestDataGenerator;
 
+import org.bukkit.Bukkit;
+import org.bukkit.World;
+
 import java.sql.Connection;
 import java.sql.PreparedStatement;
 import java.sql.ResultSet;
 import java.sql.SQLException;
+import java.util.List;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutorService;
@@ -84,13 +88,26 @@ public class ShopsTestDataGenerator extends TestDataGenerator {
     }
 
     @Override
+    protected String testWorldName(int seed) {
+        List<World> worlds = Bukkit.getWorlds();
+        if (worlds.isEmpty()) {
+            return "world"; // safe fallback
+        }
+        return worlds.get(seed % worlds.size()).getName();
+    }
+
+    @Override
     public String getGeneratorName() {
         return "ShopsTestDataGenerator";
     }
 
     @Override
     public CompletableFuture<Integer> seed(DataCategory category) {
-        return CompletableFuture.supplyAsync(() -> {
+        // Clean up existing test data first to prevent duplicate key errors (bug-12 fix)
+        return cleanup().thenCompose(cleaned -> CompletableFuture.supplyAsync(() -> {
+            if (cleaned) {
+                logInfo("Cleaned existing test data before re-seed");
+            }
             logInfo("Seeding " + category.name() + " data...");
             int totalRecords = 0;
 
@@ -131,7 +148,7 @@ public class ShopsTestDataGenerator extends TestDataGenerator {
             }
 
             return totalRecords;
-        }, executor);
+        }, executor));
     }
 
     private int seedShops(Connection conn, int count) throws SQLException {

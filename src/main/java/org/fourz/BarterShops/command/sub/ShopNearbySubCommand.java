@@ -3,7 +3,6 @@ package org.fourz.BarterShops.command.sub;
 import org.bukkit.Bukkit;
 import org.bukkit.ChatColor;
 import org.bukkit.Location;
-import org.bukkit.block.Block;
 import org.bukkit.command.CommandSender;
 import org.bukkit.entity.Player;
 import org.fourz.BarterShops.BarterShops;
@@ -49,18 +48,18 @@ public class ShopNearbySubCommand implements SubCommand {
         }
 
         Location playerLoc = player.getLocation();
-        Map<Block, BarterSign> allShops = plugin.getSignManager().getBarterSigns();
+        Map<Location, BarterSign> allShops = plugin.getSignManager().getBarterSigns();
 
         // Find shops within radius
         final int searchRadius = radius;
-        List<Map.Entry<Block, BarterSign>> nearbyShops = allShops.entrySet().stream()
+        List<Map.Entry<Location, BarterSign>> nearbyShops = allShops.entrySet().stream()
                 .filter(entry -> {
-                    Block block = entry.getKey();
-                    if (!block.getWorld().equals(playerLoc.getWorld())) return false;
-                    return block.getLocation().distance(playerLoc) <= searchRadius;
+                    Location shopLocation = entry.getKey();
+                    if (!shopLocation.getWorld().equals(playerLoc.getWorld())) return false;
+                    return shopLocation.distance(playerLoc) <= searchRadius;
                 })
                 .sorted(Comparator.comparingDouble(entry ->
-                        entry.getKey().getLocation().distance(playerLoc)))
+                        entry.getKey().distance(playerLoc)))
                 .toList();
 
         if (nearbyShops.isEmpty()) {
@@ -74,15 +73,15 @@ public class ShopNearbySubCommand implements SubCommand {
                 "Owner", "Type", "Distance"));
         sender.sendMessage(ChatColor.GRAY + "------------------------------------");
 
-        for (Map.Entry<Block, BarterSign> entry : nearbyShops) {
-            Block block = entry.getKey();
+        for (Map.Entry<Location, BarterSign> entry : nearbyShops) {
+            Location shopLocation = entry.getKey();
             BarterSign sign = entry.getValue();
 
             String ownerName = Bukkit.getOfflinePlayer(sign.getOwner()).getName();
             if (ownerName == null) ownerName = "Unknown";
             if (ownerName.length() > 15) ownerName = ownerName.substring(0, 12) + "...";
 
-            int distance = (int) block.getLocation().distance(playerLoc);
+            int distance = (int) shopLocation.distance(playerLoc);
 
             String row = String.format("%-16s %-12s %-8s",
                     ownerName,
