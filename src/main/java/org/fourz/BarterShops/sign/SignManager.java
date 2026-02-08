@@ -271,6 +271,11 @@ public class SignManager implements Listener {
         Sign sign = (Sign) clickedBlock.getState();
         BarterSign barterSign = barterSigns.get(clickedBlock.getLocation());
 
+        // Only intercept registered barter signs
+        if (barterSign == null) {
+            return;
+        }
+
         try {
             event.setCancelled(true);
 
@@ -279,9 +284,7 @@ public class SignManager implements Listener {
                 return;
             }
 
-            if (barterSign != null) {
-                signInteraction.handleRightClick(player, sign, barterSign);
-            }
+            signInteraction.handleRightClick(player, sign, barterSign);
         } catch (Exception e) {
             logger.error("Error processing sign interaction: " + e.getMessage(), e);
             player.sendMessage("An error occurred while processing your interaction");
@@ -293,15 +296,17 @@ public class SignManager implements Listener {
     private boolean qualifySign(Sign sign) {
         logger.debug("Qualifying sign at location: " + sign.getLocation());
         Block signBlock = sign.getBlock();
-        BlockFace attachedFace = ((org.bukkit.block.data.type.WallSign) sign.getBlockData()).getFacing().getOppositeFace();
 
-        // Check block behind sign
-        Block behindBlock = signBlock.getRelative(attachedFace);
-        if (behindBlock.getState() instanceof Container) {
-            return true;
+        // Wall signs: check block behind (attached face)
+        if (sign.getBlockData() instanceof org.bukkit.block.data.type.WallSign wallSign) {
+            BlockFace attachedFace = wallSign.getFacing().getOppositeFace();
+            Block behindBlock = signBlock.getRelative(attachedFace);
+            if (behindBlock.getState() instanceof Container) {
+                return true;
+            }
         }
 
-        // Check block below sign
+        // Standing signs (or wall sign with no container behind): check block below
         Block belowBlock = signBlock.getRelative(BlockFace.DOWN);
         if (belowBlock.getState() instanceof Container) {
             return true;
