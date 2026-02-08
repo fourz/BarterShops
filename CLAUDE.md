@@ -165,11 +165,13 @@ org.fourz.BarterShops
 │   ├── ContainerManager.java  # Chest container management
 │   ├── BarterContainer.java   # Container data model
 │   └── ContainerType.java     # Container type enumeration
-└── trade/
-    ├── TradeEngine.java          # Trade execution logic
-    ├── TradeSession.java         # Active trade state
-    ├── TradeValidator.java       # Trade validation rules
-    └── TradeConfirmationGUI.java # GUI for trade confirmation
+├── trade/
+│   ├── TradeEngine.java          # Trade execution logic
+│   ├── TradeSession.java         # Active trade state
+│   ├── TradeValidator.java       # Trade validation rules
+│   └── TradeConfirmationGUI.java # GUI for trade confirmation
+└── util/
+    └── PlayerLookup.java         # Player name resolution with RVNKCore PlayerService integration
 ```
 
 ### Key Patterns
