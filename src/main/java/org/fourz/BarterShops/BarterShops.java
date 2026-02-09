@@ -30,7 +30,7 @@ import org.fourz.BarterShops.shop.ShopManager;
 import org.fourz.BarterShops.trade.TradeEngine;
 import org.fourz.BarterShops.trade.TradeConfirmationGUI;
 import org.fourz.BarterShops.template.TemplateManager;
-import org.fourz.BarterShops.util.PlayerLookup;
+import org.fourz.rvnkcore.util.PlayerLookup;
 import org.fourz.rvnkcore.util.log.LogManager;
 
 public class BarterShops extends JavaPlugin {

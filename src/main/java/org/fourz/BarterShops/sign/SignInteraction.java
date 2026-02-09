@@ -42,12 +42,42 @@ public class SignInteraction {
         }
 
         if (barterSign != null && barterSign.getOwner().equals(player.getUniqueId())) {
-            logger.debug("Owner punch detected - entering configuration mode");
+            logger.debug("Owner punch detected - advancing configuration mode");
             cancelRevert(sign.getLocation());
-            barterSign.setMode(SignMode.SETUP);
+
+            // FIX Bug #2: Advance through modes instead of always resetting to SETUP
+            SignMode nextMode = advanceMode(barterSign.getMode());
+            barterSign.setMode(nextMode);
+            logger.debug("Punch navigation: " + barterSign.getMode() + " -> " + nextMode);
+
+            // FIX Bug #4: Cancel revert timer when entering DELETE mode to allow immediate sign break
+            if (nextMode == SignMode.DELETE) {
+                logger.debug("Entered DELETE mode - cancelling revert timer to allow immediate break");
+            }
+
             SignDisplay.updateSign(sign, barterSign);
+
+            // FIX Bug #3: Force client-side visual refresh after sign update to prevent stale display
+            plugin.getServer().getScheduler().runTaskLater(plugin, () -> {
+                player.sendBlockChange(sign.getLocation(), sign.getBlock().getBlockData());
+            }, 1L);
+
             event.setCancelled(true);
         }
+    }
+
+    /**
+     * FIX Bug #2: Navigate forward through configuration modes on left-click (punch)
+     * Sequence: SETUP -> TYPE -> BOARD -> DELETE -> SETUP (cycle)
+     */
+    private SignMode advanceMode(SignMode currentMode) {
+        return switch (currentMode) {
+            case SETUP -> SignMode.TYPE;
+            case TYPE -> SignMode.BOARD;
+            case BOARD -> SignMode.DELETE;
+            case DELETE -> SignMode.SETUP;
+            case HELP -> SignMode.BOARD; // Help is a special state, return to board
+        };
     }
 
     public void handleRightClick(Player player, Sign sign, BarterSign barterSign) {
@@ -67,21 +97,27 @@ public class SignInteraction {
 
         switch (barterSign.getMode()) {
             case SETUP -> {
-                logger.debug("Owner: SETUP -> TYPE");
-                barterSign.setMode(SignMode.TYPE);
+                logger.debug("Owner: SETUP - no action on right-click");
+                // Right-click in SETUP does nothing, use punch to advance
             }
             case TYPE -> {
-                logger.debug("Owner: TYPE -> BOARD");
-                barterSign.setMode(SignMode.BOARD);
+                // FIX Bug #1: Cycle through SignType enum instead of advancing mode
+                SignType currentType = barterSign.getType();
+                SignType nextType = cycleSignType(currentType);
+                barterSign.setType(nextType);
+                logger.debug("Owner: TYPE cycling - " + currentType + " -> " + nextType);
             }
             case BOARD -> {
-                logger.debug("Owner: BOARD -> DELETE");
-                barterSign.setMode(SignMode.DELETE);
+                logger.debug("Owner: BOARD - no action on right-click");
                 scheduleRevert(sign, barterSign);
+                // Right-click in BOARD does nothing (customers use this for trading)
             }
             case DELETE -> {
-                logger.debug("Owner: DELETE -> SETUP");
-                barterSign.setMode(SignMode.SETUP);
+                // FIX Bug #3: DELETE mode should persist, not cycle away
+                logger.debug("Owner: DELETE mode active - break sign to confirm deletion");
+                scheduleRevert(sign, barterSign);
+                // Stay in DELETE mode - player must break sign to delete
+                // Auto-revert to BOARD after timeout if not broken
             }
             case HELP -> {
                 logger.debug("Owner: HELP -> BOARD");
@@ -95,6 +131,18 @@ public class SignInteraction {
         }
 
         SignDisplay.updateSign(sign, barterSign);
+    }
+
+    /**
+     * FIX Bug #1: Cycle through SignType enum values
+     * Sequence: STACKABLE -> UNSTACKABLE -> BARTER -> STACKABLE (cycle)
+     */
+    private SignType cycleSignType(SignType currentType) {
+        return switch (currentType) {
+            case STACKABLE -> SignType.UNSTACKABLE;
+            case UNSTACKABLE -> SignType.BARTER;
+            case BARTER -> SignType.STACKABLE;
+        };
     }
 
     private void handleCustomerRightClick(Player player, Sign sign, BarterSign barterSign) {

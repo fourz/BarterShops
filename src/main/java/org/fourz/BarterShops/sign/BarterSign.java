@@ -41,6 +41,7 @@ public class BarterSign {
     public Container getShopContainer() { return shopContainer; }
     public SignMode getMode() { return mode; }
     public void setMode(SignMode mode) { this.mode = mode; }
+    public void setType(SignType type) { this.type = type; }  // FIX Bug #1: Allow type cycling
     public SignSide getSignSideDisplayFront() { return signSideDisplayFront; }
     public SignSide getSignSideDisplayBack() { return signSideDisplayBack; }
     public void setSignSideDisplayFront(SignSide side) { this.signSideDisplayFront = side; }

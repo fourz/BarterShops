@@ -4,7 +4,8 @@ version: ${project.version}
 description: Barter trading plugin with sign-based shop creation
 author: Derek Schrishuhn
 main: org.fourz.BarterShops.BarterShops
-softdepend: [RVNKCore, Vault, WorldGuard, GriefPrevention]
+depend: [RVNKCore]
+softdepend: [Vault, WorldGuard, GriefPrevention]
 
 commands:
   shop:

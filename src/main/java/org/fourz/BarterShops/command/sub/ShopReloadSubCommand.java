@@ -25,7 +25,7 @@ public class ShopReloadSubCommand implements SubCommand {
 
     @Override
     public boolean execute(CommandSender sender, String[] args) {
-        sender.sendMessage(ChatColor.YELLOW + "Reloading BarterShops configuration...");
+        sender.sendMessage(ChatColor.YELLOW + "Reloading BarterShops configuration and caches...");
 
         try {
             long startTime = System.currentTimeMillis();
@@ -33,11 +33,25 @@ public class ShopReloadSubCommand implements SubCommand {
             // Reload configuration
             plugin.getConfigManager().reloadConfig();
 
+            // FIX 8df42120: Clear in-memory caches after config reload
+            // SignManager: reload all barter signs from database
+            if (plugin.getSignManager() != null) {
+                plugin.getSignManager().clearSigns();
+                plugin.getSignManager().loadSignsFromDatabase();
+                logger.debug("Cleared and reloaded barter signs from database");
+            }
+
+            // TemplateManager: reload templates
+            if (plugin.getTemplateManager() != null) {
+                plugin.getTemplateManager().reload();
+                logger.debug("Reloaded shop templates");
+            }
+
             // Log the action
             long duration = System.currentTimeMillis() - startTime;
-            logger.info("Configuration reloaded by " + sender.getName() + " (" + duration + "ms)");
+            logger.info("Configuration and caches reloaded by " + sender.getName() + " (" + duration + "ms)");
 
-            sender.sendMessage(ChatColor.GREEN + "BarterShops configuration reloaded successfully!");
+            sender.sendMessage(ChatColor.GREEN + "BarterShops configuration and caches reloaded!");
             sender.sendMessage(ChatColor.GRAY + "Reload completed in " + duration + "ms");
 
         } catch (Exception e) {
