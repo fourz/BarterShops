@@ -1,16 +1,13 @@
 package org.fourz.BarterShops.command.sub;
 
-import org.bukkit.Bukkit;
 import org.bukkit.ChatColor;
-import org.bukkit.Location;
 import org.bukkit.command.CommandSender;
 import org.fourz.BarterShops.BarterShops;
 import org.fourz.BarterShops.command.SubCommand;
-import org.fourz.BarterShops.sign.BarterSign;
+import org.fourz.BarterShops.data.dto.ShopDataDTO;
 
 import java.util.ArrayList;
 import java.util.List;
-import java.util.Map;
 import java.util.Optional;
 
 /**
@@ -33,69 +30,65 @@ public class ShopInfoSubCommand implements SubCommand {
             return true;
         }
 
-        String shopId = args[0];
+        if (plugin.getShopRepository() == null) {
+            sender.sendMessage(ChatColor.RED + "Shop database not available.");
+            return true;
+        }
 
-        // Find shop by ID (using location hash for now)
-        Optional<Map.Entry<Location, BarterSign>> shopEntry = findShopById(shopId);
+        String shopArg = args[0];
 
-        if (shopEntry.isEmpty()) {
-            sender.sendMessage(ChatColor.RED + "Shop not found: " + shopId);
+        // Find shop by ID or name from database
+        Optional<ShopDataDTO> shopOpt = findShop(shopArg);
+
+        if (shopOpt.isEmpty()) {
+            sender.sendMessage(ChatColor.RED + "Shop not found: " + shopArg);
             sender.sendMessage(ChatColor.GRAY + "Use /shop list to see available shops.");
             return true;
         }
 
-        Location location = shopEntry.get().getKey();
-        BarterSign sign = shopEntry.get().getValue();
+        ShopDataDTO shop = shopOpt.get();
 
         // Display shop info
         sender.sendMessage(ChatColor.GOLD + "===== Shop Info =====");
-        sender.sendMessage(ChatColor.YELLOW + "ID: " + ChatColor.WHITE + shopId);
+        sender.sendMessage(ChatColor.YELLOW + "ID: " + ChatColor.WHITE + shop.shopId());
+        if (shop.shopName() != null && !shop.shopName().isEmpty()) {
+            sender.sendMessage(ChatColor.YELLOW + "Name: " + ChatColor.WHITE + shop.shopName());
+        }
         sender.sendMessage(ChatColor.YELLOW + "Owner: " + ChatColor.WHITE +
-                plugin.getPlayerLookup().getPlayerName(sign.getOwner()));
-        sender.sendMessage(ChatColor.YELLOW + "Type: " + ChatColor.WHITE + sign.getType());
-        sender.sendMessage(ChatColor.YELLOW + "Mode: " + ChatColor.WHITE + sign.getMode());
-        sender.sendMessage(ChatColor.YELLOW + "Location: " + ChatColor.WHITE +
-                String.format("%s: %d, %d, %d",
-                        location.getWorld().getName(),
-                        location.getBlockX(), location.getBlockY(), location.getBlockZ()));
+                plugin.getPlayerLookup().getPlayerName(shop.ownerUuid()));
+        sender.sendMessage(ChatColor.YELLOW + "Type: " + ChatColor.WHITE +
+                (shop.shopType() != null ? shop.shopType().name() : "BARTER"));
+        sender.sendMessage(ChatColor.YELLOW + "Active: " + ChatColor.WHITE + shop.isActive());
 
-        // Trade info (placeholder - will use DTOs when service is implemented)
-        sender.sendMessage(ChatColor.YELLOW + "Trades: " + ChatColor.GRAY + "(Use /shop info <id> trades)");
+        if (shop.locationWorld() != null) {
+            sender.sendMessage(ChatColor.YELLOW + "Location: " + ChatColor.WHITE +
+                    String.format("%s: %d, %d, %d",
+                            shop.locationWorld(),
+                            (int) shop.locationX(), (int) shop.locationY(), (int) shop.locationZ()));
+        }
+
+        // Trade info placeholder
+        sender.sendMessage(ChatColor.YELLOW + "Trades: " + ChatColor.GRAY + "(Use /shop inspect <id> for details)");
 
         return true;
     }
 
-    private Optional<Map.Entry<Location, BarterSign>> findShopById(String id) {
-        Map<Location, BarterSign> shops = plugin.getSignManager().getBarterSigns();
-
-        // Try to match by location coordinates (x,y,z format)
-        if (id.contains(",")) {
-            String[] parts = id.split(",");
-            if (parts.length >= 3) {
-                try {
-                    int x = Integer.parseInt(parts[0].trim());
-                    int y = Integer.parseInt(parts[1].trim());
-                    int z = Integer.parseInt(parts[2].trim());
-
-                    return shops.entrySet().stream()
-                            .filter(entry -> {
-                                Location loc = entry.getKey();
-                                return loc.getBlockX() == x && loc.getBlockY() == y && loc.getBlockZ() == z;
-                            })
-                            .findFirst();
-                } catch (NumberFormatException ignored) {
-                }
-            }
+    private Optional<ShopDataDTO> findShop(String arg) {
+        // Try numeric shop ID first
+        try {
+            int shopId = Integer.parseInt(arg);
+            return plugin.getShopRepository().findById(shopId).join();
+        } catch (NumberFormatException ignored) {
         }
 
-        // Try to match by index number
+        // Try name match against all active shops
         try {
-            int index = Integer.parseInt(id) - 1;
-            List<Map.Entry<Location, BarterSign>> shopList = new ArrayList<>(shops.entrySet());
-            if (index >= 0 && index < shopList.size()) {
-                return Optional.of(shopList.get(index));
-            }
-        } catch (NumberFormatException ignored) {
+            List<ShopDataDTO> shops = plugin.getShopRepository().findAllActive().join();
+            String lowerArg = arg.toLowerCase();
+            return shops.stream()
+                    .filter(s -> s.shopName() != null && s.shopName().toLowerCase().equals(lowerArg))
+                    .findFirst();
+        } catch (Exception ignored) {
         }
 
         return Optional.empty();
@@ -125,16 +118,23 @@ public class ShopInfoSubCommand implements SubCommand {
     public List<String> getTabCompletions(CommandSender sender, String[] args) {
         List<String> completions = new ArrayList<>();
 
-        if (args.length == 1) {
+        if (args.length == 1 && plugin.getShopRepository() != null) {
             String partial = args[0].toLowerCase();
 
-            // Suggest shop numbers
-            Map<Location, BarterSign> shops = plugin.getSignManager().getBarterSigns();
-            for (int i = 1; i <= Math.min(shops.size(), 10); i++) {
-                String num = String.valueOf(i);
-                if (num.startsWith(partial)) {
-                    completions.add(num);
+            try {
+                List<ShopDataDTO> shops = plugin.getShopRepository().findAllActive().join();
+                for (ShopDataDTO shop : shops) {
+                    // Suggest shop IDs
+                    String idStr = String.valueOf(shop.shopId());
+                    if (idStr.startsWith(partial)) {
+                        completions.add(idStr);
+                    }
+                    // Suggest shop names
+                    if (shop.shopName() != null && shop.shopName().toLowerCase().startsWith(partial)) {
+                        completions.add(shop.shopName());
+                    }
                 }
+            } catch (Exception ignored) {
             }
         }
 

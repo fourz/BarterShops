@@ -2,17 +2,15 @@ package org.fourz.BarterShops.command.sub;
 
 import org.bukkit.Bukkit;
 import org.bukkit.ChatColor;
-import org.bukkit.Location;
 import org.bukkit.OfflinePlayer;
 import org.bukkit.command.CommandSender;
 import org.bukkit.entity.Player;
 import org.fourz.BarterShops.BarterShops;
 import org.fourz.BarterShops.command.SubCommand;
-import org.fourz.BarterShops.sign.BarterSign;
+import org.fourz.BarterShops.data.dto.ShopDataDTO;
 
 import java.util.ArrayList;
 import java.util.List;
-import java.util.Map;
 import java.util.UUID;
 import java.util.stream.Collectors;
 
@@ -32,9 +30,10 @@ public class ShopListSubCommand implements SubCommand {
 
     @Override
     public boolean execute(CommandSender sender, String[] args) {
-        // FIX Bug #1: Use database repository instead of memory cache
-        // This ensures /shop list shows ALL shops from database, not just loaded signs
-        Map<Location, BarterSign> allShops = plugin.getSignManager().getBarterSigns();
+        if (plugin.getShopRepository() == null) {
+            sender.sendMessage(ChatColor.RED + "Shop database not available.");
+            return true;
+        }
 
         // Filter by player if specified
         UUID filterOwner = null;
@@ -66,13 +65,20 @@ public class ShopListSubCommand implements SubCommand {
             }
         }
 
-        // Filter shops from in-memory cache
-        final UUID ownerFilter = filterOwner;
-        List<Map.Entry<Location, BarterSign>> filteredShops = allShops.entrySet().stream()
-                .filter(entry -> ownerFilter == null || entry.getValue().getOwner().equals(ownerFilter))
-                .collect(Collectors.toList());
+        // Query database directly - source of truth for all shops
+        List<ShopDataDTO> allShops;
+        try {
+            if (filterOwner != null) {
+                allShops = plugin.getShopRepository().findByOwner(filterOwner).join();
+            } else {
+                allShops = plugin.getShopRepository().findAllActive().join();
+            }
+        } catch (Exception e) {
+            sender.sendMessage(ChatColor.RED + "Failed to query shops from database.");
+            return true;
+        }
 
-        if (filteredShops.isEmpty()) {
+        if (allShops.isEmpty()) {
             if (filterOwner != null) {
                 sender.sendMessage(ChatColor.YELLOW + "No shops found for that player.");
             } else {
@@ -82,44 +88,50 @@ public class ShopListSubCommand implements SubCommand {
         }
 
         // Pagination
-        int totalPages = (int) Math.ceil(filteredShops.size() / (double) ITEMS_PER_PAGE);
+        int totalPages = (int) Math.ceil(allShops.size() / (double) ITEMS_PER_PAGE);
         page = Math.max(1, Math.min(page, totalPages));
         int startIndex = (page - 1) * ITEMS_PER_PAGE;
-        int endIndex = Math.min(startIndex + ITEMS_PER_PAGE, filteredShops.size());
+        int endIndex = Math.min(startIndex + ITEMS_PER_PAGE, allShops.size());
 
         // Header
         String header = filterOwner != null
                 ? "=== Shops by " + plugin.getPlayerLookup().getPlayerName(filterOwner) + " ==="
                 : "=== All Barter Shops ===";
         sender.sendMessage(ChatColor.GREEN + header);
-        sender.sendMessage(ChatColor.GRAY + String.format("%-16s %-12s %-20s %-10s",
-                "Owner", "Type", "Location", "Mode"));
+        sender.sendMessage(ChatColor.GRAY + String.format("%-5s %-16s %-12s %-20s",
+                "ID", "Owner", "Type", "Location"));
         sender.sendMessage(ChatColor.GRAY + "------------------------------------------------");
 
         // Shop entries
         for (int i = startIndex; i < endIndex; i++) {
-            Map.Entry<Location, BarterSign> entry = filteredShops.get(i);
-            Location location = entry.getKey();
-            BarterSign sign = entry.getValue();
+            ShopDataDTO shop = allShops.get(i);
 
-            String ownerName = plugin.getPlayerLookup().getPlayerName(sign.getOwner());
+            String ownerName = plugin.getPlayerLookup().getPlayerName(shop.ownerUuid());
             if (ownerName.length() > 15) ownerName = ownerName.substring(0, 12) + "...";
 
-            String locationStr = String.format("%d,%d,%d",
-                    location.getBlockX(), location.getBlockY(), location.getBlockZ());
+            String locationStr = shop.locationWorld() != null
+                    ? String.format("%d,%d,%d",
+                        (int) shop.locationX(), (int) shop.locationY(), (int) shop.locationZ())
+                    : "N/A";
 
-            String row = String.format("%-16s %-12s %-20s %-10s",
+            String shopName = shop.shopName() != null ? shop.shopName() : "";
+            String typeStr = shop.shopType() != null ? shop.shopType().name() : "BARTER";
+
+            String row = String.format("%-5d %-16s %-12s %-20s",
+                    shop.shopId(),
                     ownerName,
-                    sign.getType(),
-                    locationStr,
-                    sign.getMode());
+                    typeStr,
+                    locationStr);
 
             sender.sendMessage(ChatColor.WHITE + row);
+            if (!shopName.isEmpty()) {
+                sender.sendMessage(ChatColor.GRAY + "      " + shopName);
+            }
         }
 
         // Footer
         sender.sendMessage(ChatColor.GRAY + "------------------------------------------------");
-        sender.sendMessage(ChatColor.GREEN + "Total: " + ChatColor.WHITE + filteredShops.size() +
+        sender.sendMessage(ChatColor.GREEN + "Total: " + ChatColor.WHITE + allShops.size() +
                 ChatColor.GRAY + " | Page " + page + "/" + totalPages);
 
         if (totalPages > 1) {

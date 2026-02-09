@@ -3,19 +3,29 @@
 **Last Updated**: February 9, 2026
 **Archon Board**: `bd4e478b-772a-4b97-bd99-300552840815`
 
-## February 9, 2026 Status: Active Refactoring
+## February 9, 2026 Status: Database-First Commands + Bug Fixes
 
-**Recent Development** (derek/dev, ccafdc2):
+**Recent Development** (derek/dev):
 
-- ✅ SignManager click handling improvements (refactor: ccafdc2)
-- ✅ Console command cleanup and PlayerLookup addition (fb156e7)
-- ✅ Sign hydration wiring fixes, seed generator refactor, sign-UI internals (e502c32)
-- ✅ Unit tests wired, admin GUIs connected to real repositories (9084333)
-- ✅ Trade engine and service improvements (b952125)
+- ✅ `/shop list` and `/shop info` now query database directly (was reading empty sign cache) — bug-10
+- ✅ `/shop info` supports both numeric IDs and shop name lookup
+- ✅ Tab completion for `/shop info` suggests shop IDs and names from DB
+- ✅ SignManager sign hydration verified working (sync `.join()` fix from prior session)
+- ✅ Debug logging cleanup deployed (removed temporary `plugin.getLogger()` bypass calls)
+- ✅ Spark profiler workflows added to admin skills documentation (admin-01)
 
-**Archon Status**: EPIC 8 consolidated and archived (~37 tasks completed Jan-Feb 2026)
+**Prior Sprint** (ccafdc2..e502c32):
 
-**Current Focus**: Sign interaction refinement, admin tooling integration, repository-backed GUI systems
+- ✅ SignManager click handling improvements, sign hydration wiring, seed generator refactor
+- ✅ Console command cleanup, PlayerLookup addition, sign-UI internals
+- ✅ Unit tests wired, admin GUIs connected to real repositories
+- ✅ Trade engine and service improvements
+- ✅ Legacy DatabaseManager cleanup (258 lines removed)
+- ✅ TradeRepository SQL text block fixes (10 methods)
+
+**Archon Status**: EPIC 8 archived (~37 tasks), 5 open bugs (sign interaction), 1 feature (trade history)
+
+**Current Focus**: Sign interaction bug fixes (type cycling, punch navigation, delete confirmation)
 
 ---
 
@@ -32,6 +42,7 @@ Foundation complete with active refactoring:
 - ✅ Trade engine service layer active
 - ✅ Unit testing framework in place
 - ✅ Debug and logging utilities
+- ✅ Database-first command queries (ShopRepository for list/info)
 - ✅ Sym-linked to Ravenkraft Dev documentation hub
 
 ## RVNKCore Integration Status
