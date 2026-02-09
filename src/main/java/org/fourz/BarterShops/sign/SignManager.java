@@ -130,8 +130,6 @@ public class SignManager implements Listener {
                     if (existingSign.getOwner().equals(player.getUniqueId())) {
                         logger.debug("Owner attempted recreation - treating as interaction");
                         handleSignInteraction(player, sign, existingSign);
-                    } else {
-                        player.sendMessage("This is already a barter shop!");
                     }
                     return;
                 }
@@ -144,24 +142,23 @@ public class SignManager implements Listener {
                         Container container = findAssociatedContainer(sign);
                         if (container != null) {
                             createBarterSign(player, sign, container);
-                            player.sendMessage("Shop created successfully! Punch sign to configure.");
+                            player.sendMessage(ChatColor.GREEN + "Shop created!");
                         } else {
-                            player.sendMessage("Error: Could not find associated container!");
+                            player.sendMessage(ChatColor.RED + "No container found! Place sign on a chest.");
                             event.setCancelled(true);
                         }
                     } else {
-                        player.sendMessage("Invalid shop location! Place sign on or above a container.");
+                        player.sendMessage(ChatColor.RED + "Invalid location! Place sign on or above a chest.");
                         logger.warning("Invalid shop location attempt by " + player.getName());
                         event.setCancelled(true);
                     }
                 } else {
-                    player.sendMessage("You do not have permission to create a shop!");
+                    player.sendMessage(ChatColor.RED + "You don't have permission to create shops.");
                     logger.warning("Permission denied for shop creation: " + player.getName());
                     event.setCancelled(true);
                 }
             } catch (Exception e) {
                 logger.error("Error creating barter shop: " + e.getMessage(), e);
-                event.getPlayer().sendMessage("Error creating shop: " + e.getMessage());
                 event.setCancelled(true);
             }
         }
@@ -217,7 +214,7 @@ public class SignManager implements Listener {
 
         // Authorized break - cleanup
         removeBarterSign(loc);
-        player.sendMessage(ChatColor.GREEN + "Shop sign removed.");
+        player.sendMessage(ChatColor.GREEN + "Shop removed.");
         logger.info("Shop sign removed by " + player.getName() + " at " + loc);
     }
 
@@ -287,7 +284,6 @@ public class SignManager implements Listener {
             signInteraction.handleRightClick(player, sign, barterSign);
         } catch (Exception e) {
             logger.error("Error processing sign interaction: " + e.getMessage(), e);
-            player.sendMessage("An error occurred while processing your interaction");
         }
     }
 
@@ -321,7 +317,6 @@ public class SignManager implements Listener {
             signInteraction.handleRightClick(player, sign, barterSign);
         } catch (Exception e) {
             logger.error("Error in sign interaction delegation: " + e.getMessage(), e);
-            player.sendMessage("An error occurred while processing your interaction");
         }
     }
 

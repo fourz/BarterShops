@@ -13,6 +13,7 @@ import org.bukkit.inventory.Inventory;
 import org.bukkit.inventory.ItemStack;
 import org.bukkit.inventory.meta.ItemMeta;
 import org.fourz.BarterShops.BarterShops;
+import org.fourz.BarterShops.data.IConnectionProvider;
 import org.fourz.BarterShops.data.dto.ShopDataDTO;
 import org.fourz.rvnkcore.util.log.LogManager;
 
@@ -358,9 +359,10 @@ public class AdminStatsGUI implements Listener {
      * Gets system statistics.
      */
     private SystemStats getSystemStatistics() {
-        String dbType = plugin.getDatabaseManager() != null ? "Connected" : "Not Initialized";
-        String dbStatus = plugin.getDatabaseManager() != null ? "Online" : "Offline";
-        ChatColor dbColor = plugin.getDatabaseManager() != null ? ChatColor.GREEN : ChatColor.RED;
+        IConnectionProvider provider = plugin.getConnectionProvider();
+        String dbType = provider != null ? provider.getDatabaseType() : "Not Initialized";
+        String dbStatus = provider != null && provider.isHealthy() ? "Online" : "Offline";
+        ChatColor dbColor = provider != null && provider.isHealthy() ? ChatColor.GREEN : ChatColor.RED;
 
         Runtime runtime = Runtime.getRuntime();
         long usedMemory = (runtime.totalMemory() - runtime.freeMemory()) / 1024 / 1024;

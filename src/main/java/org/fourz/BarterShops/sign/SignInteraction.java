@@ -24,6 +24,7 @@ import java.util.concurrent.ConcurrentHashMap;
 public class SignInteraction {
     private static final String CLASS_NAME = "SignInteraction";
     private static final long REVERT_DELAY_TICKS = 200L; // 10 seconds
+    private static final long STATUS_DISPLAY_TICKS = 60L; // 3 seconds
 
     private final BarterShops plugin;
     private final LogManager logger;
@@ -45,7 +46,6 @@ public class SignInteraction {
             cancelRevert(sign.getLocation());
             barterSign.setMode(SignMode.SETUP);
             SignDisplay.updateSign(sign, barterSign);
-            player.sendMessage("Entering shop configuration mode");
             event.setCancelled(true);
         }
     }
@@ -69,28 +69,23 @@ public class SignInteraction {
             case SETUP -> {
                 logger.debug("Owner: SETUP -> TYPE");
                 barterSign.setMode(SignMode.TYPE);
-                player.sendMessage("Click to toggle shop type");
             }
             case TYPE -> {
                 logger.debug("Owner: TYPE -> BOARD");
                 barterSign.setMode(SignMode.BOARD);
-                player.sendMessage("Click to edit the shop display");
             }
             case BOARD -> {
                 logger.debug("Owner: BOARD -> DELETE");
                 barterSign.setMode(SignMode.DELETE);
-                player.sendMessage("Break sign to confirm deletion");
                 scheduleRevert(sign, barterSign);
             }
             case DELETE -> {
                 logger.debug("Owner: DELETE -> SETUP");
                 barterSign.setMode(SignMode.SETUP);
-                player.sendMessage("Right-click sign with payment item to configure");
             }
             case HELP -> {
                 logger.debug("Owner: HELP -> BOARD");
                 barterSign.setMode(SignMode.BOARD);
-                player.sendMessage("Returning to shop display");
                 scheduleRevert(sign, barterSign);
             }
             default -> {
@@ -107,7 +102,6 @@ public class SignInteraction {
 
         if (barterSign.getMode() != SignMode.BOARD) {
             logger.debug("Customer tried to interact with non-BOARD mode shop");
-            player.sendMessage("This shop is currently being configured");
             return;
         }
 
@@ -122,7 +116,7 @@ public class SignInteraction {
 
         // Check fallback mode
         if (tradeEngine.isInFallbackMode()) {
-            player.sendMessage(ChatColor.RED + "Trading is temporarily unavailable. Please try again later.");
+            showTemporaryStatus(sign, barterSign, "\u00A7cTemporarily", "\u00A7cunavailable");
             logger.warning("Trade rejected - system in fallback mode");
             return;
         }
@@ -134,7 +128,7 @@ public class SignInteraction {
         }
 
         if (shopContainer == null) {
-            player.sendMessage(ChatColor.RED + "This shop has no inventory configured.");
+            showTemporaryStatus(sign, barterSign, "\u00A7cNo inventory", "\u00A7cconfigured");
             logger.debug("Trade rejected - no shop container");
             return;
         }
@@ -151,7 +145,7 @@ public class SignInteraction {
         }
 
         if (offeredItem == null) {
-            player.sendMessage(ChatColor.RED + "This shop is out of stock.");
+            showTemporaryStatus(sign, barterSign, "\u00A7cOut of", "\u00A7cstock");
             logger.debug("Trade rejected - shop out of stock");
             return;
         }
@@ -163,7 +157,7 @@ public class SignInteraction {
         if (requestedItem != null && requestedItem.getType() != Material.AIR) {
             requestedQuantity = 1; // Default to 1 item as payment
         } else {
-            player.sendMessage(ChatColor.YELLOW + "Hold an item in your hand to trade.");
+            showTemporaryStatus(sign, barterSign, "\u00A7eHold item", "\u00A7eto trade");
             logger.debug("Trade rejected - player not holding payment item");
             return;
         }
@@ -171,7 +165,7 @@ public class SignInteraction {
         // Initiate trade session
         Optional<TradeSession> sessionOpt = tradeEngine.initiateTrade(player, barterSign);
         if (sessionOpt.isEmpty()) {
-            player.sendMessage(ChatColor.RED + "Cannot start trade. You may already have an active trade.");
+            showTemporaryStatus(sign, barterSign, "\u00A7cTrade", "\u00A7cunavailable");
             logger.debug("Trade rejected - failed to create session");
             return;
         }
@@ -192,16 +186,15 @@ public class SignInteraction {
                 logger.debug("Trade confirmed for session: " + confirmedSession.getSessionId());
                 confirmedSession.setState(TradeSession.TradeState.AWAITING_FINAL_CONFIRM);
 
-                // Execute the trade asynchronously
                 tradeEngine.executeTrade(confirmedSession.getSessionId())
                     .thenAccept(result -> {
-                        // Sync back to main thread for Bukkit API
                         plugin.getServer().getScheduler().runTask(plugin, () -> {
                             if (result.success()) {
-                                player.sendMessage(ChatColor.GREEN + "Trade completed successfully!");
-                                player.sendMessage(ChatColor.GRAY + "Transaction ID: " + result.transactionId());
+                                player.sendMessage(ChatColor.GREEN + "Trade complete!");
+                                logger.info("Trade completed: " + result.transactionId());
                             } else {
                                 player.sendMessage(ChatColor.RED + "Trade failed: " + result.message());
+                                logger.debug("Trade failed: " + result.message());
                             }
                         });
                     });
@@ -215,9 +208,20 @@ public class SignInteraction {
         );
     }
 
+    // ========== Temporary Status Display ==========
+
+    private void showTemporaryStatus(Sign sign, BarterSign barterSign, String line1, String line2) {
+        SignDisplay.displayTemporaryMessage(sign, line1, line2);
+        scheduleRevert(sign, barterSign, STATUS_DISPLAY_TICKS);
+    }
+
     // ========== Auto-Revert Scheduling ==========
 
     private void scheduleRevert(Sign sign, BarterSign barterSign) {
+        scheduleRevert(sign, barterSign, REVERT_DELAY_TICKS);
+    }
+
+    private void scheduleRevert(Sign sign, BarterSign barterSign, long delayTicks) {
         Location loc = sign.getLocation();
         if (loc == null) return;
         cancelRevert(loc);
@@ -229,7 +233,7 @@ public class SignInteraction {
                 SignDisplay.updateSign(sign, barterSign);
                 activeRevertTasks.remove(loc);
             }
-        }.runTaskLater(plugin, REVERT_DELAY_TICKS);
+        }.runTaskLater(plugin, delayTicks);
 
         activeRevertTasks.put(loc, task);
     }
