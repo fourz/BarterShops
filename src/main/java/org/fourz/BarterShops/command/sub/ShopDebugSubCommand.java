@@ -110,7 +110,7 @@ public class ShopDebugSubCommand implements SubCommand {
             ChatColor.WHITE + String.format("%dh %dm %ds", uptimeHrs, uptimeMin % 60, uptimeSec % 60));
 
         // Log level
-        String currentLevel = plugin.getConfig().getString("logging.level", "INFO");
+        String currentLevel = plugin.getConfig().getString("general.logLevel", "INFO");
         sender.sendMessage(ChatColor.GOLD + "Log Level: " + ChatColor.WHITE + currentLevel);
 
         // Available subcommands
@@ -124,7 +124,7 @@ public class ShopDebugSubCommand implements SubCommand {
     private boolean handleLogLevel(CommandSender sender, String[] args) {
         if (args.length == 0) {
             // Show current log level from config
-            String currentLevel = plugin.getConfig().getString("logging.level", "INFO");
+            String currentLevel = plugin.getConfig().getString("general.logLevel", "INFO");
             sender.sendMessage(ChatColor.GOLD + "Current log level: " +
                 ChatColor.WHITE + currentLevel);
             sender.sendMessage(ChatColor.GRAY + "Usage: /shop debug loglevel <DEBUG|INFO|WARN|OFF>");
@@ -138,7 +138,7 @@ public class ShopDebugSubCommand implements SubCommand {
         LogManager.setPluginLogLevel(plugin, level);
 
         // Update config for persistence
-        plugin.getConfig().set("logging.level", levelStr);
+        plugin.getConfig().set("general.logLevel", levelStr);
         plugin.saveConfig();
 
         sender.sendMessage(ChatColor.GREEN + "Log level set to: " + ChatColor.WHITE + levelStr);

@@ -4,7 +4,6 @@ import org.bukkit.plugin.Plugin;
 import org.bukkit.plugin.java.JavaPlugin;
 import org.fourz.BarterShops.command.CommandManager;
 import org.fourz.BarterShops.config.ConfigManager;
-import org.fourz.BarterShops.data.DatabaseManager;
 import org.fourz.BarterShops.data.FallbackTracker;
 import org.fourz.BarterShops.data.IConnectionProvider;
 import org.fourz.BarterShops.data.repository.IShopRepository;
@@ -44,7 +43,6 @@ public class BarterShops extends JavaPlugin {
     private TradeConfirmationGUI tradeConfirmationGUI;
     private NotificationManager notificationManager;
     private TemplateManager templateManager;
-    private DatabaseManager databaseManager;
     private ProtectionManager protectionManager;
     private IRatingService ratingService;
     private IStatsService statsService;
@@ -80,7 +78,6 @@ public class BarterShops extends JavaPlugin {
         this.protectionManager = new ProtectionManager(this);
         this.economyManager = new EconomyManager(this);
         this.feeCalculator = new ShopFeeCalculator(economyManager);
-        this.commandManager = new CommandManager(this);
         this.signManager = new SignManager(this);
         this.containerManager = new ContainerManager(this);
         this.shopManager = new ShopManager(this);
@@ -103,6 +100,9 @@ public class BarterShops extends JavaPlugin {
 
         // Register with RVNKCore ServiceRegistry if available
         registerWithRVNKCore();
+
+        // CommandManager after services so conditional subcommands (rate/reviews/stats) register (bug-11)
+        this.commandManager = new CommandManager(this);
 
         // Initialize PlayerLookup (after RVNKCore registration so PlayerService is available)
         this.playerLookup = new PlayerLookup(this);
@@ -416,17 +416,6 @@ public class BarterShops extends JavaPlugin {
             }
         });
 
-        cleanupManager("database", () -> {
-            if (databaseManager != null) {
-                try {
-                    databaseManager.disconnect();
-                } catch (Exception e) {
-                    logger.warning("Failed to disconnect database: " + e.getMessage());
-                }
-                databaseManager = null;
-            }
-        });
-
         cleanupManager("tradeService", () -> {
             tradeService = null;
         });
@@ -488,10 +477,6 @@ public class BarterShops extends JavaPlugin {
 
     public NotificationManager getNotificationManager() {
         return notificationManager;
-    }
-
-    public DatabaseManager getDatabaseManager() {
-        return databaseManager;
     }
 
     public TemplateManager getTemplateManager() {
