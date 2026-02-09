@@ -113,11 +113,11 @@ public class SignInteraction {
                 // Right-click in BOARD does nothing (customers use this for trading)
             }
             case DELETE -> {
-                // FIX Bug #3: DELETE mode should persist, not cycle away
+                // FIX Bug #4: DELETE mode should persist until sign is broken
+                // DO NOT schedule revert timer - player must break sign immediately to delete
+                // Revert timer would interfere with block break event
                 logger.debug("Owner: DELETE mode active - break sign to confirm deletion");
-                scheduleRevert(sign, barterSign);
-                // Stay in DELETE mode - player must break sign to delete
-                // Auto-revert to BOARD after timeout if not broken
+                // NO scheduleRevert() here - allows immediate sign break without mode changes
             }
             case HELP -> {
                 logger.debug("Owner: HELP -> BOARD");
