@@ -175,7 +175,6 @@ public class SignInteraction {
         logger.debug("Processing trade for player: " + player.getName());
 
         TradeEngine tradeEngine = plugin.getTradeEngine();
-        TradeConfirmationGUI confirmationGUI = plugin.getTradeConfirmationGUI();
 
         // Check fallback mode
         if (tradeEngine.isInFallbackMode()) {
@@ -184,46 +183,155 @@ public class SignInteraction {
             return;
         }
 
-        // Get shop container for trade items
+        SignType shopType = barterSign.getType();
+
+        if (shopType == SignType.STACKABLE) {
+            // Stackable shop: Trade the configured itemOffering
+            processStackableTrade(player, sign, barterSign, tradeEngine);
+        } else {
+            // Non-stackable shop: Trade any item from chest
+            processNonStackableTrade(player, sign, barterSign, tradeEngine);
+        }
+    }
+
+    /**
+     * Processes trade for STACKABLE shops.
+     * Uses the configured itemOffering and priceItem/priceAmount.
+     */
+    private void processStackableTrade(Player player, Sign sign, BarterSign barterSign, TradeEngine tradeEngine) {
+        logger.debug("Processing stackable trade for " + player.getName());
+
+        ItemStack offering = barterSign.getItemOffering();
+        ItemStack paymentItem = barterSign.getPriceItem();
+        int paymentAmount = barterSign.getPriceAmount();
+
+        // Validate configuration
+        if (offering == null || paymentItem == null || paymentAmount <= 0) {
+            showTemporaryStatus(sign, barterSign, "\u00A7cNot", "\u00A7cconfigured");
+            logger.warning("Stackable shop not fully configured");
+            return;
+        }
+
+        // Get shop container for stock verification
         Container shopContainer = barterSign.getShopContainer();
         if (shopContainer == null) {
             shopContainer = barterSign.getContainer();
         }
 
         if (shopContainer == null) {
-            showTemporaryStatus(sign, barterSign, "\u00A7cNo inventory", "\u00A7cconfigured");
+            showTemporaryStatus(sign, barterSign, "\u00A7cNo container", "\u00A7cfound");
             logger.debug("Trade rejected - no shop container");
             return;
         }
 
-        // Get offered item (first non-empty slot in shop container)
-        ItemStack offeredItem = null;
-        int offeredQuantity = 0;
+        // Verify stock: count total of offering items (using isSimilar for NBT comparison)
+        int availableStock = 0;
+        for (ItemStack item : shopContainer.getInventory().getContents()) {
+            if (item != null && item.isSimilar(offering)) {
+                availableStock += item.getAmount();
+            }
+        }
+
+        if (availableStock < offering.getAmount()) {
+            showTemporaryStatus(sign, barterSign, "\u00A7cOut of", "\u00A7cstock");
+            logger.debug("Trade rejected - insufficient stock. Available: " + availableStock +
+                        ", Required: " + offering.getAmount());
+            return;
+        }
+
+        // Verify player has payment: count total of payment items in inventory
+        int playerPayment = 0;
+        for (ItemStack item : player.getInventory().getContents()) {
+            if (item != null && item.isSimilar(paymentItem)) {
+                playerPayment += item.getAmount();
+            }
+        }
+
+        if (playerPayment < paymentAmount) {
+            showTemporaryStatus(sign, barterSign, "\u00A7eNeed: " + paymentAmount,
+                               "\u00A7e" + paymentItem.getType().name());
+            logger.debug("Trade rejected - insufficient payment. Have: " + playerPayment +
+                        ", Required: " + paymentAmount);
+            return;
+        }
+
+        // Both validations passed - initiate trade session
+        executeConfiguredTrade(player, sign, barterSign, tradeEngine, offering, paymentItem, paymentAmount);
+    }
+
+    /**
+     * Processes trade for NON-STACKABLE shops.
+     * Trades any item from chest for the configured price.
+     */
+    private void processNonStackableTrade(Player player, Sign sign, BarterSign barterSign, TradeEngine tradeEngine) {
+        logger.debug("Processing non-stackable trade for " + player.getName());
+
+        ItemStack paymentItem = barterSign.getPriceItem();
+        int paymentAmount = barterSign.getPriceAmount();
+
+        // Validate configuration
+        if (paymentItem == null || paymentAmount <= 0) {
+            showTemporaryStatus(sign, barterSign, "\u00A7cNot", "\u00A7cconfigured");
+            logger.warning("Non-stackable shop not fully configured");
+            return;
+        }
+
+        // Get shop container
+        Container shopContainer = barterSign.getShopContainer();
+        if (shopContainer == null) {
+            shopContainer = barterSign.getContainer();
+        }
+
+        if (shopContainer == null) {
+            showTemporaryStatus(sign, barterSign, "\u00A7cNo container", "\u00A7cfound");
+            logger.debug("Trade rejected - no shop container");
+            return;
+        }
+
+        // Get first non-air item from chest (any item)
+        ItemStack offering = null;
         for (ItemStack item : shopContainer.getInventory().getContents()) {
             if (item != null && item.getType() != Material.AIR) {
-                offeredItem = item.clone();
-                offeredQuantity = item.getAmount();
+                offering = item.clone();
+                offering.setAmount(1); // Non-stackable: quantity 1
                 break;
             }
         }
 
-        if (offeredItem == null) {
-            showTemporaryStatus(sign, barterSign, "\u00A7cOut of", "\u00A7cstock");
-            logger.debug("Trade rejected - shop out of stock");
+        if (offering == null) {
+            showTemporaryStatus(sign, barterSign, "\u00A7cNo items", "\u00A7cin shop");
+            logger.debug("Trade rejected - no items in shop container");
             return;
         }
 
-        // Get requested payment from player's main hand
-        ItemStack requestedItem = player.getInventory().getItemInMainHand();
-        int requestedQuantity = 0;
+        // Verify player has payment
+        int playerPayment = 0;
+        for (ItemStack item : player.getInventory().getContents()) {
+            if (item != null && item.isSimilar(paymentItem)) {
+                playerPayment += item.getAmount();
+            }
+        }
 
-        if (requestedItem != null && requestedItem.getType() != Material.AIR) {
-            requestedQuantity = 1; // Default to 1 item as payment
-        } else {
-            showTemporaryStatus(sign, barterSign, "\u00A7eHold item", "\u00A7eto trade");
-            logger.debug("Trade rejected - player not holding payment item");
+        if (playerPayment < paymentAmount) {
+            showTemporaryStatus(sign, barterSign, "\u00A7eNeed: " + paymentAmount,
+                               "\u00A7e" + paymentItem.getType().name());
+            logger.debug("Trade rejected - insufficient payment. Have: " + playerPayment +
+                        ", Required: " + paymentAmount);
             return;
         }
+
+        // Both validations passed - initiate trade session
+        executeConfiguredTrade(player, sign, barterSign, tradeEngine, offering, paymentItem, paymentAmount);
+    }
+
+    /**
+     * Executes a validated trade by initiating a trade session and opening confirmation GUI.
+     * Works for both stackable and non-stackable shops.
+     */
+    private void executeConfiguredTrade(Player player, Sign sign, BarterSign barterSign,
+                                        TradeEngine tradeEngine, ItemStack offering,
+                                        ItemStack paymentItem, int paymentAmount) {
+        TradeConfirmationGUI confirmationGUI = plugin.getTradeConfirmationGUI();
 
         // Initiate trade session
         Optional<TradeSession> sessionOpt = tradeEngine.initiateTrade(player, barterSign);
@@ -235,12 +343,14 @@ public class SignInteraction {
 
         TradeSession session = sessionOpt.get();
 
-        // Configure trade items
-        session.setOfferedItem(offeredItem, offeredQuantity);
-        session.setRequestedItem(requestedItem, requestedQuantity);
+        // Configure trade items with validated offering and payment
+        session.setOfferedItem(offering, offering.getAmount());
+        session.setRequestedItem(paymentItem, paymentAmount);
         session.setState(TradeSession.TradeState.AWAITING_BUYER_CONFIRM);
 
-        logger.debug("Trade session created: " + session.getSessionId());
+        logger.debug("Trade session created: " + session.getSessionId() +
+                    " | Offering: " + offering.getAmount() + "x " + offering.getType().name() +
+                    " | Payment: " + paymentAmount + "x " + paymentItem.getType().name());
 
         // Open confirmation GUI
         confirmationGUI.openConfirmation(player, session,
