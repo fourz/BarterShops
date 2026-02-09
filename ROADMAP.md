@@ -1,31 +1,54 @@
 # BarterShops Development Roadmap
 
-**Last Updated**: January 25, 2026
+**Last Updated**: February 9, 2026
 **Archon Board**: `bd4e478b-772a-4b97-bd99-300552840815`
+
+## February 9, 2026 Status: Active Refactoring
+
+**Recent Development** (derek/dev, ccafdc2):
+
+- ✅ SignManager click handling improvements (refactor: ccafdc2)
+- ✅ Console command cleanup and PlayerLookup addition (fb156e7)
+- ✅ Sign hydration wiring fixes, seed generator refactor, sign-UI internals (e502c32)
+- ✅ Unit tests wired, admin GUIs connected to real repositories (9084333)
+- ✅ Trade engine and service improvements (b952125)
+
+**Archon Status**: EPIC 8 consolidated and archived (~37 tasks completed Jan-Feb 2026)
+
+**Current Focus**: Sign interaction refinement, admin tooling integration, repository-backed GUI systems
+
+---
 
 ## Current Status (v0.1)
 
-Early development with foundational framework in place:
+Foundation complete with active refactoring:
 
 - ✅ Sign creation and validation
 - ✅ Shop ownership tracking (ShopManager)
 - ✅ Multiple shop interaction modes (SETUP, BOARD, TYPE, etc.)
-- ✅ Command system infrastructure
+- ✅ Command system infrastructure (console command cleanup complete)
 - ✅ Database connection framework (DatabaseFactory)
+- ✅ Repository-backed admin GUIs
+- ✅ Trade engine service layer active
+- ✅ Unit testing framework in place
 - ✅ Debug and logging utilities
 - ✅ Sym-linked to Ravenkraft Dev documentation hub
 
-## RVNKCore Integration (Q1 2026)
+## RVNKCore Integration Status
 
-Aligning BarterShops with the unified RVNKCore pattern standard:
+**Completed** (Jan-Feb 2026, per EPIC 8):
+- ✅ impl-08: Java Records DTOs + service layer
+- ✅ impl-10: Trade engine (core transaction logic)
+- ✅ impl-11: Repository pattern implementation
+- ✅ test-06: 100/100 tests passing
+- ✅ Table prefix support deployed
+
+**Remaining Tasks** (Q1 2026):
 
 | Gap | Task | Status |
 |-----|------|--------|
-| Interface naming (I-prefix) + Repository pattern | impl-07 | todo |
-| Java Records DTOs + service layer | impl-08 | todo |
+| Interface naming (I-prefix) standardization | impl-07 | todo |
 | CommandManager framework | impl-09 | todo |
-| Trade engine (core transaction logic) | impl-10 | todo |
-| Unit tests | test-06 | todo |
 | Live server integration test | test-07 | todo |
 
 **Pattern Standard**: I-prefix interfaces (`IShopService`), Impl suffix (`ShopServiceImpl`), Java Records DTOs, async `CompletableFuture`, `FallbackTracker` for resilience.
