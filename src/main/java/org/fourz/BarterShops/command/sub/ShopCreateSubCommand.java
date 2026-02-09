@@ -55,11 +55,21 @@ public class ShopCreateSubCommand implements SubCommand {
             return true;
         }
 
+        // Validate shop type availability (currently always BARTER)
+        ShopDataDTO.ShopType shopType = ShopDataDTO.ShopType.BARTER;
+        var typeManager = plugin.getTypeAvailabilityManager();
+        var validation = typeManager.validateShopType(shopType);
+
+        if (!validation.isValid()) {
+            sender.sendMessage(ChatColor.RED + "x " + validation.getErrorMessage());
+            return true;
+        }
+
         // Create shop via service (placeholder - service implementation pending)
         ShopDataDTO newShop = ShopDataDTO.builder()
                 .ownerUuid(player.getUniqueId())
                 .shopName(shopName)
-                .shopType(ShopDataDTO.ShopType.BARTER)
+                .shopType(shopType)
                 .signLocation(signLocation)
                 .build();
 

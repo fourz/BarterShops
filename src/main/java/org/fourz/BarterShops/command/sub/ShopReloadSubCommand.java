@@ -33,6 +33,16 @@ public class ShopReloadSubCommand implements SubCommand {
             // Reload configuration
             plugin.getConfigManager().reloadConfig();
 
+            // Reload economy manager
+            plugin.getEconomyManager().reloadConfiguration();
+            logger.debug("Reloaded economy manager");
+
+            // Reload type availability (shop types and sign types)
+            if (plugin.getTypeAvailabilityManager() != null) {
+                plugin.getTypeAvailabilityManager().loadEnabledTypes();
+                logger.debug("Reloaded type availability");
+            }
+
             // FIX 8df42120: Clear in-memory caches after config reload
             // SignManager: reload all barter signs from database
             if (plugin.getSignManager() != null) {

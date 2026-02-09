@@ -4,6 +4,7 @@ import org.bukkit.plugin.Plugin;
 import org.bukkit.plugin.java.JavaPlugin;
 import org.fourz.BarterShops.command.CommandManager;
 import org.fourz.BarterShops.config.ConfigManager;
+import org.fourz.BarterShops.config.TypeAvailabilityManager;
 import org.fourz.BarterShops.data.FallbackTracker;
 import org.fourz.BarterShops.data.IConnectionProvider;
 import org.fourz.BarterShops.data.repository.IShopRepository;
@@ -48,6 +49,7 @@ public class BarterShops extends JavaPlugin {
     private IStatsService statsService;
     private EconomyManager economyManager;
     private ShopFeeCalculator feeCalculator;
+    private TypeAvailabilityManager typeAvailabilityManager;
     private LogManager logger;
     private PlayerLookup playerLookup;
 
@@ -78,6 +80,7 @@ public class BarterShops extends JavaPlugin {
         this.protectionManager = new ProtectionManager(this);
         this.economyManager = new EconomyManager(this);
         this.feeCalculator = new ShopFeeCalculator(economyManager);
+        this.typeAvailabilityManager = new TypeAvailabilityManager(this, configManager, economyManager);
         this.signManager = new SignManager(this);
         this.containerManager = new ContainerManager(this);
         this.shopManager = new ShopManager(this);
@@ -533,5 +536,9 @@ public class BarterShops extends JavaPlugin {
 
     public PlayerLookup getPlayerLookup() {
         return playerLookup;
+    }
+
+    public TypeAvailabilityManager getTypeAvailabilityManager() {
+        return typeAvailabilityManager;
     }
 }

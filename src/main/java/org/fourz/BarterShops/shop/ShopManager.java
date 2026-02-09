@@ -84,20 +84,17 @@ public class ShopManager {
 
     /**
      * Sends mode-specific instructions to the player.
-     * 
+     *
      * @param player The player to send instructions to
      * @param mode The mode to get instructions for
      */
     private void sendModeInstructions(Player player, ShopMode mode) {
         String instructions = switch (mode) {
-            case SETUP_SELL -> "Right-click with an item to set the sell price.";
-            case SETUP_STACK -> "Enter the stack size in chat.";
-            case TYPE -> "Right-click with an item to set the shop type.";
-            case DELETE -> "Right-click the sign again to confirm deletion.";
-            case BOARD_SETUP -> "Right-click a sign to add it to the board.";
-            case BOARD_DISPLAY -> "Use /shop next and /shop prev to navigate.";
+            case SETUP -> "Left-click with item to set offering, right-click with payment item to set price.";
+            case TYPE -> "Right-click to cycle through shop types (STACKABLE/UNSTACKABLE/BARTER).";
+            case BOARD -> "Shop is active and ready for customers.";
+            case DELETE -> "Right-click again to exit delete mode, or break sign to delete.";
             case HELP -> "Use /shop help for command information.";
-            default -> "Unknown mode.";
         };
         player.sendMessage(instructions);
     }

@@ -13,6 +13,7 @@ import org.bukkit.inventory.PlayerInventory;
 import org.bukkit.scheduler.BukkitScheduler;
 import org.fourz.BarterShops.BarterShops;
 import org.fourz.BarterShops.config.ConfigManager;
+import org.fourz.BarterShops.shop.ShopMode;
 import org.fourz.BarterShops.service.ITradeService.TradeResultDTO;
 import org.fourz.BarterShops.trade.TradeConfirmationGUI;
 import org.fourz.BarterShops.trade.TradeEngine;
@@ -124,7 +125,7 @@ class SignInteractionTest {
             .id(UUID.randomUUID().toString())
             .owner(ownerUuid)
             .container(container)
-            .mode(SignMode.SETUP)
+            .mode(ShopMode.SETUP)
             .type(SignType.STACKABLE)
             .signSideDisplayFront(mock(org.bukkit.block.sign.SignSide.class))
             .signSideDisplayBack(mock(org.bukkit.block.sign.SignSide.class))
@@ -147,12 +148,12 @@ class SignInteractionTest {
         @DisplayName("Owner left click enters setup mode")
         void handleLeftClick_owner_enterSetupMode() {
             when(owner.hasPermission("bartershops.configure")).thenReturn(true);
-            barterSign.setMode(SignMode.BOARD);
+            barterSign.setMode(ShopMode.BOARD);
 
             try (MockedStatic<SignDisplay> signDisplayStatic = mockStatic(SignDisplay.class)) {
                 signInteraction.handleLeftClick(owner, sign, barterSign, interactEvent);
 
-                assertEquals(SignMode.SETUP, barterSign.getMode());
+                assertEquals(ShopMode.SETUP, barterSign.getMode());
                 verify(owner).sendMessage("Entering shop configuration mode");
                 verify(interactEvent).setCancelled(true);
                 signDisplayStatic.verify(() -> SignDisplay.updateSign(sign, barterSign));
@@ -163,12 +164,12 @@ class SignInteractionTest {
         @DisplayName("Non-owner left click does nothing")
         void handleLeftClick_notOwner_doesNothing() {
             when(customer.hasPermission("bartershops.configure")).thenReturn(true);
-            barterSign.setMode(SignMode.BOARD);
+            barterSign.setMode(ShopMode.BOARD);
 
             try (MockedStatic<SignDisplay> signDisplayStatic = mockStatic(SignDisplay.class)) {
                 signInteraction.handleLeftClick(customer, sign, barterSign, interactEvent);
 
-                assertEquals(SignMode.BOARD, barterSign.getMode());
+                assertEquals(ShopMode.BOARD, barterSign.getMode());
                 verify(customer, never()).sendMessage(anyString());
                 verify(interactEvent, never()).setCancelled(anyBoolean());
                 signDisplayStatic.verify(() -> SignDisplay.updateSign(sign, barterSign), never());
@@ -185,12 +186,12 @@ class SignInteractionTest {
         @Test
         @DisplayName("Owner right click from SETUP advances to TYPE")
         void handleRightClick_ownerFromSetup_advancesToType() {
-            barterSign.setMode(SignMode.SETUP);
+            barterSign.setMode(ShopMode.SETUP);
 
             try (MockedStatic<SignDisplay> signDisplayStatic = mockStatic(SignDisplay.class)) {
                 signInteraction.handleRightClick(owner, sign, barterSign);
 
-                assertEquals(SignMode.TYPE, barterSign.getMode());
+                assertEquals(ShopMode.TYPE, barterSign.getMode());
                 verify(owner).sendMessage("Click to toggle shop type");
                 signDisplayStatic.verify(() -> SignDisplay.updateSign(sign, barterSign));
             }
@@ -199,12 +200,12 @@ class SignInteractionTest {
         @Test
         @DisplayName("Owner right click from TYPE advances to BOARD")
         void handleRightClick_ownerFromType_advancesToBoard() {
-            barterSign.setMode(SignMode.TYPE);
+            barterSign.setMode(ShopMode.TYPE);
 
             try (MockedStatic<SignDisplay> signDisplayStatic = mockStatic(SignDisplay.class)) {
                 signInteraction.handleRightClick(owner, sign, barterSign);
 
-                assertEquals(SignMode.BOARD, barterSign.getMode());
+                assertEquals(ShopMode.BOARD, barterSign.getMode());
                 verify(owner).sendMessage("Click to edit the shop display");
                 signDisplayStatic.verify(() -> SignDisplay.updateSign(sign, barterSign));
             }
@@ -213,12 +214,12 @@ class SignInteractionTest {
         @Test
         @DisplayName("Owner right click from BOARD advances to DELETE")
         void handleRightClick_ownerFromBoard_advancesToDelete() {
-            barterSign.setMode(SignMode.BOARD);
+            barterSign.setMode(ShopMode.BOARD);
 
             try (MockedStatic<SignDisplay> signDisplayStatic = mockStatic(SignDisplay.class)) {
                 signInteraction.handleRightClick(owner, sign, barterSign);
 
-                assertEquals(SignMode.DELETE, barterSign.getMode());
+                assertEquals(ShopMode.DELETE, barterSign.getMode());
                 verify(owner).sendMessage("Break sign to confirm deletion");
                 signDisplayStatic.verify(() -> SignDisplay.updateSign(sign, barterSign));
             }
@@ -227,12 +228,12 @@ class SignInteractionTest {
         @Test
         @DisplayName("Owner right click from DELETE wraps to SETUP")
         void handleRightClick_ownerFromDelete_wrapsToSetup() {
-            barterSign.setMode(SignMode.DELETE);
+            barterSign.setMode(ShopMode.DELETE);
 
             try (MockedStatic<SignDisplay> signDisplayStatic = mockStatic(SignDisplay.class)) {
                 signInteraction.handleRightClick(owner, sign, barterSign);
 
-                assertEquals(SignMode.SETUP, barterSign.getMode());
+                assertEquals(ShopMode.SETUP, barterSign.getMode());
                 verify(owner).sendMessage("Right-click sign with payment item to configure");
                 signDisplayStatic.verify(() -> SignDisplay.updateSign(sign, barterSign));
             }
@@ -247,7 +248,7 @@ class SignInteractionTest {
 
         @BeforeEach
         void setUpTrade() {
-            barterSign.setMode(SignMode.BOARD);
+            barterSign.setMode(ShopMode.BOARD);
             when(tradeEngine.isInFallbackMode()).thenReturn(false);
 
             // Setup shop inventory
@@ -281,7 +282,7 @@ class SignInteractionTest {
         @Test
         @DisplayName("Customer blocked when shop not in BOARD mode")
         void handleRightClick_notBoardMode_blocked() {
-            barterSign.setMode(SignMode.SETUP);
+            barterSign.setMode(ShopMode.SETUP);
 
             signInteraction.handleRightClick(customer, sign, barterSign);
 
@@ -331,7 +332,7 @@ class SignInteractionTest {
                 .owner(ownerUuid)
                 .container(null)
                 .shopContainer(null)
-                .mode(SignMode.BOARD)
+                .mode(ShopMode.BOARD)
                 .type(SignType.STACKABLE)
                 .signSideDisplayFront(mock(org.bukkit.block.sign.SignSide.class))
                 .signSideDisplayBack(mock(org.bukkit.block.sign.SignSide.class))

@@ -1,5 +1,6 @@
 package org.fourz.BarterShops.service.impl;
 
+import org.bukkit.configuration.file.YamlConfiguration;
 import org.bukkit.inventory.ItemStack;
 import org.fourz.BarterShops.BarterShops;
 import org.fourz.BarterShops.data.FallbackTracker;
@@ -185,20 +186,45 @@ public class TradeServiceImpl implements ITradeService {
     @Override
     public String serializeItem(ItemStack item) {
         if (item == null) return null;
-        return item.getType().name() + ":" + item.getAmount();
+
+        try {
+            // Bukkit's serialize() preserves ALL NBT/metadata (enchantments, lore, custom names, etc.)
+            Map<String, Object> serialized = item.serialize();
+
+            // Convert to YAML string for database storage
+            YamlConfiguration yaml = new YamlConfiguration();
+            yaml.set("item", serialized);
+            return yaml.saveToString();
+
+        } catch (Exception e) {
+            logger.error("Failed to serialize item: " + item.getType(), e);
+            return null;
+        }
     }
 
     @Override
     public ItemStack deserializeItem(String serialized) {
         if (serialized == null || serialized.isEmpty()) return null;
-        String[] parts = serialized.split(":");
-        if (parts.length < 2) return null;
+
         try {
-            org.bukkit.Material material = org.bukkit.Material.valueOf(parts[0]);
-            int amount = Integer.parseInt(parts[1]);
-            return new ItemStack(material, amount);
-        } catch (IllegalArgumentException e) {
-            logger.warning("Failed to deserialize item: " + serialized);
+            // Parse YAML string back to map
+            YamlConfiguration yaml = new YamlConfiguration();
+            yaml.loadFromString(serialized);
+
+            // Get the 'item' section from YAML
+            var itemSection = yaml.getConfigurationSection("item");
+            if (itemSection == null) {
+                logger.warning("Failed to deserialize item - no 'item' section in YAML");
+                return null;
+            }
+
+            Map<String, Object> data = itemSection.getValues(false);
+
+            // Bukkit's deserialize() restores ALL NBT/metadata
+            return ItemStack.deserialize(data);
+
+        } catch (Exception e) {
+            logger.error("Failed to deserialize item from YAML: " + e.getMessage(), e);
             return null;
         }
     }

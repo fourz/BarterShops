@@ -3,6 +3,8 @@ package org.fourz.BarterShops.sign;
 import org.bukkit.block.Sign;
 import org.bukkit.block.sign.Side;
 import org.bukkit.block.sign.SignSide;
+import org.bukkit.inventory.ItemStack;
+import org.fourz.BarterShops.shop.ShopMode;
 
 public class SignDisplay {
 
@@ -12,7 +14,7 @@ public class SignDisplay {
         barterSign.setSignSideDisplayFront(frontSide);
 
         switch (barterSign.getMode()) {
-            case SETUP -> displaySetupMode(frontSide);
+            case SETUP -> displaySetupMode(frontSide, barterSign);
             case BOARD -> displayBoardMode(frontSide, barterSign);
             case TYPE -> displayTypeMode(frontSide, barterSign);
             case HELP -> displayHelpMode(frontSide);
@@ -30,52 +32,79 @@ public class SignDisplay {
         sign.update();
     }
 
-    private static void displaySetupMode(SignSide side) {
-        side.setLine(0, "\u00A71[Barter Setup]");
-        side.setLine(1, "Punch to");
-        side.setLine(2, "configure");
-        side.setLine(3, "");
+    private static void displaySetupMode(SignSide side, BarterSign barterSign) {
+        side.setLine(0, "§5[Setup]");
+        if (barterSign.getType() == SignType.STACKABLE) {
+            if (barterSign.getItemOffering() == null) {
+                side.setLine(1, "§7L-Click with");
+                side.setLine(2, "§7item to sell");
+                side.setLine(3, "");
+            } else {
+                side.setLine(1, "§7R-Click with");
+                side.setLine(2, "§7payment item");
+                side.setLine(3, "§7to set price");
+            }
+        } else {
+            side.setLine(1, "§7Fill chest");
+            side.setLine(2, "§7Set price");
+            side.setLine(3, "§7R-Click ready");
+        }
     }
 
     /**
      * Displays the sign in BOARD mode, which is meant for customer display.
-     * This is auto-generated during creation and allows the shop owner to later customize.
+     * Shows offering and price information.
      */
     private static void displayBoardMode(SignSide side, BarterSign barterSign) {
-        // Get the stored display state or use current side if not set
-        SignSide displaySide = barterSign.getSignSideDisplayFront();
-        if (displaySide != null) {
-            // Copy stored state to current side
-            for (int i = 0; i < 4; i++) {
-                side.setLine(i, displaySide.getLine(i));
-            }
+        side.setLine(0, "§2[Barter Shop]");
+        ItemStack offering = barterSign.getItemOffering();
+        ItemStack payment = barterSign.getPriceItem();
+
+        if (barterSign.getType() == SignType.STACKABLE && offering != null) {
+            side.setLine(1, offering.getAmount() + "x " + formatItemName(offering));
+            side.setLine(2, "§9for");
+            side.setLine(3, barterSign.getPriceAmount() + "x " + formatItemName(payment));
+        } else if (barterSign.getType() == SignType.UNSTACKABLE) {
+            side.setLine(1, "§7Items in chest");
+            side.setLine(2, "§9Price:");
+            side.setLine(3, barterSign.getPriceAmount() + "x " + formatItemName(payment));
         } else {
-            // Default display if no stored state
-            side.setLine(0, "\u00A72[Barter Shop]");
-            side.setLine(1, "Trading Items");
-            side.setLine(2, "Click to view");
-            side.setLine(3, "\u00A73[Active]");
+            // Default display if not fully configured
+            side.setLine(1, "§7Trading Items");
+            side.setLine(2, "§7Click to view");
+            side.setLine(3, "§3[Active]");
         }
     }
 
     private static void displayTypeMode(SignSide side, BarterSign barterSign) {
-        side.setLine(0, "\u00A73[Select Type]");
-        side.setLine(1, "< " + barterSign.getType().toString() + " >");
-        side.setLine(2, "Click to change");
-        side.setLine(3, "\u00A77[Save & Exit]");
+        side.setLine(0, "§e[Type Mode]");
+        side.setLine(1, "§7R-Click to");
+        side.setLine(2, "§7cycle type:");
+        side.setLine(3, "§b" + barterSign.getType().name());
     }
 
     private static void displayHelpMode(SignSide side) {
-        side.setLine(0, "\u00A76[Help]");
-        side.setLine(1, "Left: Select");
-        side.setLine(2, "Right: Change");
-        side.setLine(3, "Shift: Exit");
+        side.setLine(0, "§b[Help]");
+        side.setLine(1, "§7Owner:");
+        side.setLine(2, "§7L-Click = mode");
+        side.setLine(3, "§7R-Click = act");
     }
 
     private static void displayDeleteMode(SignSide side) {
-        side.setLine(0, "\u00A74[Delete Shop]");
-        side.setLine(1, "Are you sure?");
-        side.setLine(2, "Click again to");
-        side.setLine(3, "\u00A7cCONFIRM");
+        side.setLine(0, "§c[DELETE?]");
+        side.setLine(1, "§7Break sign");
+        side.setLine(2, "§7to confirm");
+        side.setLine(3, "§7R-Click cancel");
+    }
+
+    private static String formatItemName(ItemStack item) {
+        if (item == null || item.getType().isAir()) {
+            return "None";
+        }
+        if (item.hasItemMeta() && item.getItemMeta().hasDisplayName()) {
+            return item.getItemMeta().getDisplayName();
+        }
+        String name = item.getType().name().toLowerCase().replace('_', ' ');
+        return name.substring(0, 1).toUpperCase() + name.substring(1);
     }
 }

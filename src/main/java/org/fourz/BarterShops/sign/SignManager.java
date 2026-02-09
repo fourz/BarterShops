@@ -25,6 +25,7 @@ import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 
 import org.fourz.BarterShops.BarterShops;
+import org.fourz.BarterShops.shop.ShopMode;
 import org.fourz.BarterShops.data.dto.ShopDataDTO;
 import org.fourz.BarterShops.data.dto.ShopDataDTO.ShopType;
 import org.fourz.rvnkcore.util.log.LogManager;
@@ -82,7 +83,7 @@ public class SignManager implements Listener {
                     .owner(shop.ownerUuid())
                     .signLocation(signLoc)
                     .container(container)
-                    .mode(SignMode.BOARD)
+                    .mode(ShopMode.BOARD)
                     .type(SignType.STACKABLE)
                     .signSideDisplayFront(sign.getSide(org.bukkit.block.sign.Side.FRONT))
                     .signSideDisplayBack(sign.getSide(org.bukkit.block.sign.Side.BACK))
@@ -110,7 +111,7 @@ public class SignManager implements Listener {
             .owner(player.getUniqueId())
             .signLocation(signLocation)
             .container(container)
-            .mode(SignMode.SETUP)
+            .mode(ShopMode.SETUP)
             .type(SignType.STACKABLE)
             .signSideDisplayFront(sign.getSide(org.bukkit.block.sign.Side.FRONT))
             .signSideDisplayBack(sign.getSide(org.bukkit.block.sign.Side.BACK))
@@ -252,7 +253,7 @@ public class SignManager implements Listener {
         }
 
         // Must be in DELETE mode to break (or admin)
-        if (barterSign.getMode() != SignMode.DELETE
+        if (barterSign.getMode() != ShopMode.DELETE
                 && !player.hasPermission("bartershops.admin")) {
             event.setCancelled(true);
             player.sendMessage(ChatColor.YELLOW + "Right-click to enter delete mode first.");

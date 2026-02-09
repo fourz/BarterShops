@@ -21,6 +21,7 @@ import org.bukkit.plugin.PluginManager;
 import org.fourz.BarterShops.BarterShops;
 import org.fourz.BarterShops.config.ConfigManager;
 import org.fourz.BarterShops.shop.ShopManager;
+import org.fourz.BarterShops.shop.ShopMode;
 import org.fourz.rvnkcore.util.log.LogManager;
 import org.junit.jupiter.api.*;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -169,7 +170,7 @@ class SignManagerTest {
             BarterSign createdSign = barterSigns.get(signLocation);
             assertNotNull(createdSign);
             assertEquals(playerUuid, createdSign.getOwner());
-            assertEquals(SignMode.SETUP, createdSign.getMode());
+            assertEquals(ShopMode.SETUP, createdSign.getMode());
             assertEquals(SignType.STACKABLE, createdSign.getType());
             assertEquals(signLocation, createdSign.getSignLocation());
         }
@@ -415,7 +416,7 @@ class SignManagerTest {
 
             // Set the sign to DELETE mode
             BarterSign barterSign = signManager.getBarterSigns().get(signLocation);
-            barterSign.setMode(SignMode.DELETE);
+            barterSign.setMode(ShopMode.DELETE);
 
             org.bukkit.event.block.BlockBreakEvent breakEvent = mock(org.bukkit.event.block.BlockBreakEvent.class);
             when(breakEvent.getBlock()).thenReturn(signBlock);

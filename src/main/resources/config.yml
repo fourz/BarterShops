@@ -160,6 +160,21 @@ messages:
     economy_disabled:
     - '&eEconomy features are disabled (Vault not found)'
 
+# Shop type configuration
+shop-types:
+  enabled:
+    barter: true      # Item-for-item exchange (core functionality)
+    sell: true        # Players buy items with currency (requires Vault)
+    buy: true         # Shop owner buys items from players (requires Vault)
+    admin: false      # Admin shops with unlimited stock (restricted by default)
+
+# Sign type configuration (UI-only display modes)
+sign-types:
+  enabled:
+    stackable: true
+    unstackable: true
+    barter: true
+
 sign:
   setup:
   - '&5%1'
