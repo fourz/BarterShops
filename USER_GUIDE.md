@@ -145,7 +145,7 @@ Signs cycle through modes for different purposes. Right-click to advance mode.
 | Mode | Display | What You Do |
 |------|---------|-----------|
 | **SETUP** | [Setup] L-Click to set item/price | Place items, configure payment |
-| **TYPE** | [Type Mode] Cycle BARTER/BUY/SELL | Change shop economy type (BARTER = no fee, BUY/SELL = with economy) |
+| **TYPE** | [Type Mode] or [✗ Type LOCKED] | View/cycle shop economy mode (BARTER/BUY/SELL). Shows inventory type lock status. |
 | **BOARD** | [Barter Shop] Shows trade | Shop is active - customers trade here |
 | **DELETE** | [DELETE?] L-Click to confirm | Confirm shop removal (2-step safety) |
 
@@ -155,12 +155,24 @@ Signs cycle through modes for different purposes. Right-click to advance mode.
 
 **Key Rule**: Once a shop's **inventory type** is detected (STACKABLE vs UNSTACKABLE), it becomes **LOCKED** and cannot be changed.
 
-- **STACKABLE**: Detected when you place a stackable item (dirt, diamonds, etc.) - sells multiples of one item type
-- **UNSTACKABLE**: Detected when you place an unstackable item (enchanted sword, player head, etc.) - sells individual unique items
-- **Why locked?** Prevents accidentally mixing item types in stackable shops or breaking non-stackable logic
+**Inventory Types:**
+- **STACKABLE** (Locked): Detected when you place a stackable item (dirt, diamonds, etc.)
+  - Sells multiples of the SAME item type only
+  - Rejects different item types and unstackable items
+  - Perfect for bulk trading (64x dirt, 32x wood, 10x emeralds)
+
+- **UNSTACKABLE** (Locked): Detected when you place an unstackable item (enchanted sword, player head, etc.)
+  - Sells individual unique items (any unstackable items mixed OK)
+  - Rejects all stackable items
+  - Perfect for enchanted gear and rare items
+
+**Lock Behavior:**
 - **When locked?** After first item placed in chest
-- **How to change?** Delete shop and recreate with a different first item type
-- **Note**: You can still cycle SHOP TYPES (BARTER ↔ BUY ↔ SELL) in TYPE mode even after inventory type is locked
+- **Why locked?** Prevents accidentally mixing item types or breaking validation rules
+- **Sign display**: Shows "✗ Type LOCKED" with locked inventory type in TYPE mode
+- **How to change?** Delete shop (/shop remove <id>) and recreate with different item type
+
+**Note**: You can still cycle **SHOP TYPES** (BARTER ↔ BUY ↔ SELL) via left-click in TYPE mode - this is separate from inventory type locking
 
 For detailed technical information about sign modes, type detection, and the interaction system, see [Sign UI/UX System Design](docs/SIGN_UI_UX.md).
 

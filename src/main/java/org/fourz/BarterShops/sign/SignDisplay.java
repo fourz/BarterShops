@@ -84,9 +84,19 @@ public class SignDisplay {
 
     private static void displayTypeMode(SignSide side, BarterSign barterSign) {
         side.setLine(0, "§e[Type Mode]");
-        side.setLine(1, "§7L-Click to");
-        side.setLine(2, "§7cycle type:");
-        side.setLine(3, "§b" + barterSign.getType().name());
+
+        if (barterSign.isTypeDetected()) {
+            // Inventory type is locked - show lock status
+            String inventoryType = barterSign.getShopStackableMode() ? "STACKABLE" : "UNSTACKABLE";
+            side.setLine(1, "§c✗ Type LOCKED");
+            side.setLine(2, "§e" + inventoryType);
+            side.setLine(3, "§7(delete shop to change)");
+        } else {
+            // Inventory type not yet detected
+            side.setLine(1, "§7L-Click to");
+            side.setLine(2, "§7cycle type:");
+            side.setLine(3, "§b" + barterSign.getType().name());
+        }
     }
 
     private static void displayHelpMode(SignSide side) {

@@ -74,9 +74,17 @@ public class SignInteraction {
 
             case TYPE -> {
                 // Left-click in TYPE: Cycle through SignTypes (BARTER, BUY, SELL)
+                // Note: Inventory type (stackable/unstackable) is locked via typeDetected flag
+                // and cannot be changed once detected from chest contents
                 SignType currentType = barterSign.getType();
                 SignType nextType = plugin.getTypeAvailabilityManager().getNextSignType(currentType);
                 barterSign.setType(nextType);
+
+                if (barterSign.isTypeDetected()) {
+                    // Show lock status message
+                    String inventoryType = barterSign.getShopStackableMode() ? "STACKABLE" : "UNSTACKABLE";
+                    player.sendMessage(ChatColor.GRAY + "Inventory type: " + ChatColor.YELLOW + inventoryType + ChatColor.GRAY + " (LOCKED)");
+                }
 
                 // Don't announce type changes to reduce spam - type is shown on sign
                 logger.debug("Owner: TYPE cycling - " + currentType + " -> " + nextType);

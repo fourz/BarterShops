@@ -93,13 +93,22 @@ sell price
 
 ### TYPE Mode
 
-**Purpose**: Change shop economy type (BARTER, BUY, SELL)
-**Sign Display**:
+**Purpose**: View inventory type lock status and cycle shop economy mode (BARTER, BUY, SELL)
+
+**Sign Display (Before Inventory Type Detected)**:
 ```
 [Type Mode]
 L-Click to
 cycle type:
 BARTER
+```
+
+**Sign Display (After Inventory Type Detected & Locked)**:
+```
+[Type Mode]
+✗ Type LOCKED
+STACKABLE
+(delete shop to change)
 ```
 
 **Owner Interactions**:
@@ -108,12 +117,14 @@ BARTER
   - **BARTER**: No fees, item-for-item trading
   - **BUY**: Economy-based, player buys from shop with currency
   - **SELL**: Economy-based, player sells to shop for currency
+  - Shows message: "Inventory type: STACKABLE (LOCKED)" to inform owner
 - **Right-click**: Advance to BOARD mode
 
 **Key Rules**:
-- SignType (BARTER/BUY/SELL) can ALWAYS be cycled via left-click
-- This is different from inventory type locking (STACKABLE vs UNSTACKABLE)
-- Prevents accidental type changes breaking shop behavior
+- **SignType cycling (BARTER/BUY/SELL)**: Always allowed, changes at any time
+- **Inventory type locking (STACKABLE/UNSTACKABLE)**: LOCKED once detected, cannot be changed
+- These are TWO SEPARATE systems - locking one does not affect the other
+- Prevents accidental inventory type changes that would break item validation
 
 ---
 
@@ -167,8 +178,14 @@ R-Click cancel
 
 ## Inventory Type Detection & Locking
 
-Locks the **inventory type** (STACKABLE vs UNSTACKABLE) once detected from first item placed in chest.
-Note: **SignType** (BARTER, BUY, SELL) can be cycled anytime in TYPE mode - it is NOT locked.
+**What Gets Locked**: The **inventory type** (STACKABLE vs UNSTACKABLE) is permanently locked once detected from first item placed in chest. Cannot be changed without deleting and recreating the shop.
+
+**What Remains Flexible**: **SignType** (BARTER, BUY, SELL) can be cycled anytime in TYPE mode. Inventory type locking does NOT affect SignType cycling.
+
+**Why Two Systems?**
+- Inventory type controls validation rules (what items are allowed in chest)
+- SignType controls payment mechanism (barter vs economy)
+- These are independent concerns and should be independently configurable
 
 ### Auto-Detection Flow
 
@@ -380,12 +397,21 @@ This implementation is derived from BarterSignsPlus but with modern enhancements
 
 ## Troubleshooting
 
-### Cannot change inventory type (stackable ↔ unstackable)
+### "✗ Type LOCKED" message in TYPE mode - Cannot change inventory type
 
 **Problem**: Placed a stackable item but want non-stackable shop (or vice versa)
-**Cause**: Inventory type was auto-detected when first item placed in chest
+**Cause**: Inventory type was auto-detected and locked when first item placed in chest
 **Solution**: Delete shop (/shop remove <id>) and recreate with desired item type (stackable or unstackable)
-**Note**: You CAN change SignType (BARTER ↔ BUY ↔ SELL) anytime via left-click in TYPE mode
+**Note**: You CAN change SignType (BARTER ↔ BUY ↔ SELL) anytime via left-click in TYPE mode - this is separate from inventory type locking
+
+### Items keep getting rejected from chest
+
+**Problem**: Placed items in chest but they keep getting returned
+**Cause**: Items don't match the locked inventory type
+**Solution**: Check which items are valid for your shop type
+- **Stackable shop**: Only one item type allowed (e.g., only DIRT)
+- **Non-Stackable shop**: Only unstackable items allowed (e.g., enchanted swords, player heads)
+**Feature**: Item validation automatically returns invalid items to owner
 
 ### "Returned 5x DIAMOND (wrong item type)"
 
