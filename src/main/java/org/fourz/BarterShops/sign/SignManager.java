@@ -486,52 +486,79 @@ public class SignManager implements Listener {
 
     /**
      * Removes invalid items from container and returns them to nearby players or drops them
+     * Uses proper inventory slot updates via setItem() to ensure items are actually removed
      */
     private void removeAndReturnItems(Container container, java.util.List<ItemStack> invalidItems,
                                       Location signLoc, BarterSign barterSign) {
-        // Remove items from container inventory
-        for (ItemStack invalid : invalidItems) {
-            for (ItemStack containerItem : container.getInventory().getContents()) {
-                if (containerItem != null && containerItem.isSimilar(invalid)) {
-                    int toRemove = Math.min(invalid.getAmount(), containerItem.getAmount());
-                    containerItem.setAmount(containerItem.getAmount() - toRemove);
-                    invalid.setAmount(invalid.getAmount() - toRemove);
+        Location chestLoc = container.getLocation();
+        java.util.List<ItemStack> itemsSuccessfullyRemoved = new java.util.ArrayList<>();
 
-                    if (invalid.getAmount() <= 0) {
-                        break; // Item fully removed
+        // First pass: Remove invalid items from container using proper slot updates
+        for (ItemStack invalid : invalidItems) {
+            int amountToRemove = invalid.getAmount();
+
+            // Iterate through inventory slots to properly remove items
+            for (int slot = 0; slot < container.getInventory().getSize(); slot++) {
+                ItemStack slotItem = container.getInventory().getItem(slot);
+
+                if (slotItem != null && slotItem.isSimilar(invalid) && amountToRemove > 0) {
+                    int toRemove = Math.min(amountToRemove, slotItem.getAmount());
+
+                    // Create a copy of the removed item for tracking
+                    ItemStack removedStack = slotItem.clone();
+                    removedStack.setAmount(toRemove);
+                    itemsSuccessfullyRemoved.add(removedStack);
+
+                    // Update the slot (reduce amount or set to null)
+                    slotItem.setAmount(slotItem.getAmount() - toRemove);
+                    if (slotItem.getAmount() <= 0) {
+                        container.getInventory().setItem(slot, null);
+                    } else {
+                        container.getInventory().setItem(slot, slotItem);
+                    }
+
+                    amountToRemove -= toRemove;
+                    if (amountToRemove <= 0) {
+                        break;
                     }
                 }
             }
         }
 
-        // Try to return items to nearby players or drop them
-        for (ItemStack item : invalidItems) {
-            if (item.getAmount() > 0) {
-                Location chestLoc = container.getLocation();
-                String itemName = item.getType().name();
-                String reason = barterSign.isStackable() ? "wrong item type" : "stackable items not allowed";
+        // Second pass: Return successfully removed items to player or drop them
+        for (ItemStack removed : itemsSuccessfullyRemoved) {
+            if (removed.getAmount() <= 0) {
+                continue;
+            }
 
-                logger.debug("Rejecting invalid item " + itemName + " at " + chestLoc);
+            String itemName = removed.getType().name();
+            String reason = barterSign.isStackable() ? "wrong item type" : "stackable items not allowed";
 
-                // Try to give to owner first
-                for (org.bukkit.entity.Player player : signLoc.getWorld().getPlayers()) {
-                    if (player.getUniqueId().equals(barterSign.getOwner()) &&
-                        player.getLocation().distance(signLoc) <= 30) {
-                        // Try to add to player inventory
-                        java.util.HashMap<Integer, ItemStack> couldNotFit = player.getInventory().addItem(item);
+            logger.debug("Returning invalid item " + removed.getAmount() + "x " + itemName + " at " + chestLoc);
 
-                        if (couldNotFit.isEmpty()) {
-                            // Item successfully added to inventory
-                            notifyOwner(signLoc, barterSign, "Returned " + item.getAmount() + "x " + itemName +
-                                       " (" + reason + ")");
-                            return;
-                        }
+            boolean returned = false;
+
+            // Try to give to owner if nearby
+            for (org.bukkit.entity.Player player : signLoc.getWorld().getPlayers()) {
+                if (player.getUniqueId().equals(barterSign.getOwner()) &&
+                    player.getLocation().distance(signLoc) <= 30) {
+                    // Try to add to player inventory
+                    java.util.HashMap<Integer, ItemStack> couldNotFit = player.getInventory().addItem(removed.clone());
+
+                    if (couldNotFit.isEmpty()) {
+                        // Item successfully added to inventory
+                        notifyOwner(signLoc, barterSign, "Returned " + removed.getAmount() + "x " + itemName +
+                                   " (" + reason + ")");
+                        returned = true;
+                        break;
                     }
                 }
+            }
 
-                // If owner not available or inventory full, drop at chest location
-                chestLoc.getWorld().dropItem(chestLoc.add(0.5, 1.0, 0.5), item);
-                logger.debug("Dropped invalid item " + itemName + " at chest location");
+            // If owner not available or inventory full, drop at chest location
+            if (!returned) {
+                chestLoc.getWorld().dropItem(chestLoc.add(0.5, 1.0, 0.5), removed.clone());
+                logger.debug("Dropped invalid item " + removed.getAmount() + "x " + itemName + " at chest");
             }
         }
     }
