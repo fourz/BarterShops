@@ -73,7 +73,15 @@ public class SignInteraction {
             }
 
             case TYPE -> {
-                // Left-click in TYPE: Cycle through SignTypes
+                // Left-click in TYPE: Cycle through SignTypes (only if not yet detected/locked)
+                if (barterSign.isTypeDetected()) {
+                    // Type is locked - cannot change
+                    player.sendMessage(ChatColor.RED + "✗ Shop type is locked!");
+                    player.sendMessage(ChatColor.GRAY + "Locked type: " + ChatColor.YELLOW + barterSign.getType().name());
+                    player.sendMessage(ChatColor.GRAY + "Delete and recreate shop to change type");
+                    return;
+                }
+
                 SignType currentType = barterSign.getType();
                 SignType nextType = plugin.getTypeAvailabilityManager().getNextSignType(currentType);
                 barterSign.setType(nextType);
