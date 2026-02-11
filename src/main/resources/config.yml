@@ -1,7 +1,8 @@
 general:
   # Valid log levels: DEBUG, INFO, WARNING, SEVERE
   # Default: WARNING (quiet mode - set INFO for verbose operational logs)
-  logLevel: WARNING
+  # DEBUG: Shows detailed debug information including sign interactions, trades, and state changes
+  logLevel: DEBUG
 
 storage:
   # types: mysql, sqlite
@@ -166,14 +167,13 @@ shop-types:
     barter: true      # Item-for-item exchange (core functionality)
     sell: true        # Players buy items with currency (requires Vault)
     buy: true         # Shop owner buys items from players (requires Vault)
-    admin: false      # Admin shops with unlimited stock (restricted by default)
 
-# Sign type configuration (UI-only display modes)
+# Sign type configuration (shop variants cycled via TYPE mode)
 sign-types:
   enabled:
-    stackable: true
-    unstackable: true
-    barter: true
+    barter: true      # Standard barter shop
+    sell: true        # Sell shop variant
+    buy: true         # Buy shop variant
 
 sign:
   setup:

@@ -59,8 +59,8 @@ public class TypeAvailabilityManager {
             configShopTypes.add(ShopDataDTO.ShopType.BARTER);
         }
         if (configSignTypes.isEmpty()) {
-            logger.warning("No sign types enabled! Force-enabling STACKABLE");
-            configSignTypes.add(SignType.STACKABLE);
+            logger.warning("No sign types enabled! Force-enabling BARTER");
+            configSignTypes.add(SignType.BARTER);
         }
 
         this.enabledShopTypes = Collections.unmodifiableSet(configShopTypes);

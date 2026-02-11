@@ -27,10 +27,12 @@ public class SignInteraction {
     private static final String CLASS_NAME = "SignInteraction";
     private static final long REVERT_DELAY_TICKS = 200L; // 10 seconds
     private static final long STATUS_DISPLAY_TICKS = 60L; // 3 seconds
+    private static final long DELETE_CONFIRMATION_TIMEOUT_TICKS = 100L; // 5 seconds
 
     private final BarterShops plugin;
     private final LogManager logger;
     private final Map<Location, BukkitTask> activeRevertTasks = new ConcurrentHashMap<>();
+    private final Map<String, Long> pendingDeletions = new ConcurrentHashMap<>(); // signId -> timestamp
 
     public SignInteraction(BarterShops plugin) {
         this.plugin = plugin;
@@ -50,44 +52,83 @@ public class SignInteraction {
         logger.debug("Owner left-click detected - mode: " + barterSign.getMode());
         cancelRevert(sign.getLocation());
 
-        ShopMode currentMode = barterSign.getMode();
+        switch (barterSign.getMode()) {
+            case SETUP -> {
+                // Left-click in SETUP: Set stackable/unstackable based on held item
+                ItemStack itemInHand = event.getItem();
 
-        // SETUP mode: Capture item in hand for stackable shops
-        if (currentMode == ShopMode.SETUP) {
-            ItemStack itemInHand = event.getItem();
+                if (itemInHand != null && !itemInHand.getType().isAir()) {
+                    // Detect if held item is stackable and set shop mode
+                    boolean isStackable = BarterSign.isItemStackable(itemInHand);
+                    barterSign.setStackable(isStackable);
 
-            if (itemInHand == null || itemInHand.getType().isAir()) {
-                player.sendMessage(ChatColor.YELLOW + "Hold an item to configure shop offering!");
-                player.sendMessage(ChatColor.GRAY + "Or place items in chest for non-stackable shop");
-                return;
+                    String modeText = isStackable ? "stackable" : "unstackable";
+                    player.sendMessage(ChatColor.GREEN + "+ Shop type locked to " + modeText);
+                    player.sendMessage(ChatColor.GRAY + "Right-click to set price");
+                    logger.debug("Shop mode set to " + modeText + " for " + player.getName());
+                } else {
+                    player.sendMessage(ChatColor.YELLOW + "L-Click with an item to setup shop");
+                    player.sendMessage(ChatColor.GRAY + "(stackable items = stackable shop)");
+                }
             }
 
-            // Capture the item with full NBT preservation
-            barterSign.configureStackableShop(itemInHand, itemInHand.getAmount());
-            barterSign.setType(SignType.STACKABLE);
+            case TYPE -> {
+                // Left-click in TYPE: Cycle through SignTypes
+                SignType currentType = barterSign.getType();
+                SignType nextType = plugin.getTypeAvailabilityManager().getNextSignType(currentType);
+                barterSign.setType(nextType);
 
-            player.sendMessage(ChatColor.GREEN + "+ Stackable shop configured!");
-            player.sendMessage(ChatColor.GRAY + "Selling: " + itemInHand.getAmount() + "x " +
-                              itemInHand.getType().name());
-            player.sendMessage(ChatColor.YELLOW + "Right-click to set price, then activate");
+                // Don't announce type changes to reduce spam - type is shown on sign
+                logger.debug("Owner: TYPE cycling - " + currentType + " -> " + nextType);
+            }
 
-            event.setCancelled(true);
-            SignDisplay.updateSign(sign, barterSign);
-            return;
+            case BOARD -> {
+                // Left-click in BOARD: Show shop info
+                player.sendMessage(ChatColor.GREEN + "Shop is active!");
+                scheduleRevert(sign, barterSign);
+            }
+
+            case DELETE -> {
+                // Left-click in DELETE: Two-step confirmation
+                String signId = barterSign.getId();
+                long currentTime = System.currentTimeMillis();
+
+                // Check if this is a confirmation click (within timeout window)
+                if (pendingDeletions.containsKey(signId)) {
+                    long pendingTime = pendingDeletions.get(signId);
+                    if (currentTime - pendingTime < (DELETE_CONFIRMATION_TIMEOUT_TICKS * 50)) {
+                        // Confirmation clicked - proceed with deletion
+                        deleteShopAndSign(player, sign, barterSign);
+                        pendingDeletions.remove(signId);
+                        return;
+                    }
+                }
+
+                // First click - set pending confirmation
+                pendingDeletions.put(signId, currentTime);
+                player.sendMessage(ChatColor.RED + "§cCLICK AGAIN TO CONFIRM DELETION");
+                player.sendMessage(ChatColor.GRAY + "Chest items will NOT be deleted");
+
+                // Show confirmation message on sign
+                SignDisplay.displayDeleteConfirmation(sign);
+
+                // Auto-clear after timeout
+                plugin.getServer().getScheduler().runTaskLater(plugin, () -> {
+                    if (pendingDeletions.containsKey(signId)) {
+                        pendingDeletions.remove(signId);
+                        SignDisplay.updateSign(sign, barterSign); // Revert to normal DELETE display
+                    }
+                }, DELETE_CONFIRMATION_TIMEOUT_TICKS);
+            }
+
+            case HELP -> {
+                // Left-click in HELP: Return to BOARD
+                barterSign.setMode(ShopMode.BOARD);
+                scheduleRevert(sign, barterSign);
+            }
         }
 
-        // All other modes: Advance mode (like right-click cycle)
-        ShopMode nextMode = barterSign.getMode().getNextMode();
-        barterSign.setMode(nextMode);
-        logger.debug("Mode advanced: " + currentMode + " -> " + nextMode);
-
         SignDisplay.updateSign(sign, barterSign);
-
-        // Force client-side visual refresh
-        plugin.getServer().getScheduler().runTaskLater(plugin, () -> {
-            player.sendBlockChange(sign.getLocation(), sign.getBlock().getBlockData());
-        }, 1L);
-
         event.setCancelled(true);
     }
 
@@ -106,56 +147,14 @@ public class SignInteraction {
         logger.debug("Processing owner interaction");
         cancelRevert(sign.getLocation());
 
-        switch (barterSign.getMode()) {
-            case SETUP -> {
-                // Right-click in SETUP: Configure price
-                ItemStack paymentItem = player.getInventory().getItemInMainHand();
+        ShopMode currentMode = barterSign.getMode();
 
-                if (paymentItem == null || paymentItem.getType().isAir()) {
-                    player.sendMessage(ChatColor.YELLOW + "Hold payment item and right-click!");
-                    player.sendMessage(ChatColor.GRAY + "Example: Hold 5 diamonds to set price");
-                    return;
-                }
+        // Right-click: Always cycle to next mode (consistent behavior)
+        ShopMode nextMode = barterSign.getMode().getNextMode();
+        barterSign.setMode(nextMode);
+        logger.debug("Mode advanced: " + currentMode + " -> " + nextMode);
 
-                barterSign.configurePrice(paymentItem, paymentItem.getAmount());
-
-                player.sendMessage(ChatColor.GREEN + "+ Price configured!");
-                player.sendMessage(ChatColor.GRAY + "Payment: " + paymentItem.getAmount() + "x " +
-                                  paymentItem.getType().name());
-
-                // Check if fully configured to auto-advance
-                if (barterSign.isConfigured()) {
-                    player.sendMessage(ChatColor.GREEN + "Shop ready! Right-click again to activate");
-                }
-            }
-
-            case TYPE -> {
-                // Cycle through SignTypes
-                SignType currentType = barterSign.getType();
-                SignType nextType = plugin.getTypeAvailabilityManager().getNextSignType(currentType);
-                barterSign.setType(nextType);
-
-                player.sendMessage(ChatColor.YELLOW + "Type: " + nextType.name());
-                logger.debug("Owner: TYPE cycling - " + currentType + " -> " + nextType);
-            }
-
-            case BOARD -> {
-                // Already active, show shop info
-                player.sendMessage(ChatColor.GREEN + "Shop is active!");
-                scheduleRevert(sign, barterSign);
-            }
-
-            case DELETE -> {
-                // Persist in DELETE mode until sign broken
-                player.sendMessage(ChatColor.RED + "Break sign to delete shop");
-            }
-
-            case HELP -> {
-                // Return to BOARD
-                barterSign.setMode(ShopMode.BOARD);
-                scheduleRevert(sign, barterSign);
-            }
-        }
+        // Mode messages moved to sign display - no chat spam
 
         SignDisplay.updateSign(sign, barterSign);
     }
@@ -183,10 +182,11 @@ public class SignInteraction {
             return;
         }
 
-        SignType shopType = barterSign.getType();
+        // Use the stored stackable/unstackable flag (set by left-click or chest detection)
+        boolean isStackable = barterSign.getShopStackableMode();
 
-        if (shopType == SignType.STACKABLE) {
-            // Stackable shop: Trade the configured itemOffering
+        if (isStackable) {
+            // Stackable shop: Trade configured items
             processStackableTrade(player, sign, barterSign, tradeEngine);
         } else {
             // Non-stackable shop: Trade any item from chest
@@ -419,8 +419,77 @@ public class SignInteraction {
         }
     }
 
+    // ========== Shop Deletion ==========
+
+    private void deleteShopAndSign(Player player, Sign sign, BarterSign barterSign) {
+        try {
+            Location signLocation = sign.getLocation();
+            logger.debug("Attempting to delete shop at: " + signLocation);
+
+            // Reset type detection so shop can be reconfigured if recreated
+            barterSign.resetTypeDetection();
+
+            // Delete from database asynchronously
+            plugin.getServer().getScheduler().runTaskAsynchronously(plugin, () -> {
+                try {
+                    // Look up shop by location to get the integer shop ID
+                    String world = signLocation.getWorld() != null ? signLocation.getWorld().getName() : "unknown";
+                    var shopOptional = plugin.getShopRepository()
+                        .findBySignLocation(world, signLocation.getX(), signLocation.getY(), signLocation.getZ())
+                        .get();
+
+                    if (shopOptional.isPresent()) {
+                        int shopId = shopOptional.get().shopId();
+                        logger.debug("Found shop in database with ID: " + shopId);
+
+                        // Remove shop from database (items in chest remain untouched)
+                        boolean deleted = plugin.getShopRepository().deleteById(shopId).get();
+
+                        if (deleted) {
+                            logger.info("Shop deleted from database: " + shopId);
+
+                            // Sync back to main thread to modify sign
+                            plugin.getServer().getScheduler().runTask(plugin, () -> {
+                                // Destroy the sign block (only the sign, not the chest)
+                                sign.getBlock().setType(Material.AIR);
+
+                                // Notify player
+                                player.sendMessage(ChatColor.GREEN + "✓ Shop deleted successfully!");
+                                player.sendMessage(ChatColor.GRAY + "Chest items were NOT deleted");
+
+                                // Cancel any pending reverts
+                                cancelRevert(signLocation);
+
+                                logger.info("Shop sign destroyed at: " + signLocation);
+                            });
+                        } else {
+                            plugin.getServer().getScheduler().runTask(plugin, () -> {
+                                player.sendMessage(ChatColor.RED + "✗ Failed to delete shop from database");
+                            });
+                        }
+                    } else {
+                        plugin.getServer().getScheduler().runTask(plugin, () -> {
+                            player.sendMessage(ChatColor.RED + "✗ Shop not found in database");
+                        });
+                    }
+
+                } catch (Exception e) {
+                    logger.error("Failed to delete shop at location: " + signLocation, e);
+                    plugin.getServer().getScheduler().runTask(plugin, () -> {
+                        player.sendMessage(ChatColor.RED + "✗ Failed to delete shop: " + e.getMessage());
+                    });
+                }
+            });
+
+        } catch (Exception e) {
+            logger.error("Error in deleteShopAndSign", e);
+            player.sendMessage(ChatColor.RED + "✗ An error occurred during deletion");
+        }
+    }
+
     public void cleanup() {
         activeRevertTasks.values().forEach(BukkitTask::cancel);
         activeRevertTasks.clear();
+        pendingDeletions.clear();
     }
 }

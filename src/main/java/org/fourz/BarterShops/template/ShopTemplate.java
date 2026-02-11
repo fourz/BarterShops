@@ -47,7 +47,7 @@ public record ShopTemplate(
         private String id;
         private String name;
         private UUID owner;
-        private SignType signType = SignType.STACKABLE;
+        private SignType signType = SignType.BARTER;
         private String description = "";
         private String category = "general";
         private String tags = "";

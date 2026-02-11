@@ -2,6 +2,7 @@ package org.fourz.BarterShops.sign;
 
 import org.bukkit.ChatColor;
 import org.bukkit.Location;
+import org.bukkit.Material;
 import org.bukkit.block.Sign;
 import org.bukkit.block.Block;
 import org.bukkit.block.BlockFace;
@@ -19,6 +20,7 @@ import org.bukkit.event.block.SignChangeEvent;
 import org.bukkit.event.entity.EntityExplodeEvent;
 import org.bukkit.event.player.PlayerInteractEvent;
 import org.bukkit.event.HandlerList;
+import org.bukkit.inventory.ItemStack;
 
 import java.util.Collections;
 import java.util.Map;
@@ -42,7 +44,65 @@ public class SignManager implements Listener {
         this.logger = LogManager.getInstance(plugin, CLASS_NAME);
         this.signInteraction = new SignInteraction(plugin);
         plugin.getServer().getPluginManager().registerEvents(this, plugin);
+
+        // Start periodic chest validation task
+        startChestValidationTask();
+
         logger.debug("SignManager initialized");
+    }
+
+    /**
+     * Starts a periodic task to validate chest contents for all barter shops.
+     * Runs every 5 ticks (250ms) to:
+     * 1. Auto-detect shop type from first item placed
+     * 2. Remove invalid items that don't match shop type
+     */
+    private void startChestValidationTask() {
+        plugin.getServer().getScheduler().runTaskTimer(plugin, () -> {
+            for (BarterSign barterSign : barterSigns.values()) {
+                // Only process shops in SETUP mode
+                if (barterSign.getMode() != ShopMode.SETUP) {
+                    continue;
+                }
+
+                Container container = barterSign.getShopContainer();
+                if (container == null) {
+                    container = barterSign.getContainer();
+                }
+                if (container == null) {
+                    continue;
+                }
+
+                Location signLoc = barterSign.getSignLocation();
+                Location containerLoc = container.getLocation();
+
+                // Try to auto-detect type if not yet detected
+                if (!barterSign.isTypeDetected()) {
+                    if (barterSign.detectAndSetTypeFromChest()) {
+                        logger.debug("Auto-detected shop type from chest contents at " + containerLoc);
+
+                        // Notify owner
+                        for (org.bukkit.entity.Player player : signLoc.getWorld().getPlayers()) {
+                            if (player.getLocation().distance(signLoc) <= 15 &&
+                                player.getUniqueId().equals(barterSign.getOwner())) {
+                                String typeText = barterSign.isStackable() ? "stackable" : "unstackable";
+                                player.sendMessage(ChatColor.GREEN + "+ Shop type auto-set to " + typeText +
+                                                 ChatColor.GRAY + " (locked until deletion)");
+                            }
+                        }
+
+                        // Update sign display
+                        Block signBlock = signLoc.getBlock();
+                        if (signBlock.getState() instanceof Sign sign) {
+                            SignDisplay.updateSign(sign, barterSign);
+                        }
+                    }
+                } else {
+                    // Type already detected - validate and clean invalid items
+                    validateInventoryContents(container, barterSign);
+                }
+            }
+        }, 0L, 5L); // Run every 5 ticks (250ms)
     }
 
     /**
@@ -84,7 +144,7 @@ public class SignManager implements Listener {
                     .signLocation(signLoc)
                     .container(container)
                     .mode(ShopMode.BOARD)
-                    .type(SignType.STACKABLE)
+                    .type(SignType.BARTER)
                     .signSideDisplayFront(sign.getSide(org.bukkit.block.sign.Side.FRONT))
                     .signSideDisplayBack(sign.getSide(org.bukkit.block.sign.Side.BACK))
                     .build();
@@ -112,13 +172,24 @@ public class SignManager implements Listener {
             .signLocation(signLocation)
             .container(container)
             .mode(ShopMode.SETUP)
-            .type(SignType.STACKABLE)
+            .type(SignType.BARTER)
             .signSideDisplayFront(sign.getSide(org.bukkit.block.sign.Side.FRONT))
             .signSideDisplayBack(sign.getSide(org.bukkit.block.sign.Side.BACK))
             .build();
 
         barterSigns.put(signLocation, barterSign);
+
         logger.info("Created barter sign (ID: " + id + ") for " + player.getName());
+
+        // Display the sign in SETUP mode so it's not empty
+        // Schedule on next tick to ensure block state is ready
+        plugin.getServer().getScheduler().runTask(plugin, () -> {
+            org.bukkit.block.Block block = signLocation.getBlock();
+            if (block.getState() instanceof Sign updatedSign) {
+                SignDisplay.updateSign(updatedSign, barterSign);
+                logger.debug("Sign display updated for newly created shop");
+            }
+        });
 
         // FIX Bug #b9171695: Persist the sign to database
         persistBarterSign(barterSign, container);
@@ -332,6 +403,149 @@ public class SignManager implements Listener {
             signInteraction.handleRightClick(player, sign, barterSign);
         } catch (Exception e) {
             logger.error("Error processing sign interaction: " + e.getMessage(), e);
+        }
+    }
+
+    // ========== Inventory Auto-Detection via Periodic Validation ==========
+    // Type detection and validation now handled by startChestValidationTask() which runs every 5 ticks
+
+    /**
+     * Validates inventory contents based on shop type.
+     * Stackable shops: only allow items matching the locked item type
+     * Unstackable shops: only allow unstackable items (any of them)
+     */
+    private void validateInventoryContents(Container container, BarterSign barterSign) {
+        // Only validate if type has been detected
+        if (!barterSign.isTypeDetected()) {
+            return;
+        }
+
+        Location signLoc = barterSign.getSignLocation();
+        java.util.List<ItemStack> invalidItems = new java.util.ArrayList<>();
+
+        if (barterSign.isStackable()) {
+            // STACKABLE SHOP: only allow items matching locked type
+            invalidItems = collectInvalidStackableItems(container, barterSign);
+        } else {
+            // UNSTACKABLE SHOP: only allow unstackable items
+            invalidItems = collectInvalidUnstackableItems(container, barterSign);
+        }
+
+        // Process and return invalid items
+        if (!invalidItems.isEmpty()) {
+            removeAndReturnItems(container, invalidItems, signLoc, barterSign);
+        }
+    }
+
+    /**
+     * Collects invalid items from stackable shop
+     */
+    private java.util.List<ItemStack> collectInvalidStackableItems(Container container, BarterSign barterSign) {
+        java.util.List<ItemStack> invalid = new java.util.ArrayList<>();
+        Material lockedType = barterSign.getLockedItemType();
+
+        for (ItemStack item : container.getInventory().getContents()) {
+            if (item != null && !item.getType().isAir()) {
+                boolean isInvalid = false;
+
+                // Check if unstackable (should not be in stackable shop)
+                if (!BarterSign.isItemStackable(item)) {
+                    isInvalid = true;
+                }
+                // Check if different item type
+                else if (lockedType != null && !item.getType().equals(lockedType)) {
+                    isInvalid = true;
+                }
+
+                if (isInvalid) {
+                    invalid.add(item.clone());
+                }
+            }
+        }
+
+        return invalid;
+    }
+
+    /**
+     * Collects invalid items from unstackable shop
+     */
+    private java.util.List<ItemStack> collectInvalidUnstackableItems(Container container, BarterSign barterSign) {
+        java.util.List<ItemStack> invalid = new java.util.ArrayList<>();
+
+        for (ItemStack item : container.getInventory().getContents()) {
+            if (item != null && !item.getType().isAir()) {
+                // Check if stackable (should not be in unstackable shop)
+                if (BarterSign.isItemStackable(item)) {
+                    invalid.add(item.clone());
+                }
+            }
+        }
+
+        return invalid;
+    }
+
+    /**
+     * Removes invalid items from container and returns them to nearby players or drops them
+     */
+    private void removeAndReturnItems(Container container, java.util.List<ItemStack> invalidItems,
+                                      Location signLoc, BarterSign barterSign) {
+        // Remove items from container inventory
+        for (ItemStack invalid : invalidItems) {
+            for (ItemStack containerItem : container.getInventory().getContents()) {
+                if (containerItem != null && containerItem.isSimilar(invalid)) {
+                    int toRemove = Math.min(invalid.getAmount(), containerItem.getAmount());
+                    containerItem.setAmount(containerItem.getAmount() - toRemove);
+                    invalid.setAmount(invalid.getAmount() - toRemove);
+
+                    if (invalid.getAmount() <= 0) {
+                        break; // Item fully removed
+                    }
+                }
+            }
+        }
+
+        // Try to return items to nearby players or drop them
+        for (ItemStack item : invalidItems) {
+            if (item.getAmount() > 0) {
+                Location chestLoc = container.getLocation();
+                String itemName = item.getType().name();
+                String reason = barterSign.isStackable() ? "wrong item type" : "stackable items not allowed";
+
+                logger.debug("Rejecting invalid item " + itemName + " at " + chestLoc);
+
+                // Try to give to owner first
+                for (org.bukkit.entity.Player player : signLoc.getWorld().getPlayers()) {
+                    if (player.getUniqueId().equals(barterSign.getOwner()) &&
+                        player.getLocation().distance(signLoc) <= 30) {
+                        // Try to add to player inventory
+                        java.util.HashMap<Integer, ItemStack> couldNotFit = player.getInventory().addItem(item);
+
+                        if (couldNotFit.isEmpty()) {
+                            // Item successfully added to inventory
+                            notifyOwner(signLoc, barterSign, "Returned " + item.getAmount() + "x " + itemName +
+                                       " (" + reason + ")");
+                            return;
+                        }
+                    }
+                }
+
+                // If owner not available or inventory full, drop at chest location
+                chestLoc.getWorld().dropItem(chestLoc.add(0.5, 1.0, 0.5), item);
+                logger.debug("Dropped invalid item " + itemName + " at chest location");
+            }
+        }
+    }
+
+    /**
+     * Notifies shop owner about validation issue
+     */
+    private void notifyOwner(Location signLoc, BarterSign barterSign, String message) {
+        for (org.bukkit.entity.Player player : signLoc.getWorld().getPlayers()) {
+            if (player.getLocation().distance(signLoc) <= 15 &&
+                player.getUniqueId().equals(barterSign.getOwner())) {
+                player.sendMessage(ChatColor.YELLOW + "⚠ " + message);
+                break; // Only notify once per validation
+            }
         }
     }
 

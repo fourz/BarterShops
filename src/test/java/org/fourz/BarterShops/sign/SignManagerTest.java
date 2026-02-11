@@ -171,7 +171,7 @@ class SignManagerTest {
             assertNotNull(createdSign);
             assertEquals(playerUuid, createdSign.getOwner());
             assertEquals(ShopMode.SETUP, createdSign.getMode());
-            assertEquals(SignType.STACKABLE, createdSign.getType());
+            assertEquals(SignType.BARTER, createdSign.getType());
             assertEquals(signLocation, createdSign.getSignLocation());
         }
 

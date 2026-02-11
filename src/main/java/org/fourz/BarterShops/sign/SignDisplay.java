@@ -34,51 +34,57 @@ public class SignDisplay {
 
     private static void displaySetupMode(SignSide side, BarterSign barterSign) {
         side.setLine(0, "§5[Setup]");
-        if (barterSign.getType() == SignType.STACKABLE) {
-            if (barterSign.getItemOffering() == null) {
-                side.setLine(1, "§7L-Click with");
-                side.setLine(2, "§7item to sell");
-                side.setLine(3, "");
-            } else {
-                side.setLine(1, "§7R-Click with");
-                side.setLine(2, "§7payment item");
-                side.setLine(3, "§7to set price");
+        if (barterSign.isTypeDetected()) {
+            // Type already locked - show type-specific setup instructions
+            SignType type = barterSign.getType();
+            switch (type) {
+                case BARTER -> {
+                    side.setLine(1, "§7L-Click to set");
+                    side.setLine(2, "§7item for trade");
+                    side.setLine(3, "");
+                }
+                case BUY -> {
+                    side.setLine(1, "§7L-Click to");
+                    side.setLine(2, "§7set buy price");
+                    side.setLine(3, "");
+                }
+                case SELL -> {
+                    side.setLine(1, "§7L-Click to");
+                    side.setLine(2, "§7set sell price");
+                    side.setLine(3, "");
+                }
             }
         } else {
-            side.setLine(1, "§7Fill chest");
-            side.setLine(2, "§7Set price");
-            side.setLine(3, "§7R-Click ready");
+            // Type not yet set - show item setup instructions
+            side.setLine(1, "§7L-Click with");
+            side.setLine(2, "§7item to");
+            side.setLine(3, "§7setup shop");
         }
     }
 
     /**
      * Displays the sign in BOARD mode, which is meant for customer display.
-     * Shows offering and price information.
+     * Shows items in chest and price information.
      */
     private static void displayBoardMode(SignSide side, BarterSign barterSign) {
         side.setLine(0, "§2[Barter Shop]");
-        ItemStack offering = barterSign.getItemOffering();
         ItemStack payment = barterSign.getPriceItem();
 
-        if (barterSign.getType() == SignType.STACKABLE && offering != null) {
-            side.setLine(1, offering.getAmount() + "x " + formatItemName(offering));
-            side.setLine(2, "§9for");
-            side.setLine(3, barterSign.getPriceAmount() + "x " + formatItemName(payment));
-        } else if (barterSign.getType() == SignType.UNSTACKABLE) {
+        if (payment != null && barterSign.getPriceAmount() > 0) {
             side.setLine(1, "§7Items in chest");
             side.setLine(2, "§9Price:");
             side.setLine(3, barterSign.getPriceAmount() + "x " + formatItemName(payment));
         } else {
-            // Default display if not fully configured
-            side.setLine(1, "§7Trading Items");
-            side.setLine(2, "§7Click to view");
-            side.setLine(3, "§3[Active]");
+            // Not configured
+            side.setLine(1, "§7Not configured");
+            side.setLine(2, "§7Ask owner");
+            side.setLine(3, "");
         }
     }
 
     private static void displayTypeMode(SignSide side, BarterSign barterSign) {
         side.setLine(0, "§e[Type Mode]");
-        side.setLine(1, "§7R-Click to");
+        side.setLine(1, "§7L-Click to");
         side.setLine(2, "§7cycle type:");
         side.setLine(3, "§b" + barterSign.getType().name());
     }
@@ -92,9 +98,18 @@ public class SignDisplay {
 
     private static void displayDeleteMode(SignSide side) {
         side.setLine(0, "§c[DELETE?]");
-        side.setLine(1, "§7Break sign");
-        side.setLine(2, "§7to confirm");
+        side.setLine(1, "§7L-Click to");
+        side.setLine(2, "§7delete shop");
         side.setLine(3, "§7R-Click cancel");
+    }
+
+    public static void displayDeleteConfirmation(Sign sign) {
+        SignSide frontSide = sign.getSide(Side.FRONT);
+        frontSide.setLine(0, "§c[CONFIRM?]");
+        frontSide.setLine(1, "§cL-Click AGAIN");
+        frontSide.setLine(2, "§cto confirm");
+        frontSide.setLine(3, "§7(5s timeout)");
+        sign.update();
     }
 
     private static String formatItemName(ItemStack item) {

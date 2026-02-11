@@ -111,13 +111,13 @@ class SignInteractionTest {
         // Setup TypeAvailabilityManager mock
         var typeAvailabilityManager = mock(org.fourz.BarterShops.config.TypeAvailabilityManager.class);
         when(plugin.getTypeAvailabilityManager()).thenReturn(typeAvailabilityManager);
-        // Default: cycle through types
+        // Default: cycle through types (BARTER -> SELL -> BUY -> BARTER)
         when(typeAvailabilityManager.getNextSignType(any())).thenAnswer(inv -> {
             SignType current = inv.getArgument(0);
             return switch(current) {
-                case STACKABLE -> SignType.UNSTACKABLE;
-                case UNSTACKABLE -> SignType.BARTER;
-                case BARTER -> SignType.STACKABLE;
+                case BARTER -> SignType.SELL;
+                case SELL -> SignType.BUY;
+                case BUY -> SignType.BARTER;
             };
         });
 
@@ -139,7 +139,7 @@ class SignInteractionTest {
             .owner(ownerUuid)
             .container(container)
             .mode(ShopMode.SETUP)
-            .type(SignType.STACKABLE)
+            .type(SignType.BARTER)
             .signSideDisplayFront(mock(org.bukkit.block.sign.SignSide.class))
             .signSideDisplayBack(mock(org.bukkit.block.sign.SignSide.class))
             .build();
@@ -356,7 +356,7 @@ class SignInteractionTest {
                 .container(null)
                 .shopContainer(null)
                 .mode(ShopMode.BOARD)
-                .type(SignType.STACKABLE)
+                .type(SignType.BARTER)
                 .signSideDisplayFront(mockFrontSide)
                 .signSideDisplayBack(mock(org.bukkit.block.sign.SignSide.class))
                 .build();
