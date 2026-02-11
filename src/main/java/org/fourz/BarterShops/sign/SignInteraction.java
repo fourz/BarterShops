@@ -55,39 +55,48 @@ public class SignInteraction {
         switch (barterSign.getMode()) {
             case SETUP -> {
                 // Left-click in SETUP: Set stackable/unstackable based on held item
-                ItemStack itemInHand = event.getItem();
-
-                if (itemInHand != null && !itemInHand.getType().isAir()) {
-                    // Detect if held item is stackable and set shop mode
-                    boolean isStackable = BarterSign.isItemStackable(itemInHand);
-                    barterSign.setStackable(isStackable);
-
-                    String modeText = isStackable ? "stackable" : "unstackable";
-                    player.sendMessage(ChatColor.GREEN + "+ Shop type locked to " + modeText);
-                    player.sendMessage(ChatColor.GRAY + "Right-click to set price");
-                    logger.debug("Shop mode set to " + modeText + " for " + player.getName());
+                // Type lock prevents changes once detected
+                if (barterSign.isTypeDetected()) {
+                    // Type already locked - cannot change
+                    String lockedType = barterSign.getShopStackableMode() ? "STACKABLE" : "UNSTACKABLE";
+                    player.sendMessage(ChatColor.RED + "✗ Shop type is LOCKED to " + lockedType);
+                    player.sendMessage(ChatColor.GRAY + "Cannot change type. Delete shop to reset.");
+                    logger.debug("Owner tried to change locked type in SETUP mode");
                 } else {
-                    player.sendMessage(ChatColor.YELLOW + "L-Click with an item to setup shop");
-                    player.sendMessage(ChatColor.GRAY + "(stackable items = stackable shop)");
+                    ItemStack itemInHand = event.getItem();
+
+                    if (itemInHand != null && !itemInHand.getType().isAir()) {
+                        // Detect if held item is stackable and set shop mode
+                        boolean isStackable = BarterSign.isItemStackable(itemInHand);
+                        barterSign.setStackable(isStackable);
+
+                        String modeText = isStackable ? "stackable" : "unstackable";
+                        player.sendMessage(ChatColor.GREEN + "+ Shop type locked to " + modeText);
+                        player.sendMessage(ChatColor.GRAY + "Right-click to set price");
+                        logger.debug("Shop mode set to " + modeText + " for " + player.getName());
+                    } else {
+                        player.sendMessage(ChatColor.YELLOW + "L-Click with an item to setup shop");
+                        player.sendMessage(ChatColor.GRAY + "(stackable items = stackable shop)");
+                    }
                 }
             }
 
             case TYPE -> {
                 // Left-click in TYPE: Cycle through SignTypes (BARTER, BUY, SELL)
-                // Note: Inventory type (stackable/unstackable) is locked via typeDetected flag
-                // and cannot be changed once detected from chest contents
-                SignType currentType = barterSign.getType();
-                SignType nextType = plugin.getTypeAvailabilityManager().getNextSignType(currentType);
-                barterSign.setType(nextType);
-
+                // Cannot change type once inventory type is detected and locked
                 if (barterSign.isTypeDetected()) {
-                    // Show lock status message
+                    // Type already locked - show lock status only
                     String inventoryType = barterSign.getShopStackableMode() ? "STACKABLE" : "UNSTACKABLE";
-                    player.sendMessage(ChatColor.GRAY + "Inventory type: " + ChatColor.YELLOW + inventoryType + ChatColor.GRAY + " (LOCKED)");
+                    player.sendMessage(ChatColor.RED + "✗ Inventory type is LOCKED to " + inventoryType);
+                    player.sendMessage(ChatColor.GRAY + "Type cannot be changed once items are placed.");
+                    logger.debug("Owner tried to change locked inventory type in TYPE mode");
+                } else {
+                    // Type not locked yet - allow cycling
+                    SignType currentType = barterSign.getType();
+                    SignType nextType = plugin.getTypeAvailabilityManager().getNextSignType(currentType);
+                    barterSign.setType(nextType);
+                    logger.debug("Owner: TYPE cycling - " + currentType + " -> " + nextType);
                 }
-
-                // Don't announce type changes to reduce spam - type is shown on sign
-                logger.debug("Owner: TYPE cycling - " + currentType + " -> " + nextType);
             }
 
             case BOARD -> {
