@@ -1,8 +1,9 @@
 # BarterShops User Guide
 
-**Version**: 1.0-SNAPSHOT
+**Version**: 2.0-SNAPSHOT
 **For**: Players and Shop Owners
-**Last Updated**: February 1, 2026
+**Last Updated**: February 10, 2026
+**See Also**: [Sign UI/UX System Design](docs/SIGN_UI_UX.md) for detailed technical reference
 
 Welcome to BarterShops, a modern item-for-item trading system for Minecraft. This guide will help you create and manage your own barter shops with the latest features including ratings, templates, statistics, and economy integration.
 
@@ -82,53 +83,84 @@ To create a barter shop, you need:
 - Currency shops: 500 coins (default)
 - Check fees with `/shop fee list`
 
-### Step 3: Configure Your First Trade
+### Step 3: Place Items in Chest
 
-After creating the shop, the sign will display:
+After creating the sign, it enters **SETUP mode**. The sign will display:
 ```
-[Shop Name]
-L-Click with
-item you want
-to sell
+[Setup]
+L-Click to set
+item for trade
 ```
 
-1. **Hold the item** you want to trade away (what you're offering)
-2. **Left-click the sign** while holding the item
-3. The sign will update to show your item
+1. **Place an item** in the attached chest
+   - **Stackable item** (like dirt, diamond): Creates a stackable shop
+   - **Unstackable item** (like enchanted sword): Creates a non-stackable shop
+2. The plugin automatically detects the shop type from the first item
+3. **Sign updates** with type-specific setup message
 
-### Step 4: Set the Trade Request
+### Step 4: Configure the Trade (Price)
 
-1. **Hold the item** you want to receive in exchange
-2. **Left-click the sign** again
-3. Your trade is now configured
+1. **Hold the payment item** (what customers must give you)
+   - Example: 5 emeralds, 10 diamonds, 1 gold bar
+2. **Left-click the sign** while holding the payment item
+3. Your trade is now configured!
 
 ### Step 5: Activate Your Shop
 
-1. Right-click the sign to switch to Main Menu mode
-2. Your shop is now open for business!
+1. **Right-click the sign** to cycle to BOARD mode
+2. Sign displays your trade offering
+3. **Your shop is now open for business!**
+
+### Understanding Shop Types
+
+After setup, your shop type is **locked in** and cannot be changed without deleting the shop:
+
+- **Stackable Shop**: Trading multiples of one item type
+  - Example: "Trade 64 dirt for 10 emeralds"
+  - Only the locked item type allowed in chest
+  - Perfect for bulk trading
+
+- **Non-Stackable Shop**: Trading unique/enchanted items
+  - Example: "Trade enchanted swords for 5 diamonds each"
+  - Any unstackable items allowed (mixed types)
+  - Perfect for selling enchanted gear or rare items
 
 ---
 
 ## Shop Modes and Types
 
-### Shop Types
+### Inventory Types
 
-| Type | Description | Economy Required |
-|------|-------------|------------------|
-| **BARTER** | Item-for-item exchange | No |
-| **SELL** | Players buy items with currency | Yes (Vault) |
-| **BUY** | You buy items from players | Yes (Vault) |
-| **ADMIN** | Special admin shops with unlimited stock | Admin only |
+After placing an item in your chest, the shop automatically detects its type:
 
-### Shop Modes
+| Type | What It Means | Example | What's Allowed | Validation |
+|------|--------------|---------|----------------|----|
+| **Stackable** | Bulk trading | 64 dirt for 10 emeralds | Only that exact item type | Different item types rejected |
+| **Non-Stackable** | Unique items | Enchanted swords | Any unstackable items (mixed OK) | Stackable items rejected |
 
-| Mode | Display | Purpose |
-|------|---------|---------|
-| **SETUP** | "L-Click with item you want to sell" | Configure trade items |
-| **MAIN** | "Barter Shop (right-click)" | Customer trading interface |
-| **TYPE** | "Shop Type: BARTER" | Change shop type |
-| **HELP** | "BarterShops Help & Info" | Show usage instructions |
-| **DELETE** | "Delete Shop? L-click confirm" | Confirm shop removal |
+### Sign Modes (State Machine)
+
+Signs cycle through modes for different purposes. Right-click to advance mode.
+
+| Mode | Display | What You Do |
+|------|---------|-----------|
+| **SETUP** | [Setup] L-Click to set item/price | Place items, configure payment |
+| **TYPE** | [Type Mode] Shows locked type | View/change type (before lock) |
+| **BOARD** | [Barter Shop] Shows trade | Shop is active - customers trade here |
+| **DELETE** | [DELETE?] L-Click to confirm | Confirm shop removal (2-step safety) |
+
+**Mode Cycling**: SETUP → TYPE → BOARD → DELETE → SETUP (press right-click to advance)
+
+### Type Lock Mechanism
+
+**Key Rule**: Once a shop type is detected, it becomes **LOCKED** and cannot be changed.
+
+- **Why?** Prevents accidental reconfiguration that would break shop behavior
+- **When locked?** After first item placed in chest
+- **How to change?** Delete shop and recreate (/shop remove <id>)
+- **Sign feedback**: TYPE mode shows "✗ Type Locked" with locked type name
+
+For detailed technical information about sign modes, type detection, and the interaction system, see [Sign UI/UX System Design](docs/SIGN_UI_UX.md).
 
 ---
 
