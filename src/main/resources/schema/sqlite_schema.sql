@@ -8,13 +8,14 @@ CREATE TABLE IF NOT EXISTS bs_shops (
     shop_id INTEGER PRIMARY KEY AUTOINCREMENT,
     owner_uuid TEXT NOT NULL,
     shop_name TEXT,
-    shop_type TEXT NOT NULL DEFAULT 'BARTER' CHECK(shop_type IN ('BARTER', 'SELL', 'BUY', 'ADMIN')),
+    shop_type TEXT NOT NULL DEFAULT 'BARTER' CHECK(shop_type IN ('BARTER', 'SELL', 'BUY')),
+    is_admin INTEGER NOT NULL DEFAULT 0,
 
     -- Sign location
-    sign_world TEXT NOT NULL,
-    sign_x REAL NOT NULL,
-    sign_y REAL NOT NULL,
-    sign_z REAL NOT NULL,
+    location_world TEXT NOT NULL,
+    location_x REAL NOT NULL,
+    location_y REAL NOT NULL,
+    location_z REAL NOT NULL,
 
     -- Chest location
     chest_world TEXT,
@@ -30,9 +31,10 @@ CREATE TABLE IF NOT EXISTS bs_shops (
 
 -- Indexes for shops
 CREATE INDEX IF NOT EXISTS idx_bs_shops_owner ON bs_shops(owner_uuid);
-CREATE INDEX IF NOT EXISTS idx_bs_shops_sign_loc ON bs_shops(sign_world, sign_x, sign_y, sign_z);
+CREATE INDEX IF NOT EXISTS idx_bs_shops_location ON bs_shops(location_world, location_x, location_y, location_z);
 CREATE INDEX IF NOT EXISTS idx_bs_shops_active ON bs_shops(is_active);
 CREATE INDEX IF NOT EXISTS idx_bs_shops_type ON bs_shops(shop_type);
+CREATE INDEX IF NOT EXISTS idx_bs_shops_owner_active ON bs_shops(owner_uuid, is_active);
 
 -- Trade items (what the shop offers/accepts)
 CREATE TABLE IF NOT EXISTS bs_trade_items (
@@ -63,7 +65,9 @@ CREATE TABLE IF NOT EXISTS bs_trade_history (
     currency_material TEXT,
     price_paid INTEGER NOT NULL DEFAULT 0,
     status TEXT NOT NULL DEFAULT 'COMPLETED' CHECK(status IN ('COMPLETED', 'CANCELLED', 'FAILED', 'PENDING', 'REFUNDED')),
-    completed_at TEXT NOT NULL DEFAULT (datetime('now'))
+    completed_at TEXT NOT NULL DEFAULT (datetime('now')),
+
+    FOREIGN KEY (shop_id) REFERENCES bs_shops(shop_id) ON DELETE SET NULL
 );
 
 -- Indexes for trade history
@@ -72,6 +76,7 @@ CREATE INDEX IF NOT EXISTS idx_bs_history_buyer ON bs_trade_history(buyer_uuid);
 CREATE INDEX IF NOT EXISTS idx_bs_history_seller ON bs_trade_history(seller_uuid);
 CREATE INDEX IF NOT EXISTS idx_bs_history_completed ON bs_trade_history(completed_at);
 CREATE INDEX IF NOT EXISTS idx_bs_history_status ON bs_trade_history(status);
+CREATE INDEX IF NOT EXISTS idx_bs_history_buyer_completed ON bs_trade_history(buyer_uuid, completed_at);
 
 -- Shop metadata (key-value pairs for extensibility)
 CREATE TABLE IF NOT EXISTS bs_shop_metadata (
@@ -83,6 +88,26 @@ CREATE TABLE IF NOT EXISTS bs_shop_metadata (
     PRIMARY KEY (shop_id, meta_key),
     FOREIGN KEY (shop_id) REFERENCES bs_shops(shop_id) ON DELETE CASCADE
 );
+
+-- Index for metadata queries by key
+CREATE INDEX IF NOT EXISTS idx_bs_metadata_key ON bs_shop_metadata(meta_key);
+
+-- Shop ratings and reviews
+CREATE TABLE IF NOT EXISTS bs_shop_ratings (
+    rating_id INTEGER PRIMARY KEY AUTOINCREMENT,
+    shop_id INTEGER NOT NULL,
+    rater_uuid TEXT NOT NULL,
+    rating INTEGER NOT NULL CHECK (rating >= 1 AND rating <= 5),
+    review TEXT,
+    created_at TEXT NOT NULL DEFAULT (datetime('now')),
+
+    UNIQUE(shop_id, rater_uuid),
+    FOREIGN KEY (shop_id) REFERENCES bs_shops(shop_id) ON DELETE CASCADE
+);
+
+-- Indexes for ratings
+CREATE INDEX IF NOT EXISTS idx_bs_shop_ratings_shop ON bs_shop_ratings(shop_id);
+CREATE INDEX IF NOT EXISTS idx_bs_shop_ratings_rater ON bs_shop_ratings(rater_uuid);
 
 -- Trade history archive (for old records)
 CREATE TABLE IF NOT EXISTS bs_trade_history_archive (
