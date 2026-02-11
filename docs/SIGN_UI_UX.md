@@ -93,32 +93,26 @@ sell price
 
 ### TYPE Mode
 
-**Purpose**: View and potentially change shop type (before type lock)
+**Purpose**: Change shop economy type (BARTER, BUY, SELL)
 **Sign Display**:
 ```
 [Type Mode]
 L-Click to
 cycle type:
 BARTER
-
-OR (when type locked)
-
-[Type Mode]
-✗ Type Locked
-BARTER
-(delete to change)
 ```
 
 **Owner Interactions**:
 - **Left-click**: Cycle through available SignTypes (BARTER → SELL → BUY → BARTER)
-  - Only if type NOT yet detected/locked
-  - Shows lock message if type is locked
+  - Always available, can be changed at any time
+  - **BARTER**: No fees, item-for-item trading
+  - **BUY**: Economy-based, player buys from shop with currency
+  - **SELL**: Economy-based, player sells to shop for currency
 - **Right-click**: Advance to BOARD mode
 
 **Key Rules**:
-- Type can only be cycled BEFORE first detection
-- Once type detected from chest, it becomes LOCKED
-- Cannot enter TYPE to cycle if already locked
+- SignType (BARTER/BUY/SELL) can ALWAYS be cycled via left-click
+- This is different from inventory type locking (STACKABLE vs UNSTACKABLE)
 - Prevents accidental type changes breaking shop behavior
 
 ---
@@ -171,7 +165,10 @@ R-Click cancel
 
 ---
 
-## Type Detection & Locking
+## Inventory Type Detection & Locking
+
+Locks the **inventory type** (STACKABLE vs UNSTACKABLE) once detected from first item placed in chest.
+Note: **SignType** (BARTER, BUY, SELL) can be cycled anytime in TYPE mode - it is NOT locked.
 
 ### Auto-Detection Flow
 
@@ -383,11 +380,12 @@ This implementation is derived from BarterSignsPlus but with modern enhancements
 
 ## Troubleshooting
 
-### "Shop type is locked! Delete shop to reconfigure"
+### Cannot change inventory type (stackable ↔ unstackable)
 
-**Problem**: Cannot change shop type in TYPE mode
-**Cause**: Shop type was auto-detected when item placed in chest
-**Solution**: Delete shop (/shop remove <id>) and recreate with desired type
+**Problem**: Placed a stackable item but want non-stackable shop (or vice versa)
+**Cause**: Inventory type was auto-detected when first item placed in chest
+**Solution**: Delete shop (/shop remove <id>) and recreate with desired item type (stackable or unstackable)
+**Note**: You CAN change SignType (BARTER ↔ BUY ↔ SELL) anytime via left-click in TYPE mode
 
 ### "Returned 5x DIAMOND (wrong item type)"
 

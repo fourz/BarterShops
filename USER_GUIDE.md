@@ -145,20 +145,22 @@ Signs cycle through modes for different purposes. Right-click to advance mode.
 | Mode | Display | What You Do |
 |------|---------|-----------|
 | **SETUP** | [Setup] L-Click to set item/price | Place items, configure payment |
-| **TYPE** | [Type Mode] Shows locked type | View/change type (before lock) |
+| **TYPE** | [Type Mode] Cycle BARTER/BUY/SELL | Change shop economy type (BARTER = no fee, BUY/SELL = with economy) |
 | **BOARD** | [Barter Shop] Shows trade | Shop is active - customers trade here |
 | **DELETE** | [DELETE?] L-Click to confirm | Confirm shop removal (2-step safety) |
 
 **Mode Cycling**: SETUP → TYPE → BOARD → DELETE → SETUP (press right-click to advance)
 
-### Type Lock Mechanism
+### Inventory Type Lock Mechanism
 
-**Key Rule**: Once a shop type is detected, it becomes **LOCKED** and cannot be changed.
+**Key Rule**: Once a shop's **inventory type** is detected (STACKABLE vs UNSTACKABLE), it becomes **LOCKED** and cannot be changed.
 
-- **Why?** Prevents accidental reconfiguration that would break shop behavior
+- **STACKABLE**: Detected when you place a stackable item (dirt, diamonds, etc.) - sells multiples of one item type
+- **UNSTACKABLE**: Detected when you place an unstackable item (enchanted sword, player head, etc.) - sells individual unique items
+- **Why locked?** Prevents accidentally mixing item types in stackable shops or breaking non-stackable logic
 - **When locked?** After first item placed in chest
-- **How to change?** Delete shop and recreate (/shop remove <id>)
-- **Sign feedback**: TYPE mode shows "✗ Type Locked" with locked type name
+- **How to change?** Delete shop and recreate with a different first item type
+- **Note**: You can still cycle SHOP TYPES (BARTER ↔ BUY ↔ SELL) in TYPE mode even after inventory type is locked
 
 For detailed technical information about sign modes, type detection, and the interaction system, see [Sign UI/UX System Design](docs/SIGN_UI_UX.md).
 

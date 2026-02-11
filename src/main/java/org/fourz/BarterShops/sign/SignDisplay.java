@@ -84,18 +84,9 @@ public class SignDisplay {
 
     private static void displayTypeMode(SignSide side, BarterSign barterSign) {
         side.setLine(0, "§e[Type Mode]");
-
-        if (barterSign.isTypeDetected()) {
-            // Type is locked
-            side.setLine(1, "§c✗ Type Locked");
-            side.setLine(2, "§e" + barterSign.getType().name());
-            side.setLine(3, "§7(delete to change)");
-        } else {
-            // Type can be cycled
-            side.setLine(1, "§7L-Click to");
-            side.setLine(2, "§7cycle type:");
-            side.setLine(3, "§b" + barterSign.getType().name());
-        }
+        side.setLine(1, "§7L-Click to");
+        side.setLine(2, "§7cycle type:");
+        side.setLine(3, "§b" + barterSign.getType().name());
     }
 
     private static void displayHelpMode(SignSide side) {
