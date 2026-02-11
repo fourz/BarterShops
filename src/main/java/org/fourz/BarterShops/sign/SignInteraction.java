@@ -18,6 +18,7 @@ import org.fourz.BarterShops.trade.TradeSession;
 import org.fourz.BarterShops.trade.TradeConfirmationGUI;
 import org.fourz.rvnkcore.util.log.LogManager;
 
+import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.concurrent.ConcurrentHashMap;
@@ -54,55 +55,95 @@ public class SignInteraction {
 
         switch (barterSign.getMode()) {
             case SETUP -> {
-                // Left-click in SETUP: Set stackable/unstackable based on held item
-                // Type lock prevents changes once detected
-                if (barterSign.isTypeDetected()) {
-                    // Type already locked - cannot change
-                    String lockedType = barterSign.getShopStackableMode() ? "STACKABLE" : "UNSTACKABLE";
-                    player.sendMessage(ChatColor.RED + "✗ Shop type is LOCKED to " + lockedType);
-                    player.sendMessage(ChatColor.GRAY + "Cannot change type. Delete shop to reset.");
-                    logger.debug("Owner tried to change locked type in SETUP mode");
-                } else {
-                    ItemStack itemInHand = event.getItem();
+                // Multi-step configuration flow
+                ItemStack itemInHand = event.getItem();
+                if (itemInHand == null || itemInHand.getType().isAir()) {
+                    player.sendMessage(ChatColor.YELLOW + "Hold an item when clicking");
+                    break;
+                }
 
-                    if (itemInHand != null && !itemInHand.getType().isAir()) {
-                        // Detect if held item is stackable and set shop mode
-                        boolean isStackable = BarterSign.isItemStackable(itemInHand);
-                        barterSign.setStackable(isStackable);
+                // Step 1: Set offering item
+                if (barterSign.getItemOffering() == null) {
+                    barterSign.configureStackableShop(itemInHand, itemInHand.getAmount());
+                    player.sendMessage(ChatColor.GREEN + "+ Offering set: " + itemInHand.getAmount() + "x " + itemInHand.getType().name());
+                    player.sendMessage(ChatColor.GRAY + "Now set payment/price");
+                    logger.debug("Offering configured: " + itemInHand.getType());
+                }
+                // Step 2: Configure payment (type-dependent)
+                else {
+                    SignType type = barterSign.getType();
 
-                        String modeText = isStackable ? "stackable" : "unstackable";
-                        player.sendMessage(ChatColor.GREEN + "+ Shop type locked to " + modeText);
-                        player.sendMessage(ChatColor.GRAY + "Right-click to set price");
-                        logger.debug("Shop mode set to " + modeText + " for " + player.getName());
+                    if (type == SignType.BARTER) {
+                        // BARTER: Add/update payment option
+                        if (player.isSneaking()) {
+                            // Shift+L-Click: Remove payment option
+                            if (barterSign.removePaymentOption(itemInHand.getType())) {
+                                player.sendMessage(ChatColor.RED + "- Removed: " + itemInHand.getType().name());
+                            } else {
+                                player.sendMessage(ChatColor.YELLOW + "Not in payment list");
+                            }
+                        } else {
+                            // L-Click: Add payment option
+                            barterSign.addPaymentOption(itemInHand, itemInHand.getAmount());
+                            player.sendMessage(ChatColor.GREEN + "+ Payment added: " + itemInHand.getAmount() + "x " + itemInHand.getType().name());
+                        }
                     } else {
-                        player.sendMessage(ChatColor.YELLOW + "L-Click with an item to setup shop");
-                        player.sendMessage(ChatColor.GRAY + "(stackable items = stackable shop)");
+                        // BUY/SELL: Configure price
+                        ItemStack currentPrice = barterSign.getPriceItem();
+
+                        if (currentPrice == null) {
+                            // First click: Set currency item
+                            barterSign.configurePrice(itemInHand, 1);
+                            player.sendMessage(ChatColor.GREEN + "+ Currency set: " + itemInHand.getType().name());
+                            player.sendMessage(ChatColor.GRAY + "L-Click ±1, Shift+R +16");
+                        } else if (currentPrice.getType() == itemInHand.getType()) {
+                            // Adjust price amount with same currency
+                            int currentAmount = barterSign.getPriceAmount();
+                            int newAmount = currentAmount;
+
+                            if (player.isSneaking()) {
+                                // Shift+L-Click: -1
+                                newAmount = Math.max(0, currentAmount - 1);
+                            } else {
+                                // L-Click: +1
+                                newAmount = currentAmount + 1;
+                            }
+
+                            barterSign.configurePrice(itemInHand, newAmount);
+                            player.sendMessage(ChatColor.AQUA + "Price: " + newAmount + "x " + itemInHand.getType().name());
+                        } else {
+                            // Different currency - confirm change
+                            player.sendMessage(ChatColor.YELLOW + "! Currency change: " + currentPrice.getType().name() + " → " + itemInHand.getType().name());
+                            barterSign.configurePrice(itemInHand, 1);
+                        }
                     }
                 }
             }
 
             case TYPE -> {
-                // Left-click in TYPE: Cycle through SignTypes (BARTER, BUY, SELL)
-                // Cannot change type once inventory type is detected and locked
-                if (barterSign.isTypeDetected()) {
-                    // Type already locked - show lock status only
-                    String inventoryType = barterSign.getShopStackableMode() ? "STACKABLE" : "UNSTACKABLE";
-                    player.sendMessage(ChatColor.RED + "✗ Inventory type is LOCKED to " + inventoryType);
-                    player.sendMessage(ChatColor.GRAY + "Type cannot be changed once items are placed.");
-                    logger.debug("Owner tried to change locked inventory type in TYPE mode");
-                } else {
-                    // Type not locked yet - allow cycling
-                    SignType currentType = barterSign.getType();
-                    SignType nextType = plugin.getTypeAvailabilityManager().getNextSignType(currentType);
-                    barterSign.setType(nextType);
-                    logger.debug("Owner: TYPE cycling - " + currentType + " -> " + nextType);
+                // Left-click in TYPE: Cycle through shop types (BARTER, BUY, SELL)
+                // Inventory type (stackable/unstackable) is auto-detected separately
+                SignType currentType = barterSign.getType();
+                SignType nextType = plugin.getTypeAvailabilityManager().getNextSignType(currentType);
+
+                // Clear payment configuration when changing type
+                if (currentType != nextType) {
+                    barterSign.clearPaymentOptions();
+                    barterSign.configurePrice(null, 0);
+                    player.sendMessage(ChatColor.YELLOW + "! Type changed: " + currentType + " → " + nextType);
+                    player.sendMessage(ChatColor.GRAY + "Payment configuration cleared");
                 }
+
+                barterSign.setType(nextType);
+                logger.debug("Owner: TYPE cycling - " + currentType + " -> " + nextType);
             }
 
             case BOARD -> {
-                // Left-click in BOARD: Show shop info
-                player.sendMessage(ChatColor.GREEN + "Shop is active!");
-                scheduleRevert(sign, barterSign);
+                // Left-click in BOARD: Owner quantity adjustment
+                handleOwnerBoardClick(player, sign, barterSign, event);
+                SignDisplay.updateSign(sign, barterSign);
+                event.setCancelled(true);
+                return;
             }
 
             case DELETE -> {
@@ -160,6 +201,37 @@ public class SignInteraction {
         }
     }
 
+    private void handleOwnerBoardClick(Player player, Sign sign, BarterSign barterSign, PlayerInteractEvent event) {
+        ItemStack itemInHand = event.getItem();
+        if (itemInHand == null || itemInHand.getType().isAir()) {
+            player.sendMessage(ChatColor.YELLOW + "Hold offering item to adjust quantity");
+            return;
+        }
+
+        ItemStack offering = barterSign.getItemOffering();
+        if (offering == null || offering.getType() != itemInHand.getType()) {
+            player.sendMessage(ChatColor.RED + "Hold the offering item (" +
+                (offering != null ? offering.getType().name() : "not set") + ")");
+            return;
+        }
+
+        int currentQty = offering.getAmount();
+        int newQty = currentQty;
+
+        if (player.isSneaking()) {
+            // Shift+L-Click: -1
+            newQty = Math.max(1, currentQty - 1);
+        } else {
+            // L-Click: +1
+            newQty = currentQty + 1;
+        }
+
+        offering.setAmount(newQty);
+        barterSign.configureStackableShop(offering, newQty);
+
+        player.sendMessage(ChatColor.AQUA + "Quantity: " + newQty + "x " + offering.getType().name());
+    }
+
     private void handleOwnerRightClick(Player player, Sign sign, BarterSign barterSign) {
         logger.debug("Processing owner interaction");
         cancelRevert(sign.getLocation());
@@ -213,20 +285,57 @@ public class SignInteraction {
 
     /**
      * Processes trade for STACKABLE shops.
-     * Uses the configured itemOffering and priceItem/priceAmount.
+     * Uses the configured itemOffering and payment (type-dependent).
+     * For BARTER mode, supports multiple payment options.
      */
     private void processStackableTrade(Player player, Sign sign, BarterSign barterSign, TradeEngine tradeEngine) {
         logger.debug("Processing stackable trade for " + player.getName());
 
         ItemStack offering = barterSign.getItemOffering();
-        ItemStack paymentItem = barterSign.getPriceItem();
-        int paymentAmount = barterSign.getPriceAmount();
+        SignType shopType = barterSign.getType();
 
-        // Validate configuration
-        if (offering == null || paymentItem == null || paymentAmount <= 0) {
+        // Validate offering configured
+        if (offering == null) {
             showTemporaryStatus(sign, barterSign, "\u00A7cNot", "\u00A7cconfigured");
-            logger.warning("Stackable shop not fully configured");
             return;
+        }
+
+        // Get payment item based on shop type
+        ItemStack paymentItem = null;
+        int paymentAmount = 0;
+
+        if (shopType == SignType.BARTER) {
+            // BARTER: Check what customer is holding
+            ItemStack customerHand = player.getInventory().getItemInMainHand();
+            if (customerHand == null || customerHand.getType().isAir()) {
+                showTemporaryStatus(sign, barterSign, "\u00A7eHold payment", "\u00A7eitem");
+                return;
+            }
+
+            // Check if held item is accepted payment
+            if (!barterSign.isPaymentAccepted(customerHand)) {
+                List<ItemStack> accepted = barterSign.getAcceptedPayments();
+                if (!accepted.isEmpty()) {
+                    showTemporaryStatus(sign, barterSign, "\u00A7cNot accepted",
+                        "\u00A7c" + customerHand.getType().name());
+                }
+                return;
+            }
+
+            // Get payment amount for this material
+            paymentAmount = barterSign.getPaymentAmount(customerHand.getType());
+            paymentItem = customerHand.clone();
+            paymentItem.setAmount(1);
+
+        } else {
+            // BUY/SELL: Use configured price
+            paymentItem = barterSign.getPriceItem();
+            paymentAmount = barterSign.getPriceAmount();
+
+            if (paymentItem == null || paymentAmount <= 0) {
+                showTemporaryStatus(sign, barterSign, "\u00A7cNot", "\u00A7cconfigured");
+                return;
+            }
         }
 
         // Get shop container for stock verification
@@ -237,11 +346,10 @@ public class SignInteraction {
 
         if (shopContainer == null) {
             showTemporaryStatus(sign, barterSign, "\u00A7cNo container", "\u00A7cfound");
-            logger.debug("Trade rejected - no shop container");
             return;
         }
 
-        // Verify stock: count total of offering items (using isSimilar for NBT comparison)
+        // Verify stock availability
         int availableStock = 0;
         for (ItemStack item : shopContainer.getInventory().getContents()) {
             if (item != null && item.isSimilar(offering)) {
@@ -251,12 +359,10 @@ public class SignInteraction {
 
         if (availableStock < offering.getAmount()) {
             showTemporaryStatus(sign, barterSign, "\u00A7cOut of", "\u00A7cstock");
-            logger.debug("Trade rejected - insufficient stock. Available: " + availableStock +
-                        ", Required: " + offering.getAmount());
             return;
         }
 
-        // Verify player has payment: count total of payment items in inventory
+        // Verify player has payment
         int playerPayment = 0;
         for (ItemStack item : player.getInventory().getContents()) {
             if (item != null && item.isSimilar(paymentItem)) {
@@ -267,8 +373,6 @@ public class SignInteraction {
         if (playerPayment < paymentAmount) {
             showTemporaryStatus(sign, barterSign, "\u00A7eNeed: " + paymentAmount,
                                "\u00A7e" + paymentItem.getType().name());
-            logger.debug("Trade rejected - insufficient payment. Have: " + playerPayment +
-                        ", Required: " + paymentAmount);
             return;
         }
 

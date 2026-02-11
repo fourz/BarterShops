@@ -6,6 +6,8 @@ import org.bukkit.block.sign.SignSide;
 import org.bukkit.inventory.ItemStack;
 import org.fourz.BarterShops.shop.ShopMode;
 
+import java.util.List;
+
 public class SignDisplay {
 
     public static void updateSign(Sign sign, BarterSign barterSign) {
@@ -34,68 +36,106 @@ public class SignDisplay {
 
     private static void displaySetupMode(SignSide side, BarterSign barterSign) {
         side.setLine(0, "§5[Setup]");
-        if (barterSign.isTypeDetected()) {
-            // Type already locked - show type-specific setup instructions
-            SignType type = barterSign.getType();
-            switch (type) {
-                case BARTER -> {
-                    side.setLine(1, "§7L-Click to set");
-                    side.setLine(2, "§7item for trade");
-                    side.setLine(3, "");
-                }
-                case BUY -> {
-                    side.setLine(1, "§7L-Click to");
-                    side.setLine(2, "§7set buy price");
-                    side.setLine(3, "");
-                }
-                case SELL -> {
-                    side.setLine(1, "§7L-Click to");
-                    side.setLine(2, "§7set sell price");
-                    side.setLine(3, "");
+
+        // Step 1: Set offering item
+        if (barterSign.getItemOffering() == null) {
+            side.setLine(1, "§7L-Click with");
+            side.setLine(2, "§7item to set");
+            side.setLine(3, "§7offering");
+            return;
+        }
+
+        // Step 2: Configure payment (type-dependent)
+        SignType type = barterSign.getType();
+        switch (type) {
+            case BARTER -> {
+                List<ItemStack> payments = barterSign.getAcceptedPayments();
+                if (payments.isEmpty()) {
+                    side.setLine(1, "§7L-Click with item");
+                    side.setLine(2, "§7to add payment");
+                    side.setLine(3, "§7option");
+                } else {
+                    side.setLine(1, "§7Payments: " + payments.size());
+                    side.setLine(2, "§7L-Click: add");
+                    side.setLine(3, "§7Shift+L: remove");
                 }
             }
-        } else {
-            // Type not yet set - show item setup instructions
-            side.setLine(1, "§7L-Click with");
-            side.setLine(2, "§7item to");
-            side.setLine(3, "§7setup shop");
+            case BUY, SELL -> {
+                ItemStack priceItem = barterSign.getPriceItem();
+                int priceAmount = barterSign.getPriceAmount();
+
+                if (priceItem == null) {
+                    side.setLine(1, "§7L-Click to set");
+                    side.setLine(2, "§7price currency");
+                    side.setLine(3, "§7(item in hand)");
+                } else {
+                    side.setLine(1, "§7Price: " + priceAmount);
+                    side.setLine(2, "§7" + formatItemName(priceItem));
+                    side.setLine(3, "§7L-Click ±1, Shift+R +16");
+                }
+            }
         }
     }
 
     /**
      * Displays the sign in BOARD mode, which is meant for customer display.
-     * Shows items in chest and price information.
+     * Shows shop type, offering, and price/payment information.
      */
     private static void displayBoardMode(SignSide side, BarterSign barterSign) {
-        side.setLine(0, "§2[Barter Shop]");
-        ItemStack payment = barterSign.getPriceItem();
+        SignType type = barterSign.getType();
+        ItemStack offering = barterSign.getItemOffering();
 
-        if (payment != null && barterSign.getPriceAmount() > 0) {
-            side.setLine(1, "§7Items in chest");
-            side.setLine(2, "§9Price:");
-            side.setLine(3, barterSign.getPriceAmount() + "x " + formatItemName(payment));
-        } else {
-            // Not configured
+        // Line 0: Shop type header
+        String header = switch(type) {
+            case BARTER -> "§2[Barter]";
+            case BUY -> "§e[We Buy]";
+            case SELL -> "§a[We Sell]";
+        };
+        side.setLine(0, header);
+
+        if (!barterSign.isConfigured()) {
             side.setLine(1, "§7Not configured");
             side.setLine(2, "§7Ask owner");
             side.setLine(3, "");
+            return;
+        }
+
+        // Show offering and pricing
+        if (offering != null) {
+            side.setLine(1, "§b" + offering.getAmount() + "x " + formatItemName(offering));
+        }
+
+        if (type == SignType.BARTER) {
+            List<ItemStack> payments = barterSign.getAcceptedPayments();
+            if (payments.size() == 1) {
+                ItemStack payment = payments.get(0);
+                side.setLine(2, "§7for: " + payment.getAmount() + "x");
+                side.setLine(3, "§7" + formatItemName(payment));
+            } else {
+                side.setLine(2, "§7" + payments.size() + " payment");
+                side.setLine(3, "§7options");
+            }
+        } else {
+            ItemStack priceItem = barterSign.getPriceItem();
+            int priceAmount = barterSign.getPriceAmount();
+            side.setLine(2, "§7" + priceAmount + "x");
+            side.setLine(3, "§7" + formatItemName(priceItem));
         }
     }
 
     private static void displayTypeMode(SignSide side, BarterSign barterSign) {
         side.setLine(0, "§e[Type Mode]");
+        SignType currentType = barterSign.getType();
 
         if (barterSign.isTypeDetected()) {
-            // Inventory type is locked - show lock status
-            String inventoryType = barterSign.getShopStackableMode() ? "STACKABLE" : "UNSTACKABLE";
-            side.setLine(1, "§c✗ Type LOCKED");
-            side.setLine(2, "§e" + inventoryType);
-            side.setLine(3, "§7(delete shop to change)");
+            // Inventory type locked, but can still change shop type
+            side.setLine(1, "§7L-Click to cycle");
+            side.setLine(2, "§bType: " + currentType.name());
+            side.setLine(3, "§8(Inv: " + (barterSign.getShopStackableMode() ? "STACK" : "UNIQ") + ")");
         } else {
-            // Inventory type not yet detected
-            side.setLine(1, "§7L-Click to");
-            side.setLine(2, "§7cycle type:");
-            side.setLine(3, "§b" + barterSign.getType().name());
+            side.setLine(1, "§7L-Click to cycle");
+            side.setLine(2, "§bType: " + currentType.name());
+            side.setLine(3, "");
         }
     }
 

@@ -1,5 +1,6 @@
 package org.fourz.BarterShops.container;
 
+import org.bukkit.ChatColor;
 import org.bukkit.block.Block;
 import org.bukkit.block.Container;
 import org.bukkit.block.DoubleChest;
@@ -13,6 +14,8 @@ import org.bukkit.persistence.PersistentDataType;
 import org.bukkit.NamespacedKey;
 import org.bukkit.event.HandlerList;
 import org.fourz.BarterShops.BarterShops;
+import org.fourz.BarterShops.sign.BarterSign;
+import org.fourz.BarterShops.shop.ShopMode;
 
 public class ContainerManager implements Listener {
     private final BarterShops plugin;
@@ -38,12 +41,47 @@ public class ContainerManager implements Listener {
     @EventHandler
     public void onContainerBreak(BlockBreakEvent event) {
         Block block = event.getBlock();
-        if (block.getState() instanceof Container) {
-            if (isShopContainer(block.getState())) {
-                event.setCancelled(true);
-                event.getPlayer().sendMessage("You cannot break a shop container!");
-            }
+        if (!(block.getState() instanceof Container)) {
+            return;
         }
+
+        Container container = (Container) block.getState();
+        if (!isShopContainer(container)) {
+            return;
+        }
+
+        Player player = event.getPlayer();
+
+        // Find the associated shop sign
+        BarterSign barterSign = plugin.getSignManager().findSignByContainerLocation(block.getLocation());
+        if (barterSign == null) {
+            // Container is marked as shop container but no sign found
+            event.setCancelled(true);
+            player.sendMessage(ChatColor.RED + "✗ This shop container is corrupted. Contact an admin.");
+            return;
+        }
+
+        // Only owner or admin can break
+        if (!barterSign.getOwner().equals(player.getUniqueId())
+                && !player.hasPermission("bartershops.admin")) {
+            event.setCancelled(true);
+            player.sendMessage(ChatColor.RED + "✗ You cannot break this shop chest.");
+            player.sendMessage(ChatColor.GRAY + "Only the shop owner can remove it.");
+            return;
+        }
+
+        // Must be in DELETE mode to break (or admin with override)
+        if (barterSign.getMode() != ShopMode.DELETE
+                && !player.hasPermission("bartershops.admin")) {
+            event.setCancelled(true);
+            player.sendMessage(ChatColor.YELLOW + "! Right-click the sign to enter DELETE mode.");
+            player.sendMessage(ChatColor.GRAY + "Then you can remove the shop.");
+            return;
+        }
+
+        // Authorized break - proceed with removal via sign deletion
+        // The sign break event will handle cleanup
+        event.setCancelled(false);
     }
 
     private boolean isShopContainer(InventoryHolder holder) {

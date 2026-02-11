@@ -638,4 +638,24 @@ public class SignManager implements Listener {
     public SignInteraction getSignInteraction() {
         return signInteraction;
     }
+
+    /**
+     * Finds a BarterSign by its associated shop container location.
+     * Used to check if a container being broken is part of a barter shop.
+     */
+    public BarterSign findSignByContainerLocation(Location containerLocation) {
+        if (containerLocation == null) return null;
+
+        for (BarterSign sign : barterSigns.values()) {
+            Container shopContainer = sign.getShopContainer();
+            if (shopContainer == null) {
+                shopContainer = sign.getContainer();
+            }
+
+            if (shopContainer != null && shopContainer.getLocation().equals(containerLocation)) {
+                return sign;
+            }
+        }
+        return null;
+    }
 }

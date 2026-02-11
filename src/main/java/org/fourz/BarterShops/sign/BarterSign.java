@@ -7,6 +7,8 @@ import org.bukkit.block.sign.SignSide;
 import org.bukkit.inventory.ItemStack;
 import org.fourz.BarterShops.shop.ShopMode;
 
+import java.util.ArrayList;
+import java.util.List;
 import java.util.UUID;
 
 public class BarterSign {
@@ -29,6 +31,7 @@ public class BarterSign {
     private boolean typeDetected = false;  // Whether shop type has been auto-detected (locked)
     private boolean isAdmin = false;  // Admin shops have infinite inventory, no chest needed
     private Material lockedItemType = null;  // For stackable shops: the item type that's locked in
+    private List<ItemStack> acceptedPayments = new ArrayList<>();  // Multiple payment options for BARTER mode
 
     private BarterSign(Builder builder) {
         this.id = builder.id;
@@ -82,19 +85,95 @@ public class BarterSign {
      * Configures price for the shop.
      */
     public void configurePrice(ItemStack paymentItem, int amount) {
-        this.priceItem = paymentItem.clone();
-        this.priceItem.setAmount(1); // Store single item, amount separate
+        if (paymentItem != null) {
+            this.priceItem = paymentItem.clone();
+            this.priceItem.setAmount(1); // Store single item, amount separate
+        } else {
+            this.priceItem = null;
+        }
         this.priceAmount = amount;
     }
 
     /**
+     * Adds a payment option for BARTER shops.
+     */
+    public void addPaymentOption(ItemStack paymentItem, int amount) {
+        if (paymentItem == null) return;
+
+        ItemStack payment = paymentItem.clone();
+        payment.setAmount(amount);
+
+        // Check if this material is already accepted
+        Material paymentMaterial = paymentItem.getType();
+        acceptedPayments.removeIf(p -> p.getType() == paymentMaterial);
+
+        acceptedPayments.add(payment);
+    }
+
+    /**
+     * Removes a payment option by material type.
+     */
+    public boolean removePaymentOption(Material material) {
+        return acceptedPayments.removeIf(p -> p.getType() == material);
+    }
+
+    /**
+     * Clears all payment options.
+     */
+    public void clearPaymentOptions() {
+        acceptedPayments.clear();
+    }
+
+    /**
+     * Gets the list of accepted payment options for BARTER mode.
+     */
+    public List<ItemStack> getAcceptedPayments() {
+        return new ArrayList<>(acceptedPayments);
+    }
+
+    /**
+     * Checks if a payment item is accepted.
+     */
+    public boolean isPaymentAccepted(ItemStack paymentItem) {
+        if (paymentItem == null) return false;
+
+        // For BUY/SELL modes, check single priceItem
+        if (type != SignType.BARTER) {
+            return priceItem != null && priceItem.isSimilar(paymentItem);
+        }
+
+        // For BARTER mode, check acceptedPayments list
+        Material paymentMaterial = paymentItem.getType();
+        return acceptedPayments.stream()
+            .anyMatch(p -> p.getType() == paymentMaterial);
+    }
+
+    /**
+     * Gets the payment amount for a given material.
+     */
+    public int getPaymentAmount(Material material) {
+        return acceptedPayments.stream()
+            .filter(p -> p.getType() == material)
+            .map(ItemStack::getAmount)
+            .findFirst()
+            .orElse(0);
+    }
+
+    /**
      * Checks if shop is fully configured and ready to activate.
-     * A shop is configured when it has a price set.
-     * The shop type (stackable/unstackable) is auto-detected based on chest contents.
+     * Configuration depends on shop type:
+     * - BARTER: Must have offering and at least one payment option
+     * - BUY/SELL: Must have offering and price configured
      */
     public boolean isConfigured() {
-        // Shop must have price configured
-        return priceItem != null && priceAmount > 0;
+        // Must have offering item set
+        if (itemOffering == null) return false;
+
+        // Payment configuration depends on type
+        return switch(type) {
+            case BARTER -> !acceptedPayments.isEmpty();
+            case BUY, SELL -> priceItem != null && priceAmount > 0;
+        };
     }
 
     /**
