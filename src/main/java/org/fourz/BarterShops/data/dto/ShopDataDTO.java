@@ -220,7 +220,7 @@ public record ShopDataDTO(
         private boolean isActive = true;
         private Timestamp createdAt = new Timestamp(System.currentTimeMillis());
         private Timestamp lastModified = new Timestamp(System.currentTimeMillis());
-        private Map<String, String> metadata = Map.of();
+        private Map<String, String> metadata = new HashMap<>();
 
         public Builder shopId(int shopId) {
             this.shopId = shopId;
