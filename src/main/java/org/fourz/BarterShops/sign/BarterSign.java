@@ -23,6 +23,9 @@ public class BarterSign {
     private SignSide signSideDisplayFront;
     private SignSide signSideDisplayBack;
 
+    // Database reference
+    private int shopId = -1;  // Database ID for this shop (populated from ShopDataDTO)
+
     // NEW FIELDS for shop configuration
     private ItemStack itemOffering;  // The specific item to sell (stackable shops only)
     private ItemStack priceItem;     // The payment item required
@@ -61,6 +64,10 @@ public class BarterSign {
     public SignSide getSignSideDisplayBack() { return signSideDisplayBack; }
     public void setSignSideDisplayFront(SignSide side) { this.signSideDisplayFront = side; }
     public void setSignSideDisplayBack(SignSide side) { this.signSideDisplayBack = side; }
+
+    // Database ID accessors
+    public int getShopId() { return shopId; }
+    public void setShopId(int shopId) { this.shopId = shopId; }
 
     // NEW: Item offering configuration
     public ItemStack getItemOffering() { return itemOffering; }
@@ -236,6 +243,13 @@ public class BarterSign {
      */
     public boolean isTypeDetected() {
         return typeDetected;
+    }
+
+    /**
+     * Sets whether this shop's type (stackable/unstackable) has been detected and locked.
+     */
+    public void setTypeDetected(boolean detected) {
+        this.typeDetected = detected;
     }
 
     /**

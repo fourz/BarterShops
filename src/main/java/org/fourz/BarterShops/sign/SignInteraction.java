@@ -68,6 +68,11 @@ public class SignInteraction {
                     player.sendMessage(ChatColor.GREEN + "+ Offering set: " + itemInHand.getAmount() + "x " + itemInHand.getType().name());
                     player.sendMessage(ChatColor.GRAY + "Now set payment/price");
                     logger.debug("Offering configured: " + itemInHand.getType());
+
+                    // Save configuration to database
+                    if (barterSign.getShopId() > 0) {
+                        plugin.getSignManager().saveSignConfiguration(barterSign);
+                    }
                 }
                 // Step 2: Configure payment (type-dependent)
                 else {
@@ -79,6 +84,10 @@ public class SignInteraction {
                             // Shift+L-Click: Remove payment option
                             if (barterSign.removePaymentOption(itemInHand.getType())) {
                                 player.sendMessage(ChatColor.RED + "- Removed: " + itemInHand.getType().name());
+                                // Save configuration to database
+                                if (barterSign.getShopId() > 0) {
+                                    plugin.getSignManager().saveSignConfiguration(barterSign);
+                                }
                             } else {
                                 player.sendMessage(ChatColor.YELLOW + "Not in payment list");
                             }
@@ -86,6 +95,11 @@ public class SignInteraction {
                             // L-Click: Add payment option
                             barterSign.addPaymentOption(itemInHand, itemInHand.getAmount());
                             player.sendMessage(ChatColor.GREEN + "+ Payment added: " + itemInHand.getAmount() + "x " + itemInHand.getType().name());
+
+                            // Save configuration to database
+                            if (barterSign.getShopId() > 0) {
+                                plugin.getSignManager().saveSignConfiguration(barterSign);
+                            }
                         }
                     } else {
                         // BUY/SELL: Configure price
@@ -96,6 +110,11 @@ public class SignInteraction {
                             barterSign.configurePrice(itemInHand, 1);
                             player.sendMessage(ChatColor.GREEN + "+ Currency set: " + itemInHand.getType().name());
                             player.sendMessage(ChatColor.GRAY + "L-Click ±1, Shift+R +16");
+
+                            // Save configuration to database
+                            if (barterSign.getShopId() > 0) {
+                                plugin.getSignManager().saveSignConfiguration(barterSign);
+                            }
                         } else if (currentPrice.getType() == itemInHand.getType()) {
                             // Adjust price amount with same currency
                             int currentAmount = barterSign.getPriceAmount();
@@ -111,10 +130,20 @@ public class SignInteraction {
 
                             barterSign.configurePrice(itemInHand, newAmount);
                             player.sendMessage(ChatColor.AQUA + "Price: " + newAmount + "x " + itemInHand.getType().name());
+
+                            // Save configuration to database
+                            if (barterSign.getShopId() > 0) {
+                                plugin.getSignManager().saveSignConfiguration(barterSign);
+                            }
                         } else {
                             // Different currency - confirm change
                             player.sendMessage(ChatColor.YELLOW + "! Currency change: " + currentPrice.getType().name() + " → " + itemInHand.getType().name());
                             barterSign.configurePrice(itemInHand, 1);
+
+                            // Save configuration to database
+                            if (barterSign.getShopId() > 0) {
+                                plugin.getSignManager().saveSignConfiguration(barterSign);
+                            }
                         }
                     }
                 }
@@ -132,6 +161,11 @@ public class SignInteraction {
                     barterSign.configurePrice(null, 0);
                     player.sendMessage(ChatColor.YELLOW + "! Type changed: " + currentType + " → " + nextType);
                     player.sendMessage(ChatColor.GRAY + "Payment configuration cleared");
+
+                    // Save configuration to database
+                    if (barterSign.getShopId() > 0) {
+                        plugin.getSignManager().saveSignConfiguration(barterSign);
+                    }
                 }
 
                 barterSign.setType(nextType);
@@ -230,6 +264,11 @@ public class SignInteraction {
         barterSign.configureStackableShop(offering, newQty);
 
         player.sendMessage(ChatColor.AQUA + "Quantity: " + newQty + "x " + offering.getType().name());
+
+        // Save configuration to database
+        if (barterSign.getShopId() > 0) {
+            plugin.getSignManager().saveSignConfiguration(barterSign);
+        }
     }
 
     private void handleOwnerRightClick(Player player, Sign sign, BarterSign barterSign) {

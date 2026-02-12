@@ -30,6 +30,7 @@ import org.fourz.BarterShops.BarterShops;
 import org.fourz.BarterShops.shop.ShopMode;
 import org.fourz.BarterShops.data.dto.ShopDataDTO;
 import org.fourz.BarterShops.data.dto.ShopDataDTO.ShopType;
+import org.fourz.BarterShops.service.ShopConfigManager;
 import org.fourz.rvnkcore.util.log.LogManager;
 
 public class SignManager implements Listener {
@@ -38,11 +39,13 @@ public class SignManager implements Listener {
     private final LogManager logger;
     private final Map<Location, BarterSign> barterSigns = new ConcurrentHashMap<>();
     private final SignInteraction signInteraction;
+    private final ShopConfigManager configManager;
 
     public SignManager(BarterShops plugin) {
         this.plugin = plugin;
         this.logger = LogManager.getInstance(plugin, CLASS_NAME);
         this.signInteraction = new SignInteraction(plugin);
+        this.configManager = new ShopConfigManager(plugin, plugin.getShopRepository());
         plugin.getServer().getPluginManager().registerEvents(this, plugin);
 
         // Start periodic chest validation task
@@ -148,6 +151,12 @@ public class SignManager implements Listener {
                     .signSideDisplayFront(sign.getSide(org.bukkit.block.sign.Side.FRONT))
                     .signSideDisplayBack(sign.getSide(org.bukkit.block.sign.Side.BACK))
                     .build();
+
+                // Set shop ID for database reference
+                barterSign.setShopId(shop.shopId());
+
+                // Load persisted configuration
+                configManager.loadSignConfiguration(barterSign, shop);
 
                 barterSigns.put(signLoc, barterSign);
                 loaded++;
@@ -621,6 +630,22 @@ public class SignManager implements Listener {
         int count = barterSigns.size();
         barterSigns.clear();
         logger.debug("Cleared " + count + " barter signs from memory");
+    }
+
+    /**
+     * Saves BarterSign configuration to database.
+     * Called after owner makes configuration changes (offering, price, payments).
+     * Runs asynchronously to avoid blocking the game thread.
+     *
+     * @param barterSign The BarterSign with updated configuration
+     */
+    public void saveSignConfiguration(BarterSign barterSign) {
+        if (barterSign.getShopId() <= 0) {
+            logger.debug("Cannot save config for sign without valid shop ID");
+            return;
+        }
+
+        configManager.saveSignConfiguration(barterSign, barterSign.getShopId());
     }
 
     public void cleanup() {

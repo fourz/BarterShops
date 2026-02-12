@@ -2,8 +2,11 @@ package org.fourz.BarterShops.data.dto;
 
 import org.bukkit.Bukkit;
 import org.bukkit.Location;
+import org.bukkit.Material;
+import org.bukkit.inventory.ItemStack;
 
 import java.sql.Timestamp;
+import java.util.*;
 import java.util.Map;
 import java.util.Objects;
 import java.util.UUID;
@@ -79,6 +82,102 @@ public record ShopDataDTO(
      */
     public String getShopIdString() {
         return String.valueOf(shopId);
+    }
+
+    /**
+     * Get configured offering item from metadata.
+     *
+     * @return ItemStack if configured, null otherwise
+     */
+    public ItemStack getConfiguredOffering() {
+        String json = metadata.get("shop_config_offering");
+        if (json == null) return null;
+        return org.fourz.BarterShops.data.ShopConfigSerializer.deserializeItemStack(json);
+    }
+
+    /**
+     * Get configured price item from metadata.
+     *
+     * @return ItemStack if configured, null otherwise
+     */
+    public ItemStack getConfiguredPriceItem() {
+        String json = metadata.get("shop_config_price_item");
+        if (json == null) return null;
+        return org.fourz.BarterShops.data.ShopConfigSerializer.deserializeItemStack(json);
+    }
+
+    /**
+     * Get configured price amount from metadata.
+     *
+     * @return price amount, 0 if not set
+     */
+    public int getConfiguredPriceAmount() {
+        String amount = metadata.get("shop_config_price_amount");
+        if (amount == null) return 0;
+        try {
+            return Integer.parseInt(amount);
+        } catch (NumberFormatException e) {
+            return 0;
+        }
+    }
+
+    /**
+     * Get locked item type from metadata (for stackable shops).
+     *
+     * @return Material if set, null otherwise
+     */
+    public Material getLockedItemType() {
+        String typeStr = metadata.get("shop_config_locked_item_type");
+        if (typeStr == null || typeStr.isEmpty()) return null;
+        try {
+            return Material.valueOf(typeStr);
+        } catch (IllegalArgumentException e) {
+            return null;
+        }
+    }
+
+    /**
+     * Get accepted payment options from metadata (BARTER mode).
+     *
+     * @return List of ItemStacks, empty if not set
+     */
+    public List<ItemStack> getAcceptedPayments() {
+        String json = metadata.get("shop_config_accepted_payments");
+        if (json == null || json.isEmpty()) return List.of();
+        return org.fourz.BarterShops.data.ShopConfigSerializer.deserializeItemStackList(json);
+    }
+
+    /**
+     * Check if shop is stackable type.
+     *
+     * @return true if stackable, false if unstackable, default true
+     */
+    public boolean isStackable() {
+        String value = metadata.get("shop_config_is_stackable");
+        if (value == null) return true;
+        return "true".equalsIgnoreCase(value);
+    }
+
+    /**
+     * Check if shop type has been detected/locked.
+     *
+     * @return true if type detected and locked
+     */
+    public boolean isTypeDetected() {
+        String value = metadata.get("shop_config_type_detected");
+        if (value == null) return false;
+        return "true".equalsIgnoreCase(value);
+    }
+
+    /**
+     * Check if this is an admin shop.
+     *
+     * @return true if admin shop
+     */
+    public boolean isAdminShop() {
+        String value = metadata.get("shop_config_is_admin");
+        if (value == null) return false;
+        return "true".equalsIgnoreCase(value);
     }
 
     /**
@@ -195,7 +294,88 @@ public record ShopDataDTO(
         }
 
         public Builder metadata(Map<String, String> metadata) {
-            this.metadata = metadata;
+            this.metadata = new HashMap<>(metadata != null ? metadata : Map.of());
+            return this;
+        }
+
+        /**
+         * Set configured offering item.
+         */
+        public Builder configuredOffering(ItemStack item) {
+            if (item != null) {
+                String json = org.fourz.BarterShops.data.ShopConfigSerializer.serializeItemStack(item);
+                if (json != null) {
+                    metadata.put("shop_config_offering", json);
+                }
+            } else {
+                metadata.remove("shop_config_offering");
+            }
+            return this;
+        }
+
+        /**
+         * Set configured price item and amount.
+         */
+        public Builder configuredPrice(ItemStack item, int amount) {
+            if (item != null) {
+                String json = org.fourz.BarterShops.data.ShopConfigSerializer.serializeItemStack(item);
+                if (json != null) {
+                    metadata.put("shop_config_price_item", json);
+                    metadata.put("shop_config_price_amount", String.valueOf(Math.max(0, amount)));
+                }
+            } else {
+                metadata.remove("shop_config_price_item");
+                metadata.remove("shop_config_price_amount");
+            }
+            return this;
+        }
+
+        /**
+         * Set accepted payment options (BARTER mode).
+         */
+        public Builder acceptedPayments(List<ItemStack> payments) {
+            if (payments != null && !payments.isEmpty()) {
+                String json = org.fourz.BarterShops.data.ShopConfigSerializer.serializeItemStackList(payments);
+                metadata.put("shop_config_accepted_payments", json);
+            } else {
+                metadata.remove("shop_config_accepted_payments");
+            }
+            return this;
+        }
+
+        /**
+         * Set locked item type for stackable shops.
+         */
+        public Builder lockedItemType(Material material) {
+            if (material != null) {
+                metadata.put("shop_config_locked_item_type", material.name());
+            } else {
+                metadata.remove("shop_config_locked_item_type");
+            }
+            return this;
+        }
+
+        /**
+         * Set whether shop is stackable.
+         */
+        public Builder isStackable(boolean stackable) {
+            metadata.put("shop_config_is_stackable", String.valueOf(stackable));
+            return this;
+        }
+
+        /**
+         * Set whether shop type has been detected/locked.
+         */
+        public Builder typeDetected(boolean detected) {
+            metadata.put("shop_config_type_detected", String.valueOf(detected));
+            return this;
+        }
+
+        /**
+         * Set whether this is an admin shop.
+         */
+        public Builder isAdminShop(boolean admin) {
+            metadata.put("shop_config_is_admin", String.valueOf(admin));
             return this;
         }
 
