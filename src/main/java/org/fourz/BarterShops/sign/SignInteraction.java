@@ -284,6 +284,12 @@ public class SignInteraction {
 
         // Mode messages moved to sign display - no chat spam
 
+        // Schedule auto-revert for DELETE and HELP modes (10 second timeout)
+        if (nextMode == ShopMode.DELETE || nextMode == ShopMode.HELP) {
+            scheduleRevert(sign, barterSign);
+            logger.debug("Auto-revert scheduled for mode: " + nextMode);
+        }
+
         SignDisplay.updateSign(sign, barterSign);
     }
 
