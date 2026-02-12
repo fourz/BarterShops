@@ -694,6 +694,7 @@ public class SignInteraction {
             @Override
             public void run() {
                 barterSign.setMode(ShopMode.BOARD);
+                barterSign.resetCustomerViewState(); // Clear preview mode when reverting
                 SignDisplay.updateSign(sign, barterSign);
                 activeRevertTasks.remove(loc);
             }
