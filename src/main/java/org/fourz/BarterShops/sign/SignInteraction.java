@@ -353,6 +353,9 @@ public class SignInteraction {
         if (barterSign.getShopId() > 0) {
             plugin.getSignManager().saveSignConfiguration(barterSign);
         }
+
+        // Update display preserving owner preview mode if active
+        SignDisplay.updateSign(sign, barterSign, barterSign.isOwnerPreviewMode());
     }
 
     private void handleOwnerRightClick(Player player, Sign sign, BarterSign barterSign) {
