@@ -10,19 +10,32 @@ import java.util.List;
 
 public class SignDisplay {
 
-    public static void updateSign(Sign sign, BarterSign barterSign) {
+    /**
+     * Updates the sign display with customer or owner view.
+     * @param sign The sign to update
+     * @param barterSign The sign data
+     * @param isCustomerView True to show customer view, false for owner view
+     */
+    public static void updateSign(Sign sign, BarterSign barterSign, boolean isCustomerView) {
         SignSide frontSide = sign.getSide(Side.FRONT);
         // Store the current sign side in the BarterSign
         barterSign.setSignSideDisplayFront(frontSide);
 
         switch (barterSign.getMode()) {
             case SETUP -> displaySetupMode(frontSide, barterSign);
-            case BOARD -> displayBoardMode(frontSide, barterSign);
+            case BOARD -> displayBoardMode(frontSide, barterSign, isCustomerView);
             case TYPE -> displayTypeMode(frontSide, barterSign);
             case HELP -> displayHelpMode(frontSide);
             case DELETE -> displayDeleteMode(frontSide);
         }
         sign.update();
+    }
+
+    /**
+     * Backward-compatible overload: defaults to owner view (isCustomerView=false)
+     */
+    public static void updateSign(Sign sign, BarterSign barterSign) {
+        updateSign(sign, barterSign, false);
     }
 
     public static void displayTemporaryMessage(Sign sign, String line1, String line2) {
@@ -78,10 +91,42 @@ public class SignDisplay {
     }
 
     /**
-     * Displays the sign in BOARD mode, which is meant for customer display.
-     * Shows shop type, offering, and price/payment information.
+     * Router for BOARD mode display: customer view or owner view based on context.
      */
-    private static void displayBoardMode(SignSide side, BarterSign barterSign) {
+    private static void displayBoardMode(SignSide side, BarterSign barterSign, boolean isCustomerView) {
+        if (!barterSign.isConfigured()) {
+            displayNotConfigured(side, barterSign);
+            return;
+        }
+
+        if (isCustomerView) {
+            displayCustomerPaymentPage(side, barterSign);
+        } else {
+            displayOwnerBoardView(side, barterSign);
+        }
+    }
+
+    /**
+     * Display when shop is not configured (shown to both customer and owner).
+     */
+    private static void displayNotConfigured(SignSide side, BarterSign barterSign) {
+        SignType type = barterSign.getType();
+        String header = switch(type) {
+            case BARTER -> "§2[Barter]";
+            case BUY -> "§e[We Buy]";
+            case SELL -> "§a[We Sell]";
+        };
+        side.setLine(0, header);
+        side.setLine(1, "§7Not configured");
+        side.setLine(2, "§7Ask owner");
+        side.setLine(3, "");
+    }
+
+    /**
+     * Displays customer-facing payment page for BARTER shops.
+     * Shows current payment option with pagination indicator if multiple options.
+     */
+    private static void displayCustomerPaymentPage(SignSide side, BarterSign barterSign) {
         SignType type = barterSign.getType();
         ItemStack offering = barterSign.getItemOffering();
 
@@ -93,19 +138,67 @@ public class SignDisplay {
         };
         side.setLine(0, header);
 
-        if (!barterSign.isConfigured()) {
-            side.setLine(1, "§7Not configured");
-            side.setLine(2, "§7Ask owner");
-            side.setLine(3, "");
-            return;
-        }
-
-        // Show offering and pricing
+        // Line 1: Offering
         if (offering != null) {
             side.setLine(1, "§b" + offering.getAmount() + "x " + formatItemName(offering));
         }
 
+        // Lines 2-3: Payment info (type-dependent)
         if (type == SignType.BARTER) {
+            List<ItemStack> payments = barterSign.getAcceptedPayments();
+            if (payments.isEmpty()) {
+                side.setLine(2, "§7No payment");
+                side.setLine(3, "§7options");
+            } else {
+                int currentPage = barterSign.getCurrentPaymentPage();
+                ItemStack currentPayment = payments.get(currentPage);
+
+                // Line 2: Payment amount and item name
+                String paymentLine = "§7for: " + currentPayment.getAmount() + "x /";
+                side.setLine(2, paymentLine);
+
+                // Line 3: Item name with optional pagination indicator
+                String itemLine = "§7" + formatItemName(currentPayment);
+                if (payments.size() > 1) {
+                    itemLine += " §8(" + (currentPage + 1) + "/" + payments.size() + ")";
+                }
+                side.setLine(3, itemLine);
+            }
+        } else {
+            // BUY/SELL mode
+            ItemStack priceItem = barterSign.getPriceItem();
+            int priceAmount = barterSign.getPriceAmount();
+            side.setLine(2, "§7" + priceAmount + "x");
+            side.setLine(3, "§7" + formatItemName(priceItem));
+        }
+    }
+
+    /**
+     * Displays owner-facing BOARD view with shop summary.
+     * Shows payment count and may display owner preview mode indicator.
+     */
+    private static void displayOwnerBoardView(SignSide side, BarterSign barterSign) {
+        SignType type = barterSign.getType();
+        ItemStack offering = barterSign.getItemOffering();
+
+        // Line 0: Shop type header
+        String header = switch(type) {
+            case BARTER -> "§2[Barter]";
+            case BUY -> "§e[We Buy]";
+            case SELL -> "§a[We Sell]";
+        };
+        side.setLine(0, header);
+
+        // Show offering
+        if (offering != null) {
+            side.setLine(1, "§b" + offering.getAmount() + "x " + formatItemName(offering));
+        }
+
+        // Show preview mode indicator or payment summary
+        if (barterSign.isOwnerPreviewMode()) {
+            side.setLine(2, "§7[Customer View]");
+            side.setLine(3, "§7Sneak+R: exit");
+        } else if (type == SignType.BARTER) {
             List<ItemStack> payments = barterSign.getAcceptedPayments();
             if (payments.size() == 1) {
                 ItemStack payment = payments.get(0);

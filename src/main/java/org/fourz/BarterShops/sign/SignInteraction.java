@@ -40,7 +40,24 @@ public class SignInteraction {
         this.logger = LogManager.getInstance(plugin, CLASS_NAME);
     }
 
+    /**
+     * Detects if a player is a customer (not the owner and in survival mode).
+     */
+    private boolean isCustomer(Player player, BarterSign barterSign) {
+        if (barterSign.getOwner().equals(player.getUniqueId())) {
+            return false; // Owner is never a customer
+        }
+        return player.getGameMode() == org.bukkit.GameMode.SURVIVAL;
+    }
+
     public void handleLeftClick(Player player, Sign sign, BarterSign barterSign, PlayerInteractEvent event) {
+        // CUSTOMER LEFT-CLICK: Direct trade initiation
+        if (isCustomer(player, barterSign)) {
+            handleCustomerLeftClick(player, sign, barterSign, event);
+            return;
+        }
+
+        // OWNER LEFT-CLICK: Configuration (requires permission)
         if (!player.hasPermission("bartershops.configure")) {
             logger.debug("Left-click ignored - player lacks configure permission");
             return;
@@ -88,6 +105,7 @@ public class SignInteraction {
                             // Shift+L-Click: Remove payment option
                             if (barterSign.removePaymentOption(itemInHand.getType())) {
                                 player.sendMessage(ChatColor.RED + "- Removed: " + itemInHand.getType().name());
+                                barterSign.resetCustomerViewState(); // Reset pagination
                                 // Save configuration to database
                                 if (barterSign.getShopId() > 0) {
                                     plugin.getSignManager().saveSignConfiguration(barterSign);
@@ -99,7 +117,7 @@ public class SignInteraction {
                             // L-Click: Add payment option
                             barterSign.addPaymentOption(itemInHand, itemInHand.getAmount());
                             player.sendMessage(ChatColor.GREEN + "+ Payment added: " + itemInHand.getAmount() + "x " + itemInHand.getType().name());
-
+                            barterSign.resetCustomerViewState(); // Reset pagination
                             // Save configuration to database
                             if (barterSign.getShopId() > 0) {
                                 plugin.getSignManager().saveSignConfiguration(barterSign);
@@ -166,6 +184,7 @@ public class SignInteraction {
                 if (currentType != nextType) {
                     barterSign.clearPaymentOptions();
                     barterSign.configurePrice(null, 0);
+                    barterSign.resetCustomerViewState(); // Reset pagination
                     player.sendMessage(ChatColor.YELLOW + "! Type changed: " + currentType + " → " + nextType);
                     player.sendMessage(ChatColor.GRAY + "Payment configuration cleared");
 
@@ -236,6 +255,59 @@ public class SignInteraction {
         event.setCancelled(true);
     }
 
+    /**
+     * Handles customer left-click: Initiates trade with current payment page item.
+     * Only works in BOARD mode. Validates held item matches current payment option.
+     */
+    private void handleCustomerLeftClick(Player player, Sign sign, BarterSign barterSign, PlayerInteractEvent event) {
+        if (barterSign.getMode() != ShopMode.BOARD) {
+            logger.debug("Customer tried to interact with non-BOARD mode shop");
+            return;
+        }
+
+        logger.debug("Customer left-click detected - mode: BOARD");
+
+        ItemStack itemInHand = event.getItem();
+        if (itemInHand == null || itemInHand.getType().isAir()) {
+            showTemporaryStatus(sign, barterSign, "\u00A7eHold payment", "\u00A7eitem");
+            return;
+        }
+
+        SignType shopType = barterSign.getType();
+
+        if (shopType == SignType.BARTER) {
+            // BARTER: Validate held item matches CURRENT PAYMENT PAGE
+            List<ItemStack> payments = barterSign.getAcceptedPayments();
+            if (payments.isEmpty()) {
+                showTemporaryStatus(sign, barterSign, "\u00A7cNo payment", "\u00A7coptions");
+                return;
+            }
+
+            int currentPage = barterSign.getCurrentPaymentPage();
+            ItemStack expectedPayment = payments.get(currentPage);
+
+            if (expectedPayment.getType() != itemInHand.getType()) {
+                showTemporaryStatus(sign, barterSign, "\u00A7cHold " + formatItemName(expectedPayment), "\u00A7cor right-click");
+                return;
+            }
+
+            // Valid payment - initiate trade
+            processTrade(player, sign, barterSign);
+        } else {
+            // BUY/SELL: Validate held item matches price item
+            ItemStack priceItem = barterSign.getPriceItem();
+            if (priceItem == null || priceItem.getType() != itemInHand.getType()) {
+                showTemporaryStatus(sign, barterSign, "\u00A7cHold payment", "\u00A7citem");
+                return;
+            }
+
+            // Valid payment - initiate trade
+            processTrade(player, sign, barterSign);
+        }
+
+        event.setCancelled(true);
+    }
+
     public void handleRightClick(Player player, Sign sign, BarterSign barterSign) {
         logger.debug(String.format("Processing %s interaction in mode: %s",
             player.getName(), barterSign.getMode()));
@@ -289,6 +361,23 @@ public class SignInteraction {
 
         ShopMode currentMode = barterSign.getMode();
 
+        // Sneak+Right-click in BOARD mode: Toggle customer preview
+        if (currentMode == ShopMode.BOARD && player.isSneaking()) {
+            boolean newPreviewMode = !barterSign.isOwnerPreviewMode();
+            barterSign.setOwnerPreviewMode(newPreviewMode);
+
+            if (newPreviewMode) {
+                player.sendMessage(ChatColor.GRAY + "[Preview] Customer view enabled");
+                logger.debug("Owner entered preview mode");
+            } else {
+                player.sendMessage(ChatColor.GRAY + "[Preview] Disabled");
+                logger.debug("Owner exited preview mode");
+            }
+
+            SignDisplay.updateSign(sign, barterSign, newPreviewMode);
+            return; // Don't cycle modes
+        }
+
         // Right-click: Always cycle to next mode (consistent behavior)
         ShopMode nextMode = barterSign.getMode().getNextMode();
         barterSign.setMode(nextMode);
@@ -303,7 +392,7 @@ public class SignInteraction {
             logger.debug("Auto-revert scheduled for mode: " + nextMode);
         }
 
-        SignDisplay.updateSign(sign, barterSign);
+        SignDisplay.updateSign(sign, barterSign, false);
     }
 
     private void handleCustomerRightClick(Player player, Sign sign, BarterSign barterSign) {
@@ -314,6 +403,26 @@ public class SignInteraction {
             return;
         }
 
+        // BARTER shops with multiple payments: Advance to next payment page
+        SignType shopType = barterSign.getType();
+        if (shopType == SignType.BARTER) {
+            List<ItemStack> payments = barterSign.getAcceptedPayments();
+            if (payments.size() > 1) {
+                // Advance to next payment page
+                barterSign.incrementPaymentPage();
+                int currentPage = barterSign.getCurrentPaymentPage();
+                ItemStack currentPayment = payments.get(currentPage);
+
+                player.sendMessage(ChatColor.GRAY + "Payment option " + (currentPage + 1) + "/" +
+                                 payments.size() + ": " + currentPayment.getAmount() + "x " +
+                                 formatItemName(currentPayment));
+
+                SignDisplay.updateSign(sign, barterSign, true); // isCustomerView = true
+                return; // Don't process trade, just cycle payment
+            }
+        }
+
+        // Single payment or non-BARTER: Initiate trade
         processTrade(player, sign, barterSign);
     }
 
@@ -667,6 +776,20 @@ public class SignInteraction {
             logger.error("Error in deleteShopAndSign", e);
             player.sendMessage(ChatColor.RED + "✗ An error occurred during deletion");
         }
+    }
+
+    /**
+     * Formats an ItemStack into a readable name for display.
+     */
+    private static String formatItemName(ItemStack item) {
+        if (item == null || item.getType().isAir()) {
+            return "None";
+        }
+        if (item.hasItemMeta() && item.getItemMeta().hasDisplayName()) {
+            return item.getItemMeta().getDisplayName();
+        }
+        String name = item.getType().name().toLowerCase().replace('_', ' ');
+        return name.substring(0, 1).toUpperCase() + name.substring(1);
     }
 
     public void cleanup() {

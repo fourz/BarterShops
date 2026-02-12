@@ -36,6 +36,10 @@ public class BarterSign {
     private Material lockedItemType = null;  // For stackable shops: the item type that's locked in
     private List<ItemStack> acceptedPayments = new ArrayList<>();  // Multiple payment options for BARTER mode
 
+    // SESSION-ONLY FIELDS (UI state, NOT persisted to database)
+    private boolean ownerPreviewMode = false;  // Owner viewing customer preview
+    private int currentPaymentPage = 0;        // Current payment page index (0-based)
+
     private BarterSign(Builder builder) {
         this.id = builder.id;
         this.owner = builder.owner;
@@ -272,6 +276,49 @@ public class BarterSign {
      */
     public boolean getShopStackableMode() {
         return isStackable;
+    }
+
+    /**
+     * Session-only fields for customer UI pagination
+     */
+    public boolean isOwnerPreviewMode() {
+        return ownerPreviewMode;
+    }
+
+    public void setOwnerPreviewMode(boolean previewMode) {
+        this.ownerPreviewMode = previewMode;
+    }
+
+    public int getCurrentPaymentPage() {
+        return currentPaymentPage;
+    }
+
+    /**
+     * Sets the current payment page with wraparound using Math.floorMod().
+     * Negative indices wrap correctly (e.g., -1 becomes last page).
+     */
+    public void setCurrentPaymentPage(int page) {
+        if (acceptedPayments.isEmpty()) {
+            this.currentPaymentPage = 0;
+        } else {
+            this.currentPaymentPage = Math.floorMod(page, acceptedPayments.size());
+        }
+    }
+
+    /**
+     * Advances to the next payment page with wraparound.
+     */
+    public void incrementPaymentPage() {
+        setCurrentPaymentPage(currentPaymentPage + 1);
+    }
+
+    /**
+     * Resets customer view state (called when shop configuration changes).
+     * Resets both owner preview mode and pagination to defaults.
+     */
+    public void resetCustomerViewState() {
+        ownerPreviewMode = false;
+        currentPaymentPage = 0;
     }
 
     public static class Builder {
