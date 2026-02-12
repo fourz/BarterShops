@@ -51,7 +51,11 @@ public class SignInteraction {
         }
 
         logger.debug("Owner left-click detected - mode: " + barterSign.getMode());
-        cancelRevert(sign.getLocation());
+        // Don't cancel revert in DELETE mode - let 10s countdown from right-click continue
+        // Confirmation display is temporary (5s auto-clear), not a configuration interaction
+        if (barterSign.getMode() != ShopMode.DELETE) {
+            cancelRevert(sign.getLocation());
+        }
 
         switch (barterSign.getMode()) {
             case SETUP -> {
@@ -147,6 +151,9 @@ public class SignInteraction {
                         }
                     }
                 }
+
+                // Reschedule auto-revert after interaction completes
+                scheduleRevert(sign, barterSign);
             }
 
             case TYPE -> {
@@ -170,6 +177,9 @@ public class SignInteraction {
 
                 barterSign.setType(nextType);
                 logger.debug("Owner: TYPE cycling - " + currentType + " -> " + nextType);
+
+                // Reschedule auto-revert after interaction completes
+                scheduleRevert(sign, barterSign);
             }
 
             case BOARD -> {
@@ -211,6 +221,8 @@ public class SignInteraction {
                         SignDisplay.updateSign(sign, barterSign); // Revert to normal DELETE display
                     }
                 }, DELETE_CONFIRMATION_TIMEOUT_TICKS);
+                // NOTE: Do NOT reschedule revert here - original 10s countdown from right-click
+                // should continue. Confirmation display is temporary (cleared after 5s), not a reset.
             }
 
             case HELP -> {
@@ -284,8 +296,9 @@ public class SignInteraction {
 
         // Mode messages moved to sign display - no chat spam
 
-        // Schedule auto-revert for DELETE and HELP modes (10 second timeout)
-        if (nextMode == ShopMode.DELETE || nextMode == ShopMode.HELP) {
+        // Schedule auto-revert for all non-BOARD modes (10 second timeout)
+        // After 10 seconds of inactivity, sign reverts to BOARD view
+        if (nextMode != ShopMode.BOARD) {
             scheduleRevert(sign, barterSign);
             logger.debug("Auto-revert scheduled for mode: " + nextMode);
         }
@@ -616,6 +629,9 @@ public class SignInteraction {
 
                             // Sync back to main thread to modify sign
                             plugin.getServer().getScheduler().runTask(plugin, () -> {
+                                // Remove from SignManager cache FIRST (prevents orphaned shops)
+                                plugin.getSignManager().removeBarterSign(signLocation);
+
                                 // Destroy the sign block (only the sign, not the chest)
                                 sign.getBlock().setType(Material.AIR);
 

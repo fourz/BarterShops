@@ -81,16 +81,17 @@ public class BarterShops extends JavaPlugin {
         this.economyManager = new EconomyManager(this);
         this.feeCalculator = new ShopFeeCalculator(economyManager);
         this.typeAvailabilityManager = new TypeAvailabilityManager(this, configManager, economyManager);
+
+        // Initialize database layer BEFORE SignManager (bug-35: SignManager needs shopRepository in constructor)
+        initializeDatabaseLayer();
+
         this.signManager = new SignManager(this);
         this.containerManager = new ContainerManager(this);
         this.shopManager = new ShopManager(this);
         this.tradeEngine = new TradeEngine(this);
         this.tradeConfirmationGUI = new TradeConfirmationGUI(this);
 
-        // Initialize database layer (impl-11)
-        initializeDatabaseLayer();
-
-        // Hydrate signs from database (bug-10: was dead code before this fix)
+        // Load signs from database now that both signManager and shopRepository are initialized
         if (signManager != null && shopRepository != null) {
             signManager.loadSignsFromDatabase();
         }

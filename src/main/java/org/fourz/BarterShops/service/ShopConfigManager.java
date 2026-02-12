@@ -27,6 +27,7 @@ public class ShopConfigManager {
     /**
      * Save BarterSign configuration to database.
      * Called after owner makes configuration changes (setting offering, price, payments).
+     * Loads existing shop data first, updates only configuration fields, then saves.
      * Runs asynchronously to avoid blocking the server thread.
      *
      * @param barterSign The BarterSign with updated configuration
@@ -39,39 +40,58 @@ public class ShopConfigManager {
             return CompletableFuture.completedFuture(null);
         }
 
-        // Build ShopDataDTO with current configuration from BarterSign
-        ShopDataDTO.Builder builder = ShopDataDTO.builder()
-                .shopId(shopId);
+        // Load existing shop data from database to preserve required fields (ownerUuid, shopName, locations, etc.)
+        return repository.findById(shopId)
+                .thenCompose(existingShop -> {
+                    if (existingShop.isEmpty()) {
+                        logger.debug("Cannot save config for shop ID " + shopId + ": shop not found in database");
+                        return CompletableFuture.completedFuture(null);
+                    }
 
-        // Add current configuration fields
-        if (barterSign.getItemOffering() != null) {
-            builder.configuredOffering(barterSign.getItemOffering());
-        }
+                    ShopDataDTO existing = existingShop.get();
 
-        if (barterSign.getPriceItem() != null) {
-            builder.configuredPrice(barterSign.getPriceItem(), barterSign.getPriceAmount());
-        }
+                    // Build new DTO preserving all existing shop data, updating only configuration fields
+                    ShopDataDTO.Builder builder = ShopDataDTO.builder()
+                            .shopId(existing.shopId())
+                            .ownerUuid(existing.ownerUuid())  // CRITICAL: Preserve owner
+                            .shopName(existing.shopName())
+                            .shopType(existing.shopType())
+                            .signLocation(existing.locationWorld(), existing.locationX(), existing.locationY(), existing.locationZ())
+                            .chestLocation(existing.chestLocationWorld(), existing.chestLocationX(), existing.chestLocationY(), existing.chestLocationZ())
+                            .isActive(existing.isActive())
+                            .createdAt(existing.createdAt())
+                            .lastModified(new java.sql.Timestamp(System.currentTimeMillis()));  // Update timestamp
 
-        if (!barterSign.getAcceptedPayments().isEmpty()) {
-            builder.acceptedPayments(barterSign.getAcceptedPayments());
-        }
+                    // Merge configuration fields from BarterSign (only these change)
+                    if (barterSign.getItemOffering() != null) {
+                        builder.configuredOffering(barterSign.getItemOffering());
+                    }
 
-        if (barterSign.getLockedItemType() != null) {
-            builder.lockedItemType(barterSign.getLockedItemType());
-        }
+                    if (barterSign.getPriceItem() != null) {
+                        builder.configuredPrice(barterSign.getPriceItem(), barterSign.getPriceAmount());
+                    }
 
-        builder.isStackable(barterSign.isStackable())
-               .typeDetected(barterSign.isTypeDetected())
-               .isAdminShop(barterSign.isAdmin());
+                    if (!barterSign.getAcceptedPayments().isEmpty()) {
+                        builder.acceptedPayments(barterSign.getAcceptedPayments());
+                    }
 
-        ShopDataDTO dto = builder.build();
+                    if (barterSign.getLockedItemType() != null) {
+                        builder.lockedItemType(barterSign.getLockedItemType());
+                    }
 
-        // Save asynchronously
-        return repository.save(dto)
-                .thenAccept(saved -> {
-                    logger.debug("Saved config for shop " + shopId + ": offering=" +
-                            (barterSign.getItemOffering() != null ? barterSign.getItemOffering().getType() : "none") +
-                            ", payments=" + barterSign.getAcceptedPayments().size());
+                    builder.isStackable(barterSign.isStackable())
+                           .typeDetected(barterSign.isTypeDetected())
+                           .isAdminShop(barterSign.isAdmin());
+
+                    ShopDataDTO dto = builder.build();
+
+                    // Save asynchronously
+                    return repository.save(dto)
+                            .thenAccept(saved -> {
+                                logger.debug("Saved config for shop " + shopId + ": offering=" +
+                                        (barterSign.getItemOffering() != null ? barterSign.getItemOffering().getType() : "none") +
+                                        ", payments=" + barterSign.getAcceptedPayments().size());
+                            });
                 })
                 .exceptionally(e -> {
                     logger.error("Failed to save shop config for shop " + shopId + ": " + e.getMessage());

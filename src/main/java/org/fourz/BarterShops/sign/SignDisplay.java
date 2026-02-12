@@ -124,7 +124,7 @@ public class SignDisplay {
     }
 
     private static void displayTypeMode(SignSide side, BarterSign barterSign) {
-        side.setLine(0, "§e[Type Mode]");
+        side.setLine(0, "§e[Shop Type]");
         SignType currentType = barterSign.getType();
 
         if (barterSign.isTypeDetected()) {
