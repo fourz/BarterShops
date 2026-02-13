@@ -2,6 +2,8 @@ package org.fourz.BarterShops.command.sub;
 
 import org.bukkit.Bukkit;
 import org.bukkit.ChatColor;
+import org.bukkit.block.Block;
+import org.bukkit.block.Sign;
 import org.bukkit.command.CommandSender;
 import org.bukkit.entity.Player;
 import org.fourz.BarterShops.BarterShops;
@@ -11,6 +13,7 @@ import org.fourz.BarterShops.data.FallbackTracker;
 import org.fourz.BarterShops.data.IConnectionProvider;
 import org.fourz.BarterShops.data.dto.ShopDataDTO;
 import org.fourz.BarterShops.sign.BarterSign;
+import org.fourz.BarterShops.sign.SignDisplay;
 import org.fourz.rvnkcore.util.log.LogManager;
 
 import java.util.ArrayList;
@@ -286,9 +289,17 @@ public class ShopDebugSubCommand implements SubCommand {
                             .orElse(null);
 
                     if (barterSign != null) {
-                        // BarterSign has immutable owner, so we'd need a setter
-                        // For now, we'll reload the sign from database
-                        logger.debug("In-memory BarterSign found - owner is immutable");
+                        // Refresh the sign display to show updated state
+                        try {
+                            Block signBlock = barterSign.getSignLocation().getBlock();
+                            if (signBlock.getState() instanceof Sign) {
+                                Sign sign = (Sign) signBlock.getState();
+                                SignDisplay.updateSign(sign, barterSign, false); // Show owner view
+                                logger.debug("Sign display refreshed after owner change");
+                            }
+                        } catch (Exception e) {
+                            logger.warning("Failed to refresh sign display: " + e.getMessage());
+                        }
                     }
                 }
 
