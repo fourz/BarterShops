@@ -139,30 +139,44 @@ public class SignDisplay {
         };
         side.setLine(0, header);
 
-        // Line 1: Offering
+        // Line 1-2: Offering (with wrapping support)
+        boolean offeringWrapped = false;
         if (offering != null) {
-            side.setLine(1, "§b" + offering.getAmount() + "x " + formatItemName(offering));
+            offeringWrapped = displayOfferingWithWrapping(side, offering);
         }
 
-        // Lines 2-3: Payment info (type-dependent)
+        // Lines 2-3 or Line 3: Payment info (type-dependent)
         if (type == SignType.BARTER) {
             List<ItemStack> payments = barterSign.getAcceptedPayments();
             if (payments.isEmpty()) {
-                side.setLine(2, "§7No payment");
-                side.setLine(3, "§7options");
+                if (offeringWrapped) {
+                    side.setLine(3, "§7No pay options");
+                } else {
+                    side.setLine(2, "§7No payment");
+                    side.setLine(3, "§7options");
+                }
             } else if (payments.size() == 1) {
                 // Single payment: Show payment details (no pagination)
                 ItemStack payment = payments.get(0);
-                side.setLine(2, "§7for: " + payment.getAmount() + "x /");
-                side.setLine(3, "§7" + formatItemName(payment));
+                if (offeringWrapped) {
+                    // Condensed format
+                    side.setLine(3, "§7for: " + payment.getAmount() + "x " + formatItemName(payment));
+                } else {
+                    side.setLine(2, "§7for: " + payment.getAmount() + "x /");
+                    side.setLine(3, "§7" + formatItemName(payment));
+                }
             } else {
                 // Multiple payments: Show summary (page 0) or single payment per page (pages 1+)
                 int currentPaymentIndex = barterSign.getCurrentPaymentPage();
 
                 if (currentPaymentIndex == 0) {
                     // Summary view (page 1)
-                    side.setLine(2, "§7" + payments.size() + " payment");
-                    side.setLine(3, "§7options");
+                    if (offeringWrapped) {
+                        side.setLine(3, "§7" + payments.size() + " pay options");
+                    } else {
+                        side.setLine(2, "§7" + payments.size() + " payment");
+                        side.setLine(3, "§7options");
+                    }
                 } else {
                     // Single payment per page (page 2+)
                     int paymentIndex = currentPaymentIndex - 1;  // Convert to 0-based payment array index
@@ -198,8 +212,15 @@ public class SignDisplay {
             // BUY/SELL mode
             ItemStack priceItem = barterSign.getPriceItem();
             int priceAmount = barterSign.getPriceAmount();
-            side.setLine(2, "§7" + priceAmount + "x");
-            side.setLine(3, "§7" + formatItemName(priceItem));
+
+            if (offeringWrapped) {
+                // Offering uses lines 1-2, condense price to line 3
+                side.setLine(3, "§7" + priceAmount + "x " + formatItemName(priceItem));
+            } else {
+                // Offering uses line 1, price uses lines 2-3 as before
+                side.setLine(2, "§7" + priceAmount + "x");
+                side.setLine(3, "§7" + formatItemName(priceItem));
+            }
         }
     }
 
@@ -219,30 +240,87 @@ public class SignDisplay {
         };
         side.setLine(0, header);
 
-        // Show offering
+        // Show offering (with wrapping support)
+        boolean offeringWrapped = false;
         if (offering != null) {
-            side.setLine(1, "§b" + offering.getAmount() + "x " + formatItemName(offering));
+            offeringWrapped = displayOfferingWithWrapping(side, offering);
         }
 
         // Show preview mode indicator or payment summary
         if (barterSign.isOwnerPreviewMode()) {
-            side.setLine(2, "§7[Customer View]");
-            side.setLine(3, "§7Sneak+R: exit");
+            if (offeringWrapped) {
+                side.setLine(3, "§7Customer View");
+            } else {
+                side.setLine(2, "§7[Customer View]");
+                side.setLine(3, "§7Sneak+R: exit");
+            }
         } else if (type == SignType.BARTER) {
             List<ItemStack> payments = barterSign.getAcceptedPayments();
             if (payments.size() == 1) {
                 ItemStack payment = payments.get(0);
-                side.setLine(2, "§7for: " + payment.getAmount() + "x");
-                side.setLine(3, "§7" + formatItemName(payment));
+                if (offeringWrapped) {
+                    // Condensed format
+                    side.setLine(3, "§7for: " + payment.getAmount() + "x " + formatItemName(payment));
+                } else {
+                    side.setLine(2, "§7for: " + payment.getAmount() + "x");
+                    side.setLine(3, "§7" + formatItemName(payment));
+                }
             } else {
-                side.setLine(2, "§7" + payments.size() + " payment");
-                side.setLine(3, "§7options");
+                if (offeringWrapped) {
+                    side.setLine(3, "§7" + payments.size() + " pay options");
+                } else {
+                    side.setLine(2, "§7" + payments.size() + " payment");
+                    side.setLine(3, "§7options");
+                }
             }
         } else {
             ItemStack priceItem = barterSign.getPriceItem();
             int priceAmount = barterSign.getPriceAmount();
-            side.setLine(2, "§7" + priceAmount + "x");
-            side.setLine(3, "§7" + formatItemName(priceItem));
+
+            if (offeringWrapped) {
+                // Offering uses lines 1-2, condense price to line 3
+                side.setLine(3, "§7" + priceAmount + "x " + formatItemName(priceItem));
+            } else {
+                // Offering uses line 1, price uses lines 2-3 as before
+                side.setLine(2, "§7" + priceAmount + "x");
+                side.setLine(3, "§7" + formatItemName(priceItem));
+            }
+        }
+    }
+
+    /**
+     * Displays offering with name wrapping support.
+     * If offering name > 15 chars, wraps across lines 1-2.
+     *
+     * @param side Sign side to update
+     * @param offering Offering item
+     * @return true if name was wrapped, false if single-line
+     */
+    private static boolean displayOfferingWithWrapping(SignSide side, ItemStack offering) {
+        if (offering == null) {
+            return false;
+        }
+
+        String itemName = formatItemName(offering);
+        int amount = offering.getAmount();
+
+        // Check if name needs wrapping
+        if (itemName.length() > 15) {
+            // Split at last space before 15 chars, or at 15 if no space
+            int splitIndex = itemName.lastIndexOf(' ', 15);
+            if (splitIndex == -1) splitIndex = 15;
+
+            // Line 1: amount + first part of name
+            side.setLine(1, "§b" + amount + "x " + itemName.substring(0, splitIndex).trim());
+
+            // Line 2: remainder of name
+            side.setLine(2, "§b" + itemName.substring(splitIndex).trim());
+
+            return true; // Wrapped
+        } else {
+            // Short name: single line
+            side.setLine(1, "§b" + amount + "x " + itemName);
+            return false; // Not wrapped
         }
     }
 
