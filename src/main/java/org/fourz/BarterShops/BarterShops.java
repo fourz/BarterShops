@@ -72,6 +72,9 @@ public class BarterShops extends JavaPlugin {
         this.startTime = System.currentTimeMillis();
         this.logger = LogManager.getInstance(this, "BarterShops");
 
+        // Log version for deployment verification
+        logger.info("BarterShops v" + this.getDescription().getVersion() + " - Enabling");
+
         this.configManager = new ConfigManager(this);
         LogManager.setPluginLogLevel(this, configManager.getLogLevel());
         logger.info("Log level set to: " + configManager.getLogLevel());
