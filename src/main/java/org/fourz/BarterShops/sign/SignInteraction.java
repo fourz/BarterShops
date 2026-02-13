@@ -210,38 +210,47 @@ public class SignInteraction {
             }
 
             case DELETE -> {
-                // Left-click in DELETE: Two-step confirmation
+                // Left-click in DELETE: Two-step confirmation with integrated auto-revert
                 String signId = barterSign.getId();
-                long currentTime = System.currentTimeMillis();
 
-                // Check if this is a confirmation click (within timeout window)
+                // Check if this is a confirmation click (pending deletion exists)
                 if (pendingDeletions.containsKey(signId)) {
-                    long pendingTime = pendingDeletions.get(signId);
-                    if (currentTime - pendingTime < (DELETE_CONFIRMATION_TIMEOUT_TICKS * 50)) {
-                        // Confirmation clicked - proceed with deletion
-                        deleteShopAndSign(player, sign, barterSign);
-                        pendingDeletions.remove(signId);
-                        return;
-                    }
+                    // Second click - DELETE confirmed
+                    player.sendMessage(ChatColor.RED + "§c✓ Shop deleted");
+
+                    // Cancel auto-revert timer since we're deleting
+                    cancelRevert(sign.getLocation());
+
+                    // Proceed with deletion
+                    deleteShopAndSign(player, sign, barterSign);
+                    pendingDeletions.remove(signId);
+                    return;
                 }
 
-                // First click - set pending confirmation
-                pendingDeletions.put(signId, currentTime);
-                player.sendMessage(ChatColor.RED + "§cCLICK AGAIN TO CONFIRM DELETION");
-                player.sendMessage(ChatColor.GRAY + "Chest items will NOT be deleted");
+                // First click - initiate confirmation prompt
+                pendingDeletions.put(signId, System.currentTimeMillis());
+                player.sendMessage(ChatColor.RED + "§c⚠ Click AGAIN to confirm deletion");
+                player.sendMessage(ChatColor.GRAY + "Chest items will be preserved");
 
-                // Show confirmation message on sign
+                // Show confirmation prompt on sign
                 SignDisplay.displayDeleteConfirmation(sign);
 
-                // Auto-clear after timeout
+                // Schedule auto-clear of confirmation display (but NOT the DELETE mode)
+                // After 5 seconds, revert to normal DELETE display if not confirmed
                 plugin.getServer().getScheduler().runTaskLater(plugin, () -> {
                     if (pendingDeletions.containsKey(signId)) {
+                        // Confirmation timed out - user didn't click twice in 5 seconds
                         pendingDeletions.remove(signId);
-                        SignDisplay.updateSign(sign, barterSign); // Revert to normal DELETE display
+                        player.sendMessage(ChatColor.GRAY + "Deletion confirmation expired");
+                        // Revert sign display back to normal DELETE prompt, keep 10s timer running
+                        if (barterSign.getMode() == ShopMode.DELETE) {
+                            SignDisplay.updateSign(sign, barterSign, false);
+                        }
                     }
                 }, DELETE_CONFIRMATION_TIMEOUT_TICKS);
-                // NOTE: Do NOT reschedule revert here - original 10s countdown from right-click
-                // should continue. Confirmation display is temporary (cleared after 5s), not a reset.
+                // NOTE: Do NOT reschedule the 10s auto-revert here - the original timer
+                // from right-click continues in background. This 5s timer is ONLY for
+                // clearing the confirmation overlay, not resetting the inactivity counter.
             }
 
             case HELP -> {
@@ -693,10 +702,23 @@ public class SignInteraction {
         BukkitTask task = new BukkitRunnable() {
             @Override
             public void run() {
+                // Auto-revert: Transitioning from non-BOARD mode (SETUP/TYPE/DELETE/HELP) back to BOARD
+
+                // Clean up DELETE-specific state if reverting from DELETE mode
+                String signId = barterSign.getId();
+                if (barterSign.getMode() == ShopMode.DELETE && pendingDeletions.containsKey(signId)) {
+                    // Clear pending confirmation if timer fires while in DELETE mode
+                    pendingDeletions.remove(signId);
+                    logger.debug("Auto-revert from DELETE: Cleared pending confirmation");
+                }
+
+                // Reset mode and UI state
                 barterSign.setMode(ShopMode.BOARD);
-                barterSign.resetCustomerViewState(); // Clear preview mode when reverting
-                SignDisplay.updateSign(sign, barterSign);
+                barterSign.resetCustomerViewState(); // Clear preview mode and pagination state
+                SignDisplay.updateSign(sign, barterSign, false); // Explicit: show owner view
                 activeRevertTasks.remove(loc);
+
+                logger.debug("Auto-revert completed: Returned to BOARD mode");
             }
         }.runTaskLater(plugin, delayTicks);
 
