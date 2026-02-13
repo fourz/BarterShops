@@ -289,8 +289,17 @@ public class SignDisplay {
             // payments already fetched above
             if (payments.size() == 1) {
                 ItemStack payment = payments.get(0);
-                if (offeringWrapped) {
-                    // Condensed format - MUST clear line 2 when offering uses lines 0-1
+                String paymentName = formatItemName(payment);
+                boolean paymentNeedsWrapping = paymentName != null && paymentName.length() > 15;
+
+                if (offeringWrapped && paymentNeedsWrapping) {
+                    // Both offering and payment wrapped: wrap payment across lines 2-3
+                    int paymentSplit = paymentName.lastIndexOf(' ', 15);
+                    if (paymentSplit == -1) paymentSplit = 15;
+                    side.setLine(2, "§7for: " + payment.getAmount() + "x " + paymentName.substring(0, paymentSplit).trim());
+                    side.setLine(3, "§7" + paymentName.substring(paymentSplit).trim());
+                } else if (offeringWrapped) {
+                    // Offering wrapped, payment short: condensed on line 3
                     side.setLine(2, "");
                     side.setLine(3, "§7for: " + payment.getAmount() + "x " + formatItemName(payment));
                 } else {
