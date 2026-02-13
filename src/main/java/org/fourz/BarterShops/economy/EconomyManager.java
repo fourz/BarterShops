@@ -57,7 +57,7 @@ public class EconomyManager implements IEconomyService {
 
         RegisteredServiceProvider<Economy> rsp = plugin.getServer().getServicesManager().getRegistration(Economy.class);
         if (rsp == null) {
-            logger.warning("Vault found but no economy provider registered - economy features disabled");
+            logger.info("Vault found but no economy provider registered - economy features disabled");
             economyEnabled = false;
             return;
         }
