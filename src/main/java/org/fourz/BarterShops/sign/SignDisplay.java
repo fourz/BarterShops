@@ -124,7 +124,8 @@ public class SignDisplay {
 
     /**
      * Displays customer-facing payment page for BARTER shops.
-     * Shows current payment option with pagination indicator if multiple options.
+     * - Summary (page 1): Shows "X payment options"
+     * - Payment pages (page 2+): Shows 1 payment per page with full item name
      */
     private static void displayCustomerPaymentPage(SignSide side, BarterSign barterSign) {
         SignType type = barterSign.getType();
@@ -149,20 +150,49 @@ public class SignDisplay {
             if (payments.isEmpty()) {
                 side.setLine(2, "§7No payment");
                 side.setLine(3, "§7options");
+            } else if (payments.size() == 1) {
+                // Single payment: Show payment details (no pagination)
+                ItemStack payment = payments.get(0);
+                side.setLine(2, "§7for: " + payment.getAmount() + "x /");
+                side.setLine(3, "§7" + formatItemName(payment));
             } else {
-                int currentPage = barterSign.getCurrentPaymentPage();
-                ItemStack currentPayment = payments.get(currentPage);
+                // Multiple payments: Show summary (page 0) or single payment per page (pages 1+)
+                int currentPaymentIndex = barterSign.getCurrentPaymentPage();
 
-                // Line 2: Payment amount and item name
-                String paymentLine = "§7for: " + currentPayment.getAmount() + "x /";
-                side.setLine(2, paymentLine);
+                if (currentPaymentIndex == 0) {
+                    // Summary view (page 1)
+                    side.setLine(2, "§7" + payments.size() + " payment");
+                    side.setLine(3, "§7options");
+                } else {
+                    // Single payment per page (page 2+)
+                    int paymentIndex = currentPaymentIndex - 1;  // Convert to 0-based payment array index
+                    ItemStack payment = payments.get(paymentIndex);
 
-                // Line 3: Item name with optional pagination indicator
-                String itemLine = "§7" + formatItemName(currentPayment);
-                if (payments.size() > 1) {
-                    itemLine += " §8(" + (currentPage + 1) + "/" + payments.size() + ")";
+                    int displayPageNumber = currentPaymentIndex + 1;  // Page 1 is summary, page 2+ are payments
+                    int totalPages = payments.size() + 1;  // 1 summary + N payments
+
+                    String itemName = formatItemName(payment);
+
+                    // Line 0: "for Qx"
+                    side.setLine(0, "§7for " + payment.getAmount() + "x");
+
+                    // Lines 1-2: Item name (wrap if > 15 chars)
+                    if (itemName.length() > 15) {
+                        // Split at last space before 15 chars, or at 15 if no space
+                        int splitIndex = itemName.lastIndexOf(' ', 15);
+                        if (splitIndex == -1) splitIndex = 15;
+
+                        side.setLine(1, "§7" + itemName.substring(0, splitIndex).trim());
+                        side.setLine(2, "§7" + itemName.substring(splitIndex).trim());
+                    } else {
+                        // Short name: Line 1 only, line 2 blank
+                        side.setLine(1, "§7" + itemName);
+                        side.setLine(2, "");
+                    }
+
+                    // Line 3: "page X of Y"
+                    side.setLine(3, "§8page " + displayPageNumber + " of " + totalPages);
                 }
-                side.setLine(3, itemLine);
             }
         } else {
             // BUY/SELL mode
