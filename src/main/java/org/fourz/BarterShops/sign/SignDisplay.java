@@ -177,6 +177,8 @@ public class SignDisplay {
                     displayDualWrapMode(side, offering, payment);
                 } else if (offeringWrapped) {
                     // Offering wrapped, payment short: condensed on line 3
+                    // MUST clear line 2 when offering uses lines 0-1
+                    side.setLine(2, "");
                     side.setLine(3, "§7for: " + payment.getAmount() + "x " + formatItemName(payment));
                 } else if (paymentNeedsWrapping) {
                     // Offering short, payment long: payment wraps on lines 2-3
@@ -248,23 +250,31 @@ public class SignDisplay {
     /**
      * Displays owner-facing BOARD view with shop summary.
      * Shows payment count and may display owner preview mode indicator.
+     * Single-payment BARTER shops omit header (same as customer view).
      */
     private static void displayOwnerBoardView(SignSide side, BarterSign barterSign) {
         SignType type = barterSign.getType();
         ItemStack offering = barterSign.getItemOffering();
 
-        // Line 0: Shop type header
-        String header = switch(type) {
-            case BARTER -> "§2[Barter]";
-            case BUY -> "§e[We Buy]";
-            case SELL -> "§a[We Sell]";
-        };
-        side.setLine(0, header);
+        // Determine if this is a single-payment BARTER shop (no header needed)
+        List<ItemStack> payments = (type == SignType.BARTER) ? barterSign.getAcceptedPayments() : null;
+        boolean isSinglePaymentBarter = (type == SignType.BARTER && payments != null && payments.size() == 1);
 
-        // Show offering (with wrapping support)
+        // Line 0: Shop type header (only for non-single-payment or non-BARTER)
+        if (!isSinglePaymentBarter) {
+            String header = switch(type) {
+                case BARTER -> "§2[Barter]";
+                case BUY -> "§e[We Buy]";
+                case SELL -> "§a[We Sell]";
+            };
+            side.setLine(0, header);
+        }
+
+        // Show offering (with wrapping support) - use line 0 for single-payment, line 1 for others
+        int offeringStartLine = isSinglePaymentBarter ? 0 : 1;
         boolean offeringWrapped = false;
         if (offering != null) {
-            offeringWrapped = displayOfferingWithWrapping(side, offering);
+            offeringWrapped = displayOfferingWithWrapping(side, offering, offeringStartLine);
         }
 
         // Show preview mode indicator or payment summary
@@ -276,11 +286,12 @@ public class SignDisplay {
                 side.setLine(3, "§7Sneak+R: exit");
             }
         } else if (type == SignType.BARTER) {
-            List<ItemStack> payments = barterSign.getAcceptedPayments();
+            // payments already fetched above
             if (payments.size() == 1) {
                 ItemStack payment = payments.get(0);
                 if (offeringWrapped) {
-                    // Condensed format
+                    // Condensed format - MUST clear line 2 when offering uses lines 0-1
+                    side.setLine(2, "");
                     side.setLine(3, "§7for: " + payment.getAmount() + "x " + formatItemName(payment));
                 } else {
                     side.setLine(2, "§7for: " + payment.getAmount() + "x");
