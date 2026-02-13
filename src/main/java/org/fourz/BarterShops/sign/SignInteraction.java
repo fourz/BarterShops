@@ -18,6 +18,7 @@ import org.fourz.BarterShops.trade.TradeSession;
 import org.fourz.BarterShops.trade.TradeConfirmationGUI;
 import org.fourz.rvnkcore.util.log.LogManager;
 
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -34,6 +35,8 @@ public class SignInteraction {
     private final LogManager logger;
     private final Map<Location, BukkitTask> activeRevertTasks = new ConcurrentHashMap<>();
     private final Map<String, Long> pendingDeletions = new ConcurrentHashMap<>(); // signId -> timestamp
+    private final Map<Location, Long> lastPreviewToggleTime = new ConcurrentHashMap<>(); // Debounce preview toggle
+    private static final long PREVIEW_TOGGLE_DEBOUNCE_MS = 150; // Ignore toggles within 150ms
 
     public SignInteraction(BarterShops plugin) {
         this.plugin = plugin;
@@ -375,6 +378,19 @@ public class SignInteraction {
 
         // Sneak+Right-click in BOARD mode: Toggle customer preview
         if (currentMode == ShopMode.BOARD && player.isSneaking()) {
+            // Debounce: Prevent double-toggle if event fires twice in quick succession
+            Location signLoc = sign.getLocation();
+            long currentTime = System.currentTimeMillis();
+            Long lastToggleTime = lastPreviewToggleTime.get(signLoc);
+
+            if (lastToggleTime != null && (currentTime - lastToggleTime) < PREVIEW_TOGGLE_DEBOUNCE_MS) {
+                logger.debug("Preview toggle ignored - duplicate event within debounce window");
+                return; // Ignore duplicate toggle
+            }
+
+            // Record this toggle attempt
+            lastPreviewToggleTime.put(signLoc, currentTime);
+
             boolean newPreviewMode = !barterSign.isOwnerPreviewMode();
             barterSign.setOwnerPreviewMode(newPreviewMode);
 
