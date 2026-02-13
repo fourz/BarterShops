@@ -420,7 +420,8 @@ public class SignInteraction {
             logger.debug("Auto-revert scheduled for mode: " + nextMode);
         }
 
-        SignDisplay.updateSign(sign, barterSign, false);
+        // Update display: if owner is in preview mode, show customer view; otherwise owner view
+        SignDisplay.updateSign(sign, barterSign, barterSign.isOwnerPreviewMode());
     }
 
     private void handleCustomerRightClick(Player player, Sign sign, BarterSign barterSign) {
