@@ -337,39 +337,25 @@ rag_search_knowledge_base(query="Bukkit sign interaction")
 manage_task("update", task_id="...", status="done")
 ```
 
-### Current Development Status (Feb 2026)
+## Development Status
 
-**Completed:**
+**Current Version**: 1.0.1 (Feb 13, 2026)
 
-- Core plugin structure with manager lifecycle
-- Sign-based shop creation and validation (BarterSignsPlus lineage)
-- Chest container management
-- Command framework (ShopCommand + 19 subcommands)
-- Database abstraction (SQLite/MySQL with factory + FallbackTracker)
-- RVNKCore integration (LogManager, ServiceRegistry)
-- DTO layer (ShopDataDTO, TradeItemDTO, TradeRecordDTO, RatingDataDTO, StatsDataDTO)
-- Repository pattern (ShopRepositoryImpl, TradeRepositoryImpl, RatingRepositoryImpl)
-- Economy integration (EconomyManager, ShopFeeCalculator, Vault) - feat-02
-- REST API (ApiServer, ShopApiServlet, endpoints) - feat-03
-- Shop templates (TemplateManager, ShopTemplate) - feat-04
-- Region protection (WorldGuard, GriefPrevention providers) - feat-05
-- Rating/review system (IRatingService, RatingServiceImpl, IRatingRepository) - feat-06
-- Statistics system (IStatsService, StatsServiceImpl, StatsDataDTO) - feat-07
-- Admin GUI (AdminShopGUI, AdminTradeHistoryGUI, AdminStatsGUI)
-- Notification system (multi-channel, per-type preferences)
-- Trade engine and validation logic
-- GUI confirmation system for trades
+See [ROADMAP.md](ROADMAP.md) for detailed phase history, development timeline, and planned features.
 
-**In Progress:**
+**Latest Completion** (Feb 13):
+- Phase 14: Message suppression for customer interactions - reduced chat spam
+- Phase 13: Dual-wrap mode for single-payment BARTER shops - maximize sign space
+- Phase 9-12: Offering/payment name wrapping with intelligent layout
 
-- RatingService/StatsService runtime initialization (services exist but not auto-started in onEnable)
-- Sign protection hardening (onSignBreak handler is stub-only)
+**In Development**:
+- bug-epic-01: Sign Reliability and Protection (automated regression testing pending)
+- doc-18: Sign UI/UX comprehensive guide
 
-**Pending:**
-
-- PlaceholderAPI expansion support
-- Web dashboard integration
-- Sign mode enum unification (SignMode vs ShopMode)
+**Planned Next**:
+- feat-23: Shop config persistence across server restarts
+- feat-24: Service runtime initialization
+- refactor-01: Mode enum unification (SignMode vs ShopMode)
 
 ## Development Checklist
 

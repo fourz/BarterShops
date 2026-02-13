@@ -1,21 +1,32 @@
 # BarterShops Development Roadmap
 
-**Last Updated**: February 12, 2026
+**Last Updated**: February 13, 2026
 **Archon Board**: `bd4e478b-772a-4b97-bd99-300552840815`
+**Version**: 1.0.1 (Sign UI Complete)
 
-## February 12, 2026 Status: Sign UI Phases 6-8 Complete
+## February 13, 2026 Status: Sign UI Phases Complete + UX Polish
 
-**Recent Development** (derek/dev):
+**Today's Development** (Feb 13):
 
-- ✅ Phase 6: Multi-step sign configuration with multiple BARTER payments (impl-28)
+- ✅ Phase 14: Message suppression for customer interactions (cleaner UX)
+  - Removed: customer pagination chat messages
+  - Removed: trade completion/cancellation messages
+  - Preserved: shop creation/deletion and configuration feedback
+
+**Recent Development** (Feb 9-13):
+
+- ✅ Phase 8: Multi-step sign configuration with multiple BARTER payments (impl-28)
 - ✅ Phase 7: Shop configuration persistence to database (ShopConfigSerializer/Manager)
-- ✅ Phase 8: Customer-facing UI with paginated payment browsing + owner preview
+- ✅ Phase 8.5: Customer-facing UI with paginated payment browsing + owner preview
+- ✅ Phase 9: Offering name wrapping for long items (>15 chars)
+- ✅ Phase 10-13: Dual-wrap mode for single-payment BARTER shops (header omission)
 - ✅ Type-locking: Inventory type locked once first item placed (impl-27)
 - ✅ Shop protection: Three-layer sign/chest protection (impl-29)
 - ✅ Auto-revert scheduler: All modes now auto-revert to BOARD after 10s (bug-32/33)
 - ✅ Orphaned shop fix: Sign deletion now clears cache + PDC properly (bug-35)
 - ✅ TypeAvailabilityManager: Config-driven shop/sign type enable/disable
 - ✅ Immutable metadata map regression fixed (bug-31)
+- ✅ Version tracking: v1.0.1 with startup logging
 
 **Prior Sprint** (Feb 7-9):
 
