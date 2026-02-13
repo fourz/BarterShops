@@ -158,10 +158,23 @@ public class SignDisplay {
             } else if (payments.size() == 1) {
                 // Single payment: Show payment details (no pagination)
                 ItemStack payment = payments.get(0);
-                if (offeringWrapped) {
-                    // Condensed format
+
+                // Check if payment needs wrapping
+                String paymentName = formatItemName(payment);
+                boolean paymentNeedsWrapping = paymentName != null && paymentName.length() > 15;
+
+                if (offeringWrapped && paymentNeedsWrapping) {
+                    // DUAL-WRAP MODE: Both offering and payment have long names
+                    // Remove header, use all 4 lines (0-3)
+                    displayDualWrapMode(side, offering, payment);
+                } else if (offeringWrapped) {
+                    // Offering wrapped, payment short: condensed on line 3
                     side.setLine(3, "§7for: " + payment.getAmount() + "x " + formatItemName(payment));
+                } else if (paymentNeedsWrapping) {
+                    // Offering short, payment long: payment wraps on lines 2-3
+                    displayPaymentWithWrapping(side, payment, 2);
                 } else {
+                    // Both short: standard 2-line display
                     side.setLine(2, "§7for: " + payment.getAmount() + "x /");
                     side.setLine(3, "§7" + formatItemName(payment));
                 }
@@ -322,6 +335,71 @@ public class SignDisplay {
             side.setLine(1, "§b" + amount + "x " + itemName);
             return false; // Not wrapped
         }
+    }
+
+    /**
+     * Displays payment with name wrapping support.
+     * If payment name > 15 chars, wraps across two lines.
+     *
+     * @param side Sign side to update
+     * @param payment Payment item
+     * @param startLine Starting line number (typically 2)
+     * @return true if name was wrapped, false if single-line
+     */
+    private static boolean displayPaymentWithWrapping(SignSide side, ItemStack payment, int startLine) {
+        if (payment == null) {
+            return false;
+        }
+
+        String itemName = formatItemName(payment);
+        int amount = payment.getAmount();
+
+        // Check if name needs wrapping
+        if (itemName.length() > 15) {
+            // Split at last space before 15 chars, or at 15 if no space
+            int splitIndex = itemName.lastIndexOf(' ', 15);
+            if (splitIndex == -1) splitIndex = 15;
+
+            // Line N: "for: Qx FirstPart"
+            side.setLine(startLine, "§7for: " + amount + "x " + itemName.substring(0, splitIndex).trim());
+
+            // Line N+1: "SecondPart"
+            side.setLine(startLine + 1, "§7" + itemName.substring(splitIndex).trim());
+
+            return true; // Wrapped
+        } else {
+            // Short name: single line
+            side.setLine(startLine, "§7for: " + amount + "x " + itemName);
+            return false; // Not wrapped
+        }
+    }
+
+    /**
+     * Displays dual-wrap mode for single-payment BARTER shops.
+     * Removes header and uses all 4 lines for offering + payment.
+     * Only called when BOTH offering and payment names > 15 chars.
+     *
+     * @param side Sign side to update
+     * @param offering Offering item
+     * @param payment Payment item
+     */
+    private static void displayDualWrapMode(SignSide side, ItemStack offering, ItemStack payment) {
+        String offeringName = formatItemName(offering);
+        String paymentName = formatItemName(payment);
+
+        // Lines 0-1: Offering (wrapped, starting at line 0 - no header)
+        int offeringSplit = offeringName.lastIndexOf(' ', 15);
+        if (offeringSplit == -1) offeringSplit = 15;
+
+        side.setLine(0, "§b" + offering.getAmount() + "x " + offeringName.substring(0, offeringSplit).trim());
+        side.setLine(1, "§b" + offeringName.substring(offeringSplit).trim());
+
+        // Lines 2-3: Payment (wrapped)
+        int paymentSplit = paymentName.lastIndexOf(' ', 15);
+        if (paymentSplit == -1) paymentSplit = 15;
+
+        side.setLine(2, "§7for: " + payment.getAmount() + "x " + paymentName.substring(0, paymentSplit).trim());
+        side.setLine(3, "§7" + paymentName.substring(paymentSplit).trim());
     }
 
     private static void displayTypeMode(SignSide side, BarterSign barterSign) {
