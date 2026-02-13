@@ -442,9 +442,8 @@ public class SignInteraction {
                 int currentPage = barterSign.getCurrentPaymentPage();
                 ItemStack currentPayment = payments.get(currentPage);
 
-                player.sendMessage(ChatColor.GRAY + "Payment option " + (currentPage + 1) + "/" +
-                                 payments.size() + ": " + currentPayment.getAmount() + "x " +
-                                 formatItemName(currentPayment));
+                // Pagination feedback removed per user request
+                // (Customer can see payment on sign, no chat spam needed)
 
                 SignDisplay.updateSign(sign, barterSign, true); // isCustomerView = true
                 return; // Don't process trade, just cycle payment
@@ -680,10 +679,12 @@ public class SignInteraction {
                     .thenAccept(result -> {
                         plugin.getServer().getScheduler().runTask(plugin, () -> {
                             if (result.success()) {
-                                player.sendMessage(ChatColor.GREEN + "Trade complete!");
+                                // Trade complete feedback removed per user request
+                                // (GUI confirmation already shows result)
                                 logger.info("Trade completed: " + result.transactionId());
                             } else {
-                                player.sendMessage(ChatColor.RED + "Trade failed: " + result.message());
+                                // Trade failed feedback removed per user request
+                                // (GUI confirmation already shows error)
                                 logger.debug("Trade failed: " + result.message());
                             }
                         });
@@ -693,7 +694,8 @@ public class SignInteraction {
             (cancelledSession) -> {
                 logger.debug("Trade cancelled for session: " + cancelledSession.getSessionId());
                 tradeEngine.cancelSession(cancelledSession.getSessionId());
-                player.sendMessage(ChatColor.YELLOW + "Trade cancelled.");
+                // Trade cancelled feedback removed per user request
+                // (GUI confirmation already shows cancellation)
             }
         );
     }
