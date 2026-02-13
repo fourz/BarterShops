@@ -124,30 +124,38 @@ public class SignDisplay {
 
     /**
      * Displays customer-facing payment page for BARTER shops.
-     * - Summary (page 1): Shows "X payment options"
-     * - Payment pages (page 2+): Shows 1 payment per page with full item name
+     * - Single payment: No header (barter is implicit), uses all 4 lines (0-3)
+     * - Multiple payments: Shows header + offering + summary (pages with pagination)
+     * - BUY/SELL: Shows header + offering + price
      */
     private static void displayCustomerPaymentPage(SignSide side, BarterSign barterSign) {
         SignType type = barterSign.getType();
         ItemStack offering = barterSign.getItemOffering();
 
-        // Line 0: Shop type header
-        String header = switch(type) {
-            case BARTER -> "§2[Barter]";
-            case BUY -> "§e[We Buy]";
-            case SELL -> "§a[We Sell]";
-        };
-        side.setLine(0, header);
+        // Determine if this is a single-payment BARTER shop (no header needed)
+        List<ItemStack> payments = (type == SignType.BARTER) ? barterSign.getAcceptedPayments() : null;
+        boolean isSinglePaymentBarter = (type == SignType.BARTER && payments != null && payments.size() == 1);
 
-        // Line 1-2: Offering (with wrapping support)
+        // Line 0: Shop type header (only for non-single-payment or non-BARTER)
+        if (!isSinglePaymentBarter) {
+            String header = switch(type) {
+                case BARTER -> "§2[Barter]";
+                case BUY -> "§e[We Buy]";
+                case SELL -> "§a[We Sell]";
+            };
+            side.setLine(0, header);
+        }
+
+        // Offering display: Use line 0 for single-payment, line 1 for multi-payment/BUY/SELL
+        int offeringStartLine = isSinglePaymentBarter ? 0 : 1;
         boolean offeringWrapped = false;
         if (offering != null) {
-            offeringWrapped = displayOfferingWithWrapping(side, offering);
+            offeringWrapped = displayOfferingWithWrapping(side, offering, offeringStartLine);
         }
 
         // Lines 2-3 or Line 3: Payment info (type-dependent)
         if (type == SignType.BARTER) {
-            List<ItemStack> payments = barterSign.getAcceptedPayments();
+            // payments already fetched above
             if (payments.isEmpty()) {
                 if (offeringWrapped) {
                     side.setLine(3, "§7No pay options");
@@ -303,13 +311,14 @@ public class SignDisplay {
 
     /**
      * Displays offering with name wrapping support.
-     * If offering name > 15 chars, wraps across lines 1-2.
+     * If offering name > 15 chars, wraps across two consecutive lines.
      *
      * @param side Sign side to update
      * @param offering Offering item
+     * @param startLine Starting line number (default 1 for standard display, 0 for single-payment)
      * @return true if name was wrapped, false if single-line
      */
-    private static boolean displayOfferingWithWrapping(SignSide side, ItemStack offering) {
+    private static boolean displayOfferingWithWrapping(SignSide side, ItemStack offering, int startLine) {
         if (offering == null) {
             return false;
         }
@@ -323,18 +332,25 @@ public class SignDisplay {
             int splitIndex = itemName.lastIndexOf(' ', 15);
             if (splitIndex == -1) splitIndex = 15;
 
-            // Line 1: amount + first part of name
-            side.setLine(1, "§b" + amount + "x " + itemName.substring(0, splitIndex).trim());
+            // First line: amount + first part of name
+            side.setLine(startLine, "§b" + amount + "x " + itemName.substring(0, splitIndex).trim());
 
-            // Line 2: remainder of name
-            side.setLine(2, "§b" + itemName.substring(splitIndex).trim());
+            // Second line: remainder of name
+            side.setLine(startLine + 1, "§b" + itemName.substring(splitIndex).trim());
 
             return true; // Wrapped
         } else {
             // Short name: single line
-            side.setLine(1, "§b" + amount + "x " + itemName);
+            side.setLine(startLine, "§b" + amount + "x " + itemName);
             return false; // Not wrapped
         }
+    }
+
+    /**
+     * Backward-compatible overload: defaults to line 1 for standard header display.
+     */
+    private static boolean displayOfferingWithWrapping(SignSide side, ItemStack offering) {
+        return displayOfferingWithWrapping(side, offering, 1);
     }
 
     /**

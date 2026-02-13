@@ -275,6 +275,9 @@ public class BarterShops extends JavaPlugin {
 
         } catch (ClassNotFoundException e) {
             logger.info("RVNKCore classes not found - running in standalone mode");
+        } catch (NoClassDefFoundError e) {
+            logger.warning("Missing dependency during RVNKCore registration: " + e.getMessage());
+            logger.warning("Running in standalone mode (likely missing soft-dependency JAR)");
         } catch (Exception e) {
             logger.warning("Failed to register with RVNKCore: " + e.getMessage());
             logger.warning("Running in standalone mode");
@@ -341,6 +344,8 @@ public class BarterShops extends JavaPlugin {
 
             logger.info("Services unregistered from RVNKCore");
 
+        } catch (NoClassDefFoundError e) {
+            // Soft-dependency classes not available during shutdown - safe to ignore
         } catch (Exception e) {
             logger.warning("Failed to unregister from RVNKCore: " + e.getMessage());
         }
