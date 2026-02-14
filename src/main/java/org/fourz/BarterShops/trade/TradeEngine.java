@@ -1,6 +1,7 @@
 package org.fourz.BarterShops.trade;
 
 import org.bukkit.Bukkit;
+import org.bukkit.ChatColor;
 import org.bukkit.entity.Player;
 import org.bukkit.inventory.Inventory;
 import org.bukkit.inventory.ItemStack;
@@ -158,54 +159,77 @@ public class TradeEngine {
 
     /**
      * Executes the actual item exchange between buyer and shop.
+     * Implements full transaction safety with snapshots and rollback on any failure.
      */
     private TradeResultDTO executeItemExchange(TradeSession session, Player buyer) {
-        try {
-            BarterSign shop = session.getShop();
-            ItemStack offered = session.getOfferedItem();
-            int offeredQty = session.getOfferedQuantity();
-            ItemStack requested = session.getRequestedItem();
-            int requestedQty = session.getRequestedQuantity();
+        BarterSign shop = session.getShop();
+        ItemStack offered = session.getOfferedItem();
+        int offeredQty = session.getOfferedQuantity();
+        ItemStack requested = session.getRequestedItem();
+        int requestedQty = session.getRequestedQuantity();
 
-            // Remove payment from buyer
+        // Step 1: Create snapshots BEFORE any modifications
+        InventorySnapshot buyerSnapshot = new InventorySnapshot(buyer.getInventory());
+        InventorySnapshot shopSnapshot = null;
+        if (shop.getShopContainer() != null) {
+            shopSnapshot = new InventorySnapshot(shop.getShopContainer().getInventory());
+        }
+
+        try {
+            // Step 2: Remove payment from buyer
             if (requested != null && requestedQty > 0) {
                 if (!removeItems(buyer.getInventory(), requested, requestedQty)) {
-                    session.setState(TradeSession.TradeState.FAILED);
-                    return TradeResultDTO.failure("Failed to take payment from buyer");
+                    throw new TradeException("Failed to take payment from buyer");
                 }
             }
 
-            // Remove items from shop container (if not admin shop)
-            if (shop.getShopContainer() != null && offered != null) {
-                Inventory shopInv = shop.getShopContainer().getInventory();
+            // Step 3: Remove items from shop container (if not admin shop)
+            // Use wrapper-aware logic (match TradeValidator pattern)
+            Inventory shopInv = null;
+            org.fourz.BarterShops.container.ShopContainer wrapper = shop.getShopContainerWrapper();
+            if (wrapper != null) {
+                shopInv = wrapper.getInventory();
+            } else if (shop.getShopContainer() != null) {
+                shopInv = shop.getShopContainer().getInventory();
+            }
+
+            if (shopInv != null && offered != null) {
                 if (!removeItems(shopInv, offered, offeredQty)) {
-                    // Rollback: return payment to buyer
-                    if (requested != null && requestedQty > 0) {
-                        giveItems(buyer.getInventory(), requested, requestedQty);
-                    }
-                    session.setState(TradeSession.TradeState.FAILED);
-                    return TradeResultDTO.failure("Shop out of stock");
+                    throw new TradeException("Shop out of stock");
                 }
 
-                // Add payment to shop container
+                // Step 4: Add payment to shop container
                 if (requested != null && requestedQty > 0) {
-                    giveItems(shopInv, requested, requestedQty);
+                    int givenPayment = giveItems(shopInv, requested, requestedQty);
+                    if (givenPayment < requestedQty) {
+                        // Shop inventory too full to hold payment - this is a critical error
+                        throw new TradeException("Shop inventory full - cannot accept payment");
+                    }
                 }
             }
 
-            // Give items to buyer
+            // Step 5: Give items to buyer (with overflow handling)
+            int givenQty = 0;
             if (offered != null && offeredQty > 0) {
-                giveItems(buyer.getInventory(), offered, offeredQty);
+                givenQty = giveItems(buyer.getInventory(), offered, offeredQty);
+
+                // Handle overflow: drop at buyer's feet if inventory full
+                if (givenQty < offeredQty) {
+                    int overflow = offeredQty - givenQty;
+                    dropItems(buyer.getLocation(), offered, overflow);
+                    buyer.sendMessage(ChatColor.YELLOW + "! " + overflow +
+                        " items dropped at your feet - inventory full");
+                    logger.debug("Dropped " + overflow + " items for " + buyer.getName() +
+                        " - inventory full");
+                }
             }
 
-            // Mark session complete
+            // Step 6: Log successful trade
             session.setState(TradeSession.TradeState.COMPLETED);
             String transactionId = UUID.randomUUID().toString();
-
-            // Log the trade (async, fire-and-forget)
             logTrade(session, transactionId);
 
-            // Cleanup session
+            // Step 7: Cleanup session
             cleanupSession(session.getSessionId());
 
             logger.info("Trade completed: " + transactionId + " for " + buyer.getName());
@@ -213,10 +237,31 @@ public class TradeEngine {
 
             return TradeResultDTO.success(transactionId);
 
-        } catch (Exception e) {
-            logger.error("Item exchange failed: " + e.getMessage());
+        } catch (TradeException e) {
+            // Transaction failed: ROLLBACK both inventories
+            logger.error("Trade failed, rolling back: " + e.getMessage());
+            buyerSnapshot.restore(buyer.getInventory());
+            if (shopSnapshot != null && shop.getShopContainer() != null) {
+                shopSnapshot.restore(shop.getShopContainer().getInventory());
+            }
+
             session.setState(TradeSession.TradeState.FAILED);
-            return TradeResultDTO.failure("Exchange failed: " + e.getMessage());
+            cleanupSession(session.getSessionId());
+
+            return TradeResultDTO.failure("Trade failed and rolled back: " + e.getMessage());
+
+        } catch (Exception e) {
+            // Unexpected exception: ROLLBACK both inventories
+            logger.error("Unexpected error during trade execution: " + e.getMessage());
+            buyerSnapshot.restore(buyer.getInventory());
+            if (shopSnapshot != null && shop.getShopContainer() != null) {
+                shopSnapshot.restore(shop.getShopContainer().getInventory());
+            }
+
+            session.setState(TradeSession.TradeState.FAILED);
+            cleanupSession(session.getSessionId());
+
+            return TradeResultDTO.failure("Trade failed: " + e.getMessage());
         }
     }
 
@@ -237,6 +282,7 @@ public class TradeEngine {
                     inventory.setItem(i, null);
                 } else {
                     stack.setAmount(stack.getAmount() - take);
+                    inventory.setItem(i, stack);
                 }
                 remaining -= take;
             }
@@ -247,18 +293,49 @@ public class TradeEngine {
 
     /**
      * Gives items to an inventory.
+     * Returns the number of items actually added (may be less if inventory is full).
      */
-    private void giveItems(Inventory inventory, ItemStack item, int amount) {
-        if (inventory == null || item == null || amount <= 0) return;
+    private int giveItems(Inventory inventory, ItemStack item, int amount) {
+        if (inventory == null || item == null || amount <= 0) return 0;
 
         int remaining = amount;
         int maxStack = item.getMaxStackSize();
+        int given = 0;
 
         while (remaining > 0) {
             ItemStack toGive = item.clone();
             toGive.setAmount(Math.min(remaining, maxStack));
-            inventory.addItem(toGive);
-            remaining -= toGive.getAmount();
+
+            // Check if inventory has space
+            java.util.HashMap<Integer, ItemStack> failed = inventory.addItem(toGive);
+            int added = toGive.getAmount() - failed.values().stream()
+                .mapToInt(ItemStack::getAmount)
+                .sum();
+
+            given += added;
+            remaining -= added;
+
+            // If items were rejected, inventory is full
+            if (added == 0) break;
+        }
+
+        return given;
+    }
+
+    /**
+     * Drops items at a location (useful when inventory is full).
+     * Respects max stack size by splitting into multiple drops if needed.
+     */
+    private void dropItems(org.bukkit.Location location, ItemStack item, int amount) {
+        if (location == null || item == null || amount <= 0) return;
+
+        int maxStack = item.getMaxStackSize();
+        while (amount > 0) {
+            int dropAmount = Math.min(amount, maxStack);
+            ItemStack toDrop = item.clone();
+            toDrop.setAmount(dropAmount);
+            location.getWorld().dropItem(location, toDrop);
+            amount -= dropAmount;
         }
     }
 
