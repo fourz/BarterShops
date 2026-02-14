@@ -736,10 +736,6 @@ public class SignInteraction {
                 barterSign.resetCustomerViewState(); // Clear preview mode and pagination state
                 SignDisplay.updateSign(sign, barterSign, false); // Explicit: show owner view
 
-                // Force refresh the sign block by explicitly calling update()
-                // to ensure the display changes are visible to players
-                sign.update(true, false);
-
                 activeRevertTasks.remove(loc);
 
                 logger.debug("Auto-revert completed: Returned to BOARD mode, sign refreshed");

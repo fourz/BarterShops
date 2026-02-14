@@ -21,6 +21,14 @@ public class SignDisplay {
         // Store the current sign side in the BarterSign
         barterSign.setSignSideDisplayFront(frontSide);
 
+        // DEBUG: Log preview mode state for bug-35 investigation
+        if (barterSign.getMode().equals(ShopMode.BOARD)) {
+            org.bukkit.Bukkit.getLogger().fine(String.format(
+                "[BarterShops-DEBUG] updateSign BOARD: isCustomerView=%b, ownerPreviewMode=%b, configMode=%s",
+                isCustomerView, barterSign.isOwnerPreviewMode(), barterSign.getType()
+            ));
+        }
+
         switch (barterSign.getMode()) {
             case SETUP -> displaySetupMode(frontSide, barterSign);
             case BOARD -> displayBoardMode(frontSide, barterSign, isCustomerView);
@@ -36,7 +44,12 @@ public class SignDisplay {
      */
     public static void updateSign(Sign sign, BarterSign barterSign) {
         // Show customer view if owner is in preview mode, otherwise show owner view
-        updateSign(sign, barterSign, barterSign.isOwnerPreviewMode());
+        boolean shouldShowCustomerView = barterSign.isOwnerPreviewMode();
+        org.bukkit.Bukkit.getLogger().fine(String.format(
+            "[BarterShops-DEBUG] updateSign overload: isOwnerPreviewMode=%b -> passing isCustomerView=%b",
+            barterSign.isOwnerPreviewMode(), shouldShowCustomerView
+        ));
+        updateSign(sign, barterSign, shouldShowCustomerView);
     }
 
     public static void displayTemporaryMessage(Sign sign, String line1, String line2) {
@@ -99,6 +112,12 @@ public class SignDisplay {
             displayNotConfigured(side, barterSign);
             return;
         }
+
+        // DEBUG: Log which branch is being taken
+        org.bukkit.Bukkit.getLogger().fine(String.format(
+            "[BarterShops-DEBUG] displayBoardMode router: isCustomerView=%b -> %s",
+            isCustomerView, isCustomerView ? "CUSTOMER" : "OWNER"
+        ));
 
         if (isCustomerView) {
             displayCustomerPaymentPage(side, barterSign);

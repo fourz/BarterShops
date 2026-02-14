@@ -84,12 +84,23 @@ public class BarterSign {
 
     /**
      * Configures the offering item for stackable shops.
-     * Note: Shop type (stackable/unstackable) is now auto-detected based on chest contents.
+     * Locks the shop type and item type based on the offering item.
      */
     public void configureStackableShop(ItemStack itemInHand, int quantity) {
         this.itemOffering = itemInHand.clone();
         this.itemOffering.setAmount(quantity);
-        // Type is auto-detected at trade time based on chest contents
+
+        // Lock shop type based on offering item
+        boolean itemIsStackable = isItemStackable(itemInHand);
+        setStackable(itemIsStackable);
+        setTypeDetected(true); // Lock the type
+
+        // For stackable shops, lock the item type to prevent mixing
+        if (itemIsStackable) {
+            setLockedItemType(itemInHand.getType());
+        } else {
+            setLockedItemType(null); // Unstackable: no specific type lock
+        }
     }
 
     /**
