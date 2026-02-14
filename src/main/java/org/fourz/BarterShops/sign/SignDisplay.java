@@ -35,7 +35,8 @@ public class SignDisplay {
      * Backward-compatible overload: defaults to owner view (isCustomerView=false)
      */
     public static void updateSign(Sign sign, BarterSign barterSign) {
-        updateSign(sign, barterSign, false);
+        // Show customer view if owner is in preview mode, otherwise show owner view
+        updateSign(sign, barterSign, barterSign.isOwnerPreviewMode());
     }
 
     public static void displayTemporaryMessage(Sign sign, String line1, String line2) {
