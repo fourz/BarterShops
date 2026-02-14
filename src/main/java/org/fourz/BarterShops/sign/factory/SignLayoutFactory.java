@@ -227,6 +227,94 @@ public class SignLayoutFactory {
     }
 
     /**
+     * Creates a SETUP mode layout combining type information.
+     * Shows current configuration step and instructions.
+     *
+     * @param barterSign The barter sign
+     * @return 4-line sign layout
+     */
+    public static String[] createSetupLayout(BarterSign barterSign) {
+        String[] layout = new String[4];
+        layout[0] = "\u00a75[Setup]"; // Purple [Setup]
+
+        // Step 1: Set offering item
+        if (barterSign.getItemOffering() == null) {
+            layout[1] = "\u00a77L-Click with";
+            layout[2] = "\u00a77item to set";
+            layout[3] = "\u00a77offering";
+            return layout;
+        }
+
+        // Step 2: Configure payment (type-dependent)
+        SignType type = barterSign.getType();
+        switch (type) {
+            case BARTER -> {
+                java.util.List<ItemStack> payments = barterSign.getAcceptedPayments();
+                if (payments.isEmpty()) {
+                    layout[1] = "\u00a77L-Click with item";
+                    layout[2] = "\u00a77to add payment";
+                    layout[3] = "\u00a77option";
+                } else {
+                    layout[1] = "\u00a77Payments: " + payments.size();
+                    layout[2] = "\u00a77L-Click: add";
+                    layout[3] = "\u00a77Shift+L: remove";
+                }
+            }
+            case BUY, SELL -> {
+                ItemStack priceItem = barterSign.getPriceItem();
+                int priceAmount = barterSign.getPriceAmount();
+
+                if (priceItem == null) {
+                    layout[1] = "\u00a77L-Click to set";
+                    layout[2] = "\u00a77price currency";
+                    layout[3] = "\u00a77(item in hand)";
+                } else {
+                    layout[1] = "\u00a77Price: " + priceAmount;
+                    layout[2] = "\u00a77" + truncateForSign(priceItem.getType().toString().toLowerCase().replace('_', ' '), 13);
+                    layout[3] = "\u00a77L±1, Shift±16";
+                }
+            }
+        }
+        return layout;
+    }
+
+    /**
+     * Creates a layout for when shop is not configured.
+     * Shown to both customer and owner.
+     *
+     * @param barterSign The barter sign
+     * @return 4-line sign layout
+     */
+    public static String[] createNotConfiguredLayout(BarterSign barterSign) {
+        String[] layout = new String[4];
+        SignType type = barterSign.getType();
+        String header = switch(type) {
+            case BARTER -> "\u00a72[Barter]";
+            case BUY -> "\u00a7e[We Buy]";
+            case SELL -> "\u00a7a[We Sell]";
+        };
+        layout[0] = header;
+        layout[1] = "\u00a77Not configured";
+        layout[2] = "\u00a77Ask owner";
+        layout[3] = "";
+        return layout;
+    }
+
+    /**
+     * Creates a HELP mode layout showing owner instructions.
+     *
+     * @return 4-line sign layout
+     */
+    public static String[] createHelpLayout() {
+        String[] layout = new String[4];
+        layout[0] = "\u00a7b[Help]";
+        layout[1] = "\u00a77Owner:";
+        layout[2] = "\u00a77L-Click = mode";
+        layout[3] = "\u00a77R-Click = act";
+        return layout;
+    }
+
+    /**
      * Joins a 4-line layout array for display.
      * Useful for debugging.
      *

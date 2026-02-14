@@ -1,14 +1,21 @@
 package org.fourz.BarterShops.container.listener;
 
+import org.bukkit.ChatColor;
+import org.bukkit.Location;
 import org.bukkit.Material;
 import org.bukkit.block.Container;
+import org.bukkit.entity.Player;
 import org.bukkit.event.EventHandler;
 import org.bukkit.event.EventPriority;
 import org.bukkit.event.Listener;
 import org.bukkit.event.inventory.*;
 import org.bukkit.inventory.ItemStack;
+import org.bukkit.plugin.Plugin;
+import org.fourz.BarterShops.BarterShops;
 import org.fourz.BarterShops.container.ShopContainer;
 import org.fourz.BarterShops.container.validation.ValidationResult;
+import org.fourz.BarterShops.notification.NotificationManager;
+import org.fourz.BarterShops.notification.NotificationType;
 
 import java.util.HashMap;
 import java.util.Map;
@@ -79,7 +86,18 @@ public class InventoryValidationListener implements Listener {
         ValidationResult result = shopContainer.validateItem(cursor);
         if (!result.isValid()) {
             event.setCancelled(true);
-            // Validation message sent separately by shop system
+
+            // Eject invalid item from container
+            ItemStack itemToEject = cursor.clone();
+            Location containerLoc = event.getInventory().getLocation();
+            if (containerLoc != null && containerLoc.getWorld() != null) {
+                containerLoc.getWorld().dropItem(containerLoc, itemToEject);
+            }
+
+            // Send error notification to player
+            if (event.getWhoClicked() instanceof Player player) {
+                sendValidationError(player, result.reason());
+            }
         }
     }
 
@@ -99,6 +117,12 @@ public class InventoryValidationListener implements Listener {
         ValidationResult result = shopContainer.validateItem(item);
         if (!result.isValid()) {
             event.setCancelled(true);
+
+            // Eject invalid item from container
+            Location containerLoc = event.getDestination().getLocation();
+            if (containerLoc != null && containerLoc.getWorld() != null) {
+                containerLoc.getWorld().dropItem(containerLoc, item.clone());
+            }
         }
     }
 
@@ -125,10 +149,50 @@ public class InventoryValidationListener implements Listener {
                 ValidationResult result = shopContainer.validateItem(cursor);
                 if (!result.isValid()) {
                     event.setCancelled(true);
+
+                    // Eject invalid item from container
+                    ItemStack itemToEject = cursor.clone();
+                    Location containerLoc = event.getInventory().getLocation();
+                    if (containerLoc != null && containerLoc.getWorld() != null) {
+                        containerLoc.getWorld().dropItem(containerLoc, itemToEject);
+                    }
+
+                    // Send error notification to player
+                    if (event.getWhoClicked() instanceof Player player) {
+                        sendValidationError(player, result.reason());
+                    }
+
                     return;
                 }
             }
         }
+    }
+
+    /**
+     * Sends validation error notification to player.
+     * Uses NotificationManager if available, falls back to chat message.
+     */
+    private void sendValidationError(Player player, String reason) {
+        try {
+            // Try to get the BarterShops plugin instance
+            Plugin plugin = org.bukkit.Bukkit.getPluginManager().getPlugin("BarterShops");
+            if (plugin instanceof BarterShops barterShops) {
+                NotificationManager notificationManager = barterShops.getNotificationManager();
+                if (notificationManager != null) {
+                    notificationManager.sendNotification(
+                        player.getUniqueId(),
+                        NotificationType.SYSTEM,
+                        ChatColor.RED + "✗ " + reason
+                    );
+                    return;
+                }
+            }
+        } catch (Exception ignored) {
+            // Fall through to chat message
+        }
+
+        // Fallback: send direct chat message
+        player.sendMessage(ChatColor.RED + "✗ " + reason);
     }
 
     /**

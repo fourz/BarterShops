@@ -5,6 +5,7 @@ import org.bukkit.block.sign.Side;
 import org.bukkit.block.sign.SignSide;
 import org.bukkit.inventory.ItemStack;
 import org.fourz.BarterShops.shop.ShopMode;
+import org.fourz.BarterShops.sign.factory.SignLayoutFactory;
 
 import java.util.List;
 
@@ -62,46 +63,8 @@ public class SignDisplay {
     }
 
     private static void displaySetupMode(SignSide side, BarterSign barterSign) {
-        side.setLine(0, "§5[Setup]");
-
-        // Step 1: Set offering item
-        if (barterSign.getItemOffering() == null) {
-            side.setLine(1, "§7L-Click with");
-            side.setLine(2, "§7item to set");
-            side.setLine(3, "§7offering");
-            return;
-        }
-
-        // Step 2: Configure payment (type-dependent)
-        SignType type = barterSign.getType();
-        switch (type) {
-            case BARTER -> {
-                List<ItemStack> payments = barterSign.getAcceptedPayments();
-                if (payments.isEmpty()) {
-                    side.setLine(1, "§7L-Click with item");
-                    side.setLine(2, "§7to add payment");
-                    side.setLine(3, "§7option");
-                } else {
-                    side.setLine(1, "§7Payments: " + payments.size());
-                    side.setLine(2, "§7L-Click: add");
-                    side.setLine(3, "§7Shift+L: remove");
-                }
-            }
-            case BUY, SELL -> {
-                ItemStack priceItem = barterSign.getPriceItem();
-                int priceAmount = barterSign.getPriceAmount();
-
-                if (priceItem == null) {
-                    side.setLine(1, "§7L-Click to set");
-                    side.setLine(2, "§7price currency");
-                    side.setLine(3, "§7(item in hand)");
-                } else {
-                    side.setLine(1, "§7Price: " + priceAmount);
-                    side.setLine(2, "§7" + formatItemName(priceItem));
-                    side.setLine(3, "§7L-Click ±1, Shift+R +16");
-                }
-            }
-        }
+        // DELEGATION: Use SignLayoutFactory for centralized layout generation (Phase 2 refactoring)
+        applyLayoutToSign(side, SignLayoutFactory.createSetupLayout(barterSign));
     }
 
     /**
@@ -475,17 +438,13 @@ public class SignDisplay {
     }
 
     private static void displayHelpMode(SignSide side) {
-        side.setLine(0, "§b[Help]");
-        side.setLine(1, "§7Owner:");
-        side.setLine(2, "§7L-Click = mode");
-        side.setLine(3, "§7R-Click = act");
+        // DELEGATION: Use SignLayoutFactory (Phase 2 refactoring)
+        applyLayoutToSign(side, SignLayoutFactory.createHelpLayout());
     }
 
     private static void displayDeleteMode(SignSide side) {
-        side.setLine(0, "§c[DELETE?]");
-        side.setLine(1, "§7L-Click to");
-        side.setLine(2, "§7delete shop");
-        side.setLine(3, "§7R-Click cancel");
+        // DELEGATION: Use SignLayoutFactory (Phase 2 refactoring)
+        applyLayoutToSign(side, SignLayoutFactory.createDeleteLayout());
     }
 
     public static void displayDeleteConfirmation(Sign sign) {
@@ -495,6 +454,19 @@ public class SignDisplay {
         frontSide.setLine(2, "§cto confirm");
         frontSide.setLine(3, "§7(5s timeout)");
         sign.update();
+    }
+
+    /**
+     * Applies a 4-line layout array to a sign side.
+     * Helper method for delegating to SignLayoutFactory layouts.
+     *
+     * @param side The SignSide to apply the layout to
+     * @param layout The 4-line layout array
+     */
+    private static void applyLayoutToSign(SignSide side, String[] layout) {
+        for (int i = 0; i < 4 && i < layout.length; i++) {
+            side.setLine(i, layout[i] != null ? layout[i] : "");
+        }
     }
 
     private static String formatItemName(ItemStack item) {

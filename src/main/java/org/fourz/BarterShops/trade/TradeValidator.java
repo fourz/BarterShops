@@ -124,7 +124,18 @@ public class TradeValidator {
         }
 
         // Check shop container for stock
-        if (shop.getShopContainer() != null) {
+        // Use wrapper if available (Phase 2), otherwise fallback to plain container
+        org.fourz.BarterShops.container.ShopContainer wrapper = shop.getShopContainerWrapper();
+        if (wrapper != null) {
+            Inventory shopInv = wrapper.getInventory();
+            int stock = countItems(shopInv, offered);
+
+            if (stock < offeredAmount) {
+                errors.add(String.format("Shop out of stock: need %d %s, have %d",
+                        offeredAmount, getItemName(offered), stock));
+            }
+        } else if (shop.getShopContainer() != null) {
+            // Fallback to plain container (backward compat)
             Inventory shopInv = shop.getShopContainer().getInventory();
             int stock = countItems(shopInv, offered);
 

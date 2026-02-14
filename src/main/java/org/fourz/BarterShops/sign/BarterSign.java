@@ -6,6 +6,7 @@ import org.bukkit.block.Container;
 import org.bukkit.block.sign.SignSide;
 import org.bukkit.inventory.ItemStack;
 import org.fourz.BarterShops.shop.ShopMode;
+import org.fourz.BarterShops.container.ShopContainer;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -19,6 +20,7 @@ public class BarterSign {
     private SignType type;
     private Container container;
     private Container shopContainer;
+    private ShopContainer shopContainerWrapper;  // Phase 2 Integration: Wrapper for validation
     private ShopMode mode;
     private SignSide signSideDisplayFront;
     private SignSide signSideDisplayBack;
@@ -72,6 +74,15 @@ public class BarterSign {
     // Database ID accessors
     public int getShopId() { return shopId; }
     public void setShopId(int shopId) { this.shopId = shopId; }
+
+    // Shop container wrapper (Phase 2 Integration)
+    public ShopContainer getShopContainerWrapper() { return shopContainerWrapper; }
+    public void setShopContainerWrapper(ShopContainer wrapper) { this.shopContainerWrapper = wrapper; }
+
+    // Compatibility: Return wrapper if available, otherwise fallback to plain container
+    public Container getShopContainerCompat() {
+        return shopContainerWrapper != null ? shopContainerWrapper.getContainer() : shopContainer;
+    }
 
     // NEW: Item offering configuration
     public ItemStack getItemOffering() { return itemOffering; }

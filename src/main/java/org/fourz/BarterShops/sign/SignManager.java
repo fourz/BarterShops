@@ -27,11 +27,15 @@ import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 
 import org.fourz.BarterShops.BarterShops;
+import org.fourz.BarterShops.container.ShopContainer;
+import org.fourz.BarterShops.container.factory.ShopContainerFactory;
 import org.fourz.BarterShops.shop.ShopMode;
 import org.fourz.BarterShops.data.dto.ShopDataDTO;
 import org.fourz.BarterShops.data.dto.ShopDataDTO.ShopType;
 import org.fourz.BarterShops.service.ShopConfigManager;
 import org.fourz.rvnkcore.util.log.LogManager;
+
+import java.util.UUID;
 
 public class SignManager implements Listener {
     private static final String CLASS_NAME = "SignManager";
@@ -48,18 +52,26 @@ public class SignManager implements Listener {
         this.configManager = new ShopConfigManager(plugin, plugin.getShopRepository());
         plugin.getServer().getPluginManager().registerEvents(this, plugin);
 
-        // Start periodic chest validation task
-        startChestValidationTask();
+        // INTEGRATION POINT 5: Timer-based validation removed - replaced by event-driven InventoryValidationListener
+        // Previously: startChestValidationTask() ran every 250ms to validate in SETUP mode only
+        // Now: InventoryValidationListener validates in ALL modes via inventory events (real-time, lower overhead)
 
         logger.debug("SignManager initialized");
     }
 
     /**
-     * Starts a periodic task to validate chest contents for all barter shops.
-     * Runs every 5 ticks (250ms) to:
-     * 1. Auto-detect shop type from first item placed
-     * 2. Remove invalid items that don't match shop type
+     * @deprecated REPLACED BY EVENT-DRIVEN VALIDATION (Phase 2 Integration)
+     * Replaced by InventoryValidationListener which provides real-time validation in all modes.
+     * This method is no longer called but kept for documentation.
+     *
+     * Previously: Periodic task to validate chest contents for all barter shops.
+     * Ran every 5 ticks (250ms) to:
+     * 1. Auto-detect shop type from first item placed (in SETUP mode only)
+     * 2. Remove invalid items that don't match shop type (in SETUP mode only)
+     *
+     * New approach: InventoryValidationListener validates in ALL modes via inventory events.
      */
+    @Deprecated
     private void startChestValidationTask() {
         plugin.getServer().getScheduler().runTaskTimer(plugin, () -> {
             for (BarterSign barterSign : barterSigns.values()) {
@@ -93,6 +105,12 @@ public class SignManager implements Listener {
                                         return null;
                                     });
                         }
+
+                        // INTEGRATION POINT 3: Update ShopContainer validation rules after type detection
+                        UUID shopUuid = UUID.fromString(barterSign.getId());
+                        ShopContainer shopContainer = createShopContainerFromBarterSign(barterSign, container, shopUuid);
+                        plugin.getContainerManager().getValidationListener().registerContainer(shopContainer);
+                        barterSign.setShopContainerWrapper(shopContainer); // CRITICAL: Set on BarterSign for TradeValidator access
 
                         // Notify owner
                         for (org.bukkit.entity.Player player : signLoc.getWorld().getPlayers()) {
@@ -168,6 +186,14 @@ public class SignManager implements Listener {
                 // Load persisted configuration
                 configManager.loadSignConfiguration(barterSign, shop);
 
+                // INTEGRATION POINT 2: Register ShopContainer from persisted configuration
+                if (container != null) {
+                    UUID shopUuid = UUID.fromString(shop.getShopIdString());
+                    ShopContainer shopContainer = createShopContainerFromBarterSign(barterSign, container, shopUuid);
+                    plugin.getContainerManager().getValidationListener().registerContainer(shopContainer);
+                    barterSign.setShopContainerWrapper(shopContainer); // CRITICAL: Set on BarterSign for TradeValidator access
+                }
+
                 barterSigns.put(signLoc, barterSign);
                 loaded++;
             }
@@ -197,6 +223,12 @@ public class SignManager implements Listener {
             .build();
 
         barterSigns.put(signLocation, barterSign);
+
+        // INTEGRATION POINT 1: Register ShopContainer for real-time validation
+        UUID shopUuid = UUID.fromString(id);
+        ShopContainer shopContainer = ShopContainerFactory.createContainer(container, shopUuid);
+        plugin.getContainerManager().getValidationListener().registerContainer(shopContainer);
+        barterSign.setShopContainerWrapper(shopContainer); // CRITICAL: Set on BarterSign for TradeValidator access
 
         logger.info("Created barter sign (ID: " + id + ") for " + player.getName());
 
@@ -632,6 +664,10 @@ public class SignManager implements Listener {
         BarterSign barterSign = barterSigns.remove(loc);
         if (barterSign == null) return;
 
+        // INTEGRATION POINT 4: Unregister ShopContainer from validation listener
+        UUID shopUuid = UUID.fromString(barterSign.getId());
+        plugin.getContainerManager().getValidationListener().unregisterContainer(shopUuid);
+
         int shopId = barterSign.getShopId();
         if (shopId > 0) {
             // Delete from database asynchronously
@@ -679,6 +715,33 @@ public class SignManager implements Listener {
         }
 
         configManager.saveSignConfiguration(barterSign, barterSign.getShopId());
+    }
+
+    /**
+     * Creates and registers a ShopContainer wrapper for a BarterSign.
+     * Applies appropriate validation rules based on shop type and configuration.
+     * Used during shop creation, database hydration, and type detection.
+     *
+     * @param barterSign The BarterSign to create a container for
+     * @param container The Bukkit Container block
+     * @param shopUuid The UUID of the shop
+     * @return ShopContainer with appropriate validation rules
+     */
+    private ShopContainer createShopContainerFromBarterSign(BarterSign barterSign, Container container, UUID shopUuid) {
+        if (barterSign.isTypeDetected()) {
+            if (barterSign.isStackable() && barterSign.getLockedItemType() != null) {
+                // Stackable with type lock: create type-locked container
+                return ShopContainerFactory.createStackableTypeLocked(
+                    container, shopUuid, barterSign.getLockedItemType(),
+                    barterSign.getLockedItemType().name().toLowerCase().replace('_', ' ')
+                );
+            } else if (!barterSign.isStackable()) {
+                // Unstackable only: create unstackable container
+                return ShopContainerFactory.createUnstackableOnly(container, shopUuid);
+            }
+        }
+        // No type detected or no special rules: create base container
+        return ShopContainerFactory.createContainer(container, shopUuid);
     }
 
     public void cleanup() {

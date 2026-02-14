@@ -14,15 +14,26 @@ import org.bukkit.persistence.PersistentDataType;
 import org.bukkit.NamespacedKey;
 import org.bukkit.event.HandlerList;
 import org.fourz.BarterShops.BarterShops;
+import org.fourz.BarterShops.container.listener.InventoryValidationListener;
 import org.fourz.BarterShops.sign.BarterSign;
 import org.fourz.BarterShops.shop.ShopMode;
 
 public class ContainerManager implements Listener {
     private final BarterShops plugin;
+    private final InventoryValidationListener validationListener;
 
     public ContainerManager(BarterShops plugin) {
         this.plugin = plugin;
+        this.validationListener = new InventoryValidationListener();
         plugin.getServer().getPluginManager().registerEvents(this, plugin);
+        plugin.getServer().getPluginManager().registerEvents(validationListener, plugin);
+    }
+
+    /**
+     * Gets the validation listener for registering shop containers.
+     */
+    public InventoryValidationListener getValidationListener() {
+        return validationListener;
     }
 
     @EventHandler
@@ -122,5 +133,7 @@ public class ContainerManager implements Listener {
     
     public void cleanup() {
         HandlerList.unregisterAll(this);
+        validationListener.cleanup();
+        HandlerList.unregisterAll(validationListener);
     }
 }
