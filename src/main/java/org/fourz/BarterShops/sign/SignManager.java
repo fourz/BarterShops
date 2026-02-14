@@ -188,7 +188,8 @@ public class SignManager implements Listener {
 
                 // INTEGRATION POINT 2: Register ShopContainer from persisted configuration
                 if (container != null) {
-                    UUID shopUuid = UUID.fromString(shop.getShopIdString());
+                    // Create stable UUID from numeric shop ID (database compatibility)
+                    UUID shopUuid = UUID.nameUUIDFromBytes(("bartershop:" + shop.shopId()).getBytes());
                     ShopContainer shopContainer = createShopContainerFromBarterSign(barterSign, container, shopUuid);
                     plugin.getContainerManager().getValidationListener().registerContainer(shopContainer);
                     barterSign.setShopContainerWrapper(shopContainer); // CRITICAL: Set on BarterSign for TradeValidator access
