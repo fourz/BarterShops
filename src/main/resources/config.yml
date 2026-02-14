@@ -6,14 +6,14 @@ general:
 
 storage:
   # types: mysql, sqlite
-  type: sqlite
+  type: mysql
   mysql:
-    host: localhost
+    host: 64.20.41.122
     port: 3306
-    username: root
+    username: fourzorg_rvnkuser
     password: ''
-    useSSL: false
-    database: bartershop
+    useSSL: true
+    database: fourzorg_rvnkcore_dev
     # Table prefix for shared database hosting (e.g., "barter_" creates "barter_shops")
     tablePrefix: "barter_"
   sqlite:
