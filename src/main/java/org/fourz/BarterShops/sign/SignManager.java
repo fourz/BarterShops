@@ -619,7 +619,30 @@ public class SignManager implements Listener {
     }
 
     public void removeBarterSign(Location loc) {
-        barterSigns.remove(loc);
+        BarterSign barterSign = barterSigns.remove(loc);
+        if (barterSign == null) return;
+
+        int shopId = barterSign.getShopId();
+        if (shopId > 0) {
+            // Delete from database asynchronously
+            plugin.getShopRepository().deleteById(shopId).thenAccept(success -> {
+                if (success) {
+                    logger.debug("Deleted shop " + shopId + " from database");
+                } else {
+                    logger.warning("Failed to delete shop " + shopId + " from database");
+                }
+            }).exceptionally(e -> {
+                logger.error("Error deleting shop " + shopId + " from database: " + e.getMessage(), e);
+                return null;
+            });
+        }
+
+        // Clean up PDC data from sign block by removing sign block entirely
+        // (Bukkit will handle PDC cleanup when block is broken)
+        Block signBlock = loc.getBlock();
+        if (signBlock.getType() != Material.AIR && signBlock.getBlockData() instanceof Sign) {
+            signBlock.setType(Material.AIR);
+        }
     }
 
     /**
