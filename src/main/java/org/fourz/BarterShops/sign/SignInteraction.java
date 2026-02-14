@@ -89,6 +89,7 @@ public class SignInteraction {
                 // Step 1: Set offering item
                 if (barterSign.getItemOffering() == null) {
                     barterSign.configureStackableShop(itemInHand, itemInHand.getAmount());
+                    barterSign.updateValidationRules(); // CRITICAL: Update validation rules after offering set
                     player.sendMessage(ChatColor.GREEN + "+ Offering set: " + itemInHand.getAmount() + "x " + itemInHand.getType().name());
                     player.sendMessage(ChatColor.GRAY + "Now set payment/price");
                     logger.debug("Offering configured: " + itemInHand.getType());
@@ -119,6 +120,7 @@ public class SignInteraction {
                         } else {
                             // L-Click: Add payment option
                             barterSign.addPaymentOption(itemInHand, itemInHand.getAmount());
+                            barterSign.updateValidationRules(); // CRITICAL: Update validation rules after payment added
                             player.sendMessage(ChatColor.GREEN + "+ Payment added: " + itemInHand.getAmount() + "x " + itemInHand.getType().name());
                             barterSign.resetCustomerViewState(); // Reset pagination
                             // Save configuration to database
@@ -133,6 +135,7 @@ public class SignInteraction {
                         if (currentPrice == null) {
                             // First click: Set currency item
                             barterSign.configurePrice(itemInHand, 1);
+                            barterSign.updateValidationRules(); // CRITICAL: Update validation rules
                             player.sendMessage(ChatColor.GREEN + "+ Currency set: " + itemInHand.getType().name());
                             player.sendMessage(ChatColor.GRAY + "L-Click ±1, Shift+R +16");
 
@@ -154,6 +157,7 @@ public class SignInteraction {
                             }
 
                             barterSign.configurePrice(itemInHand, newAmount);
+                            barterSign.updateValidationRules(); // CRITICAL: Update validation rules
                             player.sendMessage(ChatColor.AQUA + "Price: " + newAmount + "x " + itemInHand.getType().name());
 
                             // Save configuration to database
@@ -358,6 +362,7 @@ public class SignInteraction {
 
         offering.setAmount(newQty);
         barterSign.configureStackableShop(offering, newQty);
+        barterSign.updateValidationRules(); // CRITICAL: Update validation rules after quantity change
 
         player.sendMessage(ChatColor.AQUA + "Quantity: " + newQty + "x " + offering.getType().name());
 

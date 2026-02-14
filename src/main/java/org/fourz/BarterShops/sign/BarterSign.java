@@ -7,6 +7,8 @@ import org.bukkit.block.sign.SignSide;
 import org.bukkit.inventory.ItemStack;
 import org.fourz.BarterShops.shop.ShopMode;
 import org.fourz.BarterShops.container.ShopContainer;
+import org.fourz.BarterShops.container.validation.MultiTypeItemRule;
+import org.fourz.BarterShops.container.validation.UnstackableItemOnlyRule;
 
 import java.util.ArrayList;
 import java.util.HashSet;
@@ -212,6 +214,34 @@ public class BarterSign {
         }
 
         return allowedTypes;
+    }
+
+    /**
+     * Updates the ShopContainerWrapper's validation rules based on current configuration.
+     * Call this whenever shop configuration changes (offering, payments, etc).
+     * CRITICAL: Must be called after payment options are added.
+     */
+    public void updateValidationRules() {
+        if (shopContainerWrapper == null) {
+            return; // Container not yet created
+        }
+
+        // Clear old rules
+        shopContainerWrapper.clearValidationRules();
+
+        // Re-add rules based on current configuration
+        if (isStackable()) {
+            Set<Material> allowedTypes = getAllowedChestTypes();
+            if (!allowedTypes.isEmpty()) {
+                shopContainerWrapper.addValidationRule(
+                    new org.fourz.BarterShops.container.validation.MultiTypeItemRule(allowedTypes)
+                );
+            }
+        } else if (!isStackable()) {
+            shopContainerWrapper.addValidationRule(
+                new org.fourz.BarterShops.container.validation.UnstackableItemOnlyRule()
+            );
+        }
     }
 
     /**
