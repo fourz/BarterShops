@@ -84,6 +84,16 @@ public class SignManager implements Listener {
                     if (barterSign.detectAndSetTypeFromChest()) {
                         logger.debug("Auto-detected shop type from chest contents at " + containerLoc);
 
+                        // CRITICAL FIX: Persist the type detection to database immediately
+                        // so that typeDetected and lockedItemType survive server restarts and reloads
+                        if (barterSign.getShopId() > 0) {
+                            configManager.saveSignConfiguration(barterSign, barterSign.getShopId())
+                                    .exceptionally(ex -> {
+                                        logger.error("Failed to persist auto-detected shop type: " + ex.getMessage());
+                                        return null;
+                                    });
+                        }
+
                         // Notify owner
                         for (org.bukkit.entity.Player player : signLoc.getWorld().getPlayers()) {
                             if (player.getLocation().distance(signLoc) <= 15 &&
