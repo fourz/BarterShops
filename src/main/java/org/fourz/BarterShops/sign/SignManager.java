@@ -730,13 +730,15 @@ public class SignManager implements Listener {
      */
     private ShopContainer createShopContainerFromBarterSign(BarterSign barterSign, Container container, UUID shopUuid) {
         if (barterSign.isTypeDetected()) {
-            if (barterSign.isStackable() && barterSign.getLockedItemType() != null) {
-                // Stackable with type lock: create type-locked container
-                return ShopContainerFactory.createStackableTypeLocked(
-                    container, shopUuid, barterSign.getLockedItemType(),
-                    barterSign.getLockedItemType().name().toLowerCase().replace('_', ' ')
-                );
-            } else if (!barterSign.isStackable()) {
+            if (barterSign.isStackable()) {
+                // Stackable: use dynamic multi-type validation (offering + payments)
+                var allowedTypes = barterSign.getAllowedChestTypes();
+                if (!allowedTypes.isEmpty()) {
+                    return ShopContainerFactory.createStackableMultiTypeLocked(
+                        container, shopUuid, allowedTypes
+                    );
+                }
+            } else {
                 // Unstackable only: create unstackable container
                 return ShopContainerFactory.createUnstackableOnly(container, shopUuid);
             }

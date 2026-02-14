@@ -9,7 +9,9 @@ import org.fourz.BarterShops.shop.ShopMode;
 import org.fourz.BarterShops.container.ShopContainer;
 
 import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Set;
 import java.util.UUID;
 
 public class BarterSign {
@@ -95,7 +97,9 @@ public class BarterSign {
 
     /**
      * Configures the offering item for stackable shops.
-     * Locks the shop type and item type based on the offering item.
+     * Locks the shop type based on the offering item.
+     * NOTE: Does NOT lock to single item type. Instead, uses getAllowedChestTypes()
+     * to dynamically allow all payment types + offering type.
      */
     public void configureStackableShop(ItemStack itemInHand, int quantity) {
         this.itemOffering = itemInHand.clone();
@@ -105,13 +109,6 @@ public class BarterSign {
         boolean itemIsStackable = isItemStackable(itemInHand);
         setStackable(itemIsStackable);
         setTypeDetected(true); // Lock the type
-
-        // For stackable shops, lock the item type to prevent mixing
-        if (itemIsStackable) {
-            setLockedItemType(itemInHand.getType());
-        } else {
-            setLockedItemType(null); // Unstackable: no specific type lock
-        }
     }
 
     /**
@@ -190,6 +187,31 @@ public class BarterSign {
             .map(ItemStack::getAmount)
             .findFirst()
             .orElse(0);
+    }
+
+    /**
+     * Gets all item types that should be allowed in the shop chest.
+     * Includes: offering item + all payment option items.
+     * This allows owners to restock offerings AND customers to deposit payments.
+     *
+     * @return Set of allowed material types for chest contents
+     */
+    public Set<Material> getAllowedChestTypes() {
+        Set<Material> allowedTypes = new HashSet<>();
+
+        // Allow offering item (for owner restocking)
+        if (itemOffering != null) {
+            allowedTypes.add(itemOffering.getType());
+        }
+
+        // Allow all payment items (for customer payments)
+        for (ItemStack payment : acceptedPayments) {
+            if (payment != null) {
+                allowedTypes.add(payment.getType());
+            }
+        }
+
+        return allowedTypes;
     }
 
     /**
@@ -318,12 +340,19 @@ public class BarterSign {
     /**
      * Sets the current payment page with wraparound using Math.floorMod().
      * Negative indices wrap correctly (e.g., -1 becomes last page).
+     *
+     * For multi-payment shops, pages include:
+     * - Page 0: Summary (shows "page 1 of N")
+     * - Pages 1 to N: Individual payment options (shows "page 2-N of N")
+     * Total pages = acceptedPayments.size() + 1
      */
     public void setCurrentPaymentPage(int page) {
-        if (acceptedPayments.isEmpty()) {
-            this.currentPaymentPage = 0;
+        if (acceptedPayments.size() <= 1) {
+            this.currentPaymentPage = 0; // Single payment or empty: no pagination
         } else {
-            this.currentPaymentPage = Math.floorMod(page, acceptedPayments.size());
+            // Multi-payment: wrap at totalPages = payments + 1 (summary + N payments)
+            int totalPages = acceptedPayments.size() + 1;
+            this.currentPaymentPage = Math.floorMod(page, totalPages);
         }
     }
 

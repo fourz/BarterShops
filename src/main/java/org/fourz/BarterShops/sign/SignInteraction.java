@@ -439,8 +439,10 @@ public class SignInteraction {
             if (payments.size() > 1) {
                 // Advance to next payment page
                 barterSign.incrementPaymentPage();
-                int currentPage = barterSign.getCurrentPaymentPage();
-                ItemStack currentPayment = payments.get(currentPage);
+
+                // Note: currentPage can be 0 (summary) through N (individual payments)
+                // Page 0 = summary, pages 1+ = individual payments
+                // No need to access payments for logging since sign display handles all pagination
 
                 // Pagination feedback removed per user request
                 // (Customer can see payment on sign, no chat spam needed)

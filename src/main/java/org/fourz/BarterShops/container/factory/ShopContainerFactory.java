@@ -4,6 +4,7 @@ import org.bukkit.Material;
 import org.bukkit.block.Container;
 import org.bukkit.inventory.ItemStack;
 import org.fourz.BarterShops.container.ShopContainer;
+import org.fourz.BarterShops.container.validation.MultiTypeItemRule;
 import org.fourz.BarterShops.container.validation.StackableItemTypeRule;
 import org.fourz.BarterShops.container.validation.UnstackableItemOnlyRule;
 import org.fourz.BarterShops.container.validation.ValidationRule;
@@ -69,6 +70,28 @@ public class ShopContainerFactory {
         Material itemType = referenceItem.getType();
         String itemName = itemType.toString().toLowerCase().replace('_', ' ');
         return createStackableTypeLocked(container, shopId, itemType, itemName);
+    }
+
+    /**
+     * Creates a shop container with multiple type validation for stackable items.
+     * Used for BARTER shops with multiple payment options and offering items.
+     * Fixes bug-45: Accepts all payment types + offering type dynamically.
+     *
+     * @param container The Bukkit container block
+     * @param shopId The ID of the shop
+     * @param allowedTypes The set of material types allowed in this shop
+     * @return ShopContainer with MultiTypeItemRule
+     */
+    public static ShopContainer createStackableMultiTypeLocked(
+        Container container,
+        UUID shopId,
+        Set<Material> allowedTypes
+    ) {
+        List<ValidationRule> rules = new ArrayList<>();
+        if (!allowedTypes.isEmpty()) {
+            rules.add(new MultiTypeItemRule(allowedTypes));
+        }
+        return new ShopContainer(container, shopId, rules);
     }
 
     /**
