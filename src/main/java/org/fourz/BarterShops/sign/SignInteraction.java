@@ -88,8 +88,11 @@ public class SignInteraction {
 
                 // Step 1: Set offering item
                 if (barterSign.getItemOffering() == null) {
+                    logger.debug("Setting offering to " + itemInHand.getType() + " (qty=" + itemInHand.getAmount() + ")");
                     barterSign.configureStackableShop(itemInHand, itemInHand.getAmount());
+                    logger.debug("Calling updateValidationRules() after setting offering");
                     barterSign.updateValidationRules(); // CRITICAL: Update validation rules after offering set
+                    logger.debug("updateValidationRules() completed. Container has " + (barterSign.getShopContainerWrapper() != null ? barterSign.getShopContainerWrapper().getValidationRules().size() : 0) + " rules");
                     player.sendMessage(ChatColor.GREEN + "+ Offering set: " + itemInHand.getAmount() + "x " + itemInHand.getType().name());
                     player.sendMessage(ChatColor.GRAY + "Now set payment/price");
                     logger.debug("Offering configured: " + itemInHand.getType());
@@ -119,8 +122,11 @@ public class SignInteraction {
                             }
                         } else {
                             // L-Click: Add payment option
+                            logger.debug("Adding payment option " + itemInHand.getType() + " (qty=" + itemInHand.getAmount() + ")");
                             barterSign.addPaymentOption(itemInHand, itemInHand.getAmount());
+                            logger.debug("Calling updateValidationRules() after adding payment");
                             barterSign.updateValidationRules(); // CRITICAL: Update validation rules after payment added
+                            logger.debug("updateValidationRules() completed. Container has " + (barterSign.getShopContainerWrapper() != null ? barterSign.getShopContainerWrapper().getValidationRules().size() : 0) + " rules");
                             player.sendMessage(ChatColor.GREEN + "+ Payment added: " + itemInHand.getAmount() + "x " + itemInHand.getType().name());
                             barterSign.resetCustomerViewState(); // Reset pagination
                             // Save configuration to database
