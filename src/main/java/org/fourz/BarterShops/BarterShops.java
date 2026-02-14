@@ -1,10 +1,12 @@
 package org.fourz.BarterShops;
 
+import org.bukkit.event.HandlerList;
 import org.bukkit.plugin.Plugin;
 import org.bukkit.plugin.java.JavaPlugin;
 import org.fourz.BarterShops.command.CommandManager;
 import org.fourz.BarterShops.config.ConfigManager;
 import org.fourz.BarterShops.config.TypeAvailabilityManager;
+import org.fourz.BarterShops.container.listener.InventoryValidationListener;
 import org.fourz.BarterShops.data.FallbackTracker;
 import org.fourz.BarterShops.data.IConnectionProvider;
 import org.fourz.BarterShops.data.repository.IShopRepository;
@@ -45,6 +47,7 @@ public class BarterShops extends JavaPlugin {
     private NotificationManager notificationManager;
     private TemplateManager templateManager;
     private ProtectionManager protectionManager;
+    private InventoryValidationListener inventoryValidationListener;
     private IRatingService ratingService;
     private IStatsService statsService;
     private EconomyManager economyManager;
@@ -90,6 +93,11 @@ public class BarterShops extends JavaPlugin {
 
         this.signManager = new SignManager(this);
         this.containerManager = new ContainerManager(this);
+
+        // Initialize real-time inventory validation listener for all modes (fixes bug-36)
+        this.inventoryValidationListener = new InventoryValidationListener();
+        getServer().getPluginManager().registerEvents(inventoryValidationListener, this);
+
         this.shopManager = new ShopManager(this);
         this.tradeEngine = new TradeEngine(this);
         this.tradeConfirmationGUI = new TradeConfirmationGUI(this);
@@ -377,6 +385,14 @@ public class BarterShops extends JavaPlugin {
             if (containerManager != null) {
                 containerManager.cleanup();
                 containerManager = null;
+            }
+        });
+
+        cleanupManager("inventory validation listener", () -> {
+            if (inventoryValidationListener != null) {
+                inventoryValidationListener.cleanup();
+                HandlerList.unregisterAll(inventoryValidationListener);
+                inventoryValidationListener = null;
             }
         });
 
