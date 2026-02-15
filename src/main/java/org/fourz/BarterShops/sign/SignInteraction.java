@@ -837,11 +837,16 @@ public class SignInteraction {
                 // Reset mode and UI state
                 barterSign.setMode(ShopMode.BOARD);
                 barterSign.resetCustomerViewState(); // Clear preview mode and pagination state
-                SignDisplay.updateSign(sign, barterSign, false); // Explicit: show owner view
+
+                // FIX: Get fresh sign state from location (captured sign reference may be stale)
+                if (loc.getBlock().getState() instanceof Sign freshSign) {
+                    SignDisplay.updateSign(freshSign, barterSign, false); // Explicit: show owner view
+                    logger.debug("Auto-revert completed: Returned to BOARD mode, sign refreshed");
+                } else {
+                    logger.debug("Auto-revert skipped display update: Sign block no longer exists at " + loc);
+                }
 
                 activeRevertTasks.remove(loc);
-
-                logger.debug("Auto-revert completed: Returned to BOARD mode, sign refreshed");
             }
         }.runTaskLater(plugin, delayTicks);
 

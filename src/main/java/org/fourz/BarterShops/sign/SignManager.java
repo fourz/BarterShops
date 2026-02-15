@@ -421,30 +421,26 @@ public class SignManager implements Listener {
         BarterSign barterSign = barterSigns.remove(loc);
         if (barterSign == null) return;
 
-        // INTEGRATION POINT 4: Unregister ShopContainer from validation listener
-        UUID shopUuid = UUID.fromString(barterSign.getId());
-        plugin.getContainerManager().getValidationListener().unregisterContainer(shopUuid);
-
+        // Get shop ID for validation unregistration
+        // NOTE: Database deletion is handled by the caller (SignInteraction.deleteShopAndSign)
+        // This method only handles cache cleanup and validation unregistration
         int shopId = barterSign.getShopId();
+
+        // INTEGRATION POINT 4: Unregister ShopContainer from validation listener
+        // Use same UUID generation as registration (nameUUIDFromBytes with shopId)
         if (shopId > 0) {
-            // Delete from database asynchronously
-            plugin.getShopRepository().deleteById(shopId).thenAccept(success -> {
-                if (success) {
-                    logger.debug("Deleted shop " + shopId + " from database");
-                } else {
-                    logger.warning("Failed to delete shop " + shopId + " from database");
-                }
-            }).exceptionally(e -> {
-                logger.error("Error deleting shop " + shopId + " from database: " + e.getMessage(), e);
-                return null;
-            });
+            UUID shopUuid = UUID.nameUUIDFromBytes(("bartershop:" + shopId).getBytes());
+            plugin.getContainerManager().getValidationListener().unregisterContainer(shopUuid);
+            logger.debug("Unregistered shop container validation for shop " + shopId);
         }
 
         // Clean up PDC data from sign block by removing sign block entirely
         // (Bukkit will handle PDC cleanup when block is broken)
+        // FIX: Use getState() not getBlockData() for Sign instanceof check
         Block signBlock = loc.getBlock();
-        if (signBlock.getType() != Material.AIR && signBlock.getBlockData() instanceof Sign) {
+        if (signBlock.getType() != Material.AIR && signBlock.getState() instanceof Sign) {
             signBlock.setType(Material.AIR);
+            logger.debug("Sign block removed at " + loc);
         }
     }
 

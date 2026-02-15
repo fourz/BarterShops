@@ -205,20 +205,24 @@ public class InventoryValidationListener implements Listener {
                     ", action=" + event.getAction() + ", slot=" + event.getRawSlot());
 
         // CASE 1: SHIFT-CLICK from player inventory → moves item TO shop container
-        // This bypasses the raw slot check since the clicked slot is in player inv,
-        // but the RESULT moves item to the container
+        // Only validate when clicked slot is in PLAYER inventory (item going INTO shop)
+        // If clicked slot is in SHOP inventory, player is taking item OUT - always allow
         if (event.getAction() == InventoryAction.MOVE_TO_OTHER_INVENTORY) {
-            // Item being moved is the clicked slot item (not cursor)
-            ItemStack movingItem = event.getCurrentItem();
-            if (movingItem == null || movingItem.getType() == Material.AIR) {
-                logger.debug("InventoryClickEvent: Shift-click but slot is empty");
+            // Check if click is in player inventory (moving item TO shop)
+            if (event.getRawSlot() < event.getInventory().getSize()) {
+                // Clicked slot is in shop container = player is taking item OUT (allow)
+                logger.debug("Shift-click from shop container (removal) - allowed");
                 return;
             }
 
-            logger.info("InventoryClickEvent: SHIFT-CLICK detected! Player " + (player != null ? player.getName() : "?") +
-                       " shift-clicking " + movingItem.getType() + " (qty=" + movingItem.getAmount() + ")");
+            // Clicked slot is in player inventory = moving item INTO shop (validate)
+            ItemStack movingItem = event.getCurrentItem();
+            if (movingItem == null || movingItem.getType() == Material.AIR) {
+                logger.debug("Shift-click from player inventory but slot is empty");
+                return;
+            }
 
-            // Type detection for shift-click
+            // Type detection for shift-click into shop
             if (handleTypeDetection(shopContainer, movingItem, player)) {
                 return; // Type just detected, allow item
             }
@@ -226,8 +230,8 @@ public class InventoryValidationListener implements Listener {
             // Validate the item being shift-clicked into the container
             ValidationResult result = shopContainer.validateItemForUser(movingItem, player);
             if (!result.isValid()) {
-                logger.warning("InventoryClickEvent: Shift-click validation FAILED - " + result.reason() +
-                              ". Item: " + movingItem.getType() + ", Shop rules: " + shopContainer.getValidationRules().size());
+                logger.warning("Type lock validation FAILED - " + result.reason() +
+                              ". Item: " + movingItem.getType());
 
                 event.setCancelled(true);
 
@@ -235,7 +239,7 @@ public class InventoryValidationListener implements Listener {
                     sendValidationError(player, result.reason());
                 }
             } else {
-                logger.debug("InventoryClickEvent: Shift-click validation PASSED for " + movingItem.getType());
+                logger.debug("Type lock validation PASSED for " + movingItem.getType());
             }
             return; // Handled shift-click case
         }
@@ -266,8 +270,8 @@ public class InventoryValidationListener implements Listener {
         // UNIFIED: Validate with user context (owner vs customer)
         ValidationResult result = shopContainer.validateItemForUser(cursor, player);
         if (!result.isValid()) {
-            logger.warning("InventoryClickEvent: Validation FAILED - " + result.reason() +
-                          ". Item: " + cursor.getType() + ", Shop rules: " + shopContainer.getValidationRules().size());
+            logger.warning("Type lock validation FAILED - " + result.reason() +
+                          ". Item: " + cursor.getType());
 
             // FIX: Cancel event only - Bukkit keeps item in cursor (no manual drop needed)
             // Manual dropping caused item duplication (cursor + dropped)
@@ -278,7 +282,7 @@ public class InventoryValidationListener implements Listener {
                 sendValidationError(player, result.reason());
             }
         } else {
-            logger.debug("InventoryClickEvent: Validation PASSED for " + cursor.getType());
+            logger.debug("Type lock validation PASSED for " + cursor.getType());
         }
     }
 
@@ -302,14 +306,14 @@ public class InventoryValidationListener implements Listener {
         // UNIFIED: Validate with user context (null player = automated system like hopper)
         ValidationResult result = shopContainer.validateItemForUser(item, null);
         if (!result.isValid()) {
-            logger.warning("InventoryMoveItemEvent: Validation FAILED - " + result.reason() +
+            logger.warning("Type lock validation FAILED (hopper) - " + result.reason() +
                           ". Item: " + item.getType());
 
             // FIX: Cancel event only - Bukkit returns item to source (no manual drop needed)
             // Manual dropping caused item duplication
             event.setCancelled(true);
         } else {
-            logger.debug("InventoryMoveItemEvent: Validation PASSED for " + item.getType());
+            logger.debug("Type lock validation PASSED (hopper) for " + item.getType());
         }
     }
 
@@ -350,8 +354,8 @@ public class InventoryValidationListener implements Listener {
                 // UNIFIED: Validate with user context (owner vs customer)
                 ValidationResult result = shopContainer.validateItemForUser(cursor, player);
                 if (!result.isValid()) {
-                    logger.warning("InventoryDragEvent: Validation FAILED - " + result.reason() +
-                                  ". Item: " + cursor.getType() + ", Slot: " + slot);
+                    logger.warning("Type lock validation FAILED (drag) - " + result.reason() +
+                                  ". Item: " + cursor.getType());
 
                     // FIX: Cancel event only - Bukkit keeps item in cursor (no manual drop needed)
                     // Manual dropping caused item duplication
@@ -364,7 +368,7 @@ public class InventoryValidationListener implements Listener {
 
                     return;
                 } else {
-                    logger.debug("InventoryDragEvent: Validation PASSED for slot " + slot);
+                    logger.debug("Type lock validation PASSED (drag) for " + cursor.getType());
                 }
             }
         }
