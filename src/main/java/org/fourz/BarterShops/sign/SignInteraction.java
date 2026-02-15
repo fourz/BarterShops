@@ -11,6 +11,8 @@ import org.bukkit.inventory.ItemStack;
 import org.bukkit.scheduler.BukkitRunnable;
 import org.bukkit.scheduler.BukkitTask;
 import org.fourz.BarterShops.BarterShops;
+import org.fourz.BarterShops.inspection.ShopInfoDisplayHelper;
+import org.fourz.BarterShops.preferences.ShopPreferenceManager;
 import org.fourz.BarterShops.shop.ShopMode;
 import org.fourz.BarterShops.sign.SignType;
 import org.fourz.BarterShops.trade.TradeEngine;
@@ -36,6 +38,7 @@ public class SignInteraction {
     private final Map<Location, BukkitTask> activeRevertTasks = new ConcurrentHashMap<>();
     private final Map<String, Long> pendingDeletions = new ConcurrentHashMap<>(); // signId -> timestamp
     private final Map<Location, Long> lastPreviewToggleTime = new ConcurrentHashMap<>(); // Debounce preview toggle
+    private final Map<String, Integer> shiftClickPanelState = new ConcurrentHashMap<>(); // Track shift+click panel per player/sign
     private static final long PREVIEW_TOGGLE_DEBOUNCE_MS = 150; // Ignore toggles within 150ms
 
     public SignInteraction(BarterShops plugin) {
@@ -405,33 +408,9 @@ public class SignInteraction {
 
         ShopMode currentMode = barterSign.getMode();
 
-        // Sneak+Right-click in BOARD mode: Toggle customer preview
-        if (currentMode == ShopMode.BOARD && player.isSneaking()) {
-            // Debounce: Prevent double-toggle if event fires twice in quick succession
-            Location signLoc = sign.getLocation();
-            long currentTime = System.currentTimeMillis();
-            Long lastToggleTime = lastPreviewToggleTime.get(signLoc);
-
-            if (lastToggleTime != null && (currentTime - lastToggleTime) < PREVIEW_TOGGLE_DEBOUNCE_MS) {
-                logger.debug("Preview toggle ignored - duplicate event within debounce window");
-                return; // Ignore duplicate toggle
-            }
-
-            // Record this toggle attempt
-            lastPreviewToggleTime.put(signLoc, currentTime);
-
-            boolean newPreviewMode = !barterSign.isOwnerPreviewMode();
-            barterSign.setOwnerPreviewMode(newPreviewMode);
-
-            if (newPreviewMode) {
-                player.sendMessage(ChatColor.GRAY + "[Preview] Customer view enabled");
-                logger.debug("Owner entered preview mode");
-            } else {
-                player.sendMessage(ChatColor.GRAY + "[Preview] Disabled");
-                logger.debug("Owner exited preview mode");
-            }
-
-            SignDisplay.updateSign(sign, barterSign, newPreviewMode);
+        // Sneak+Right-click: Cycle through 3 display panels (Panel 1→2→3→1)
+        if (player.isSneaking()) {
+            handleOwnerShiftClick(player, sign, barterSign);
             return; // Don't cycle modes
         }
 
@@ -451,6 +430,57 @@ public class SignInteraction {
 
         // Update display: if owner is in preview mode, show customer view; otherwise owner view
         SignDisplay.updateSign(sign, barterSign, barterSign.isOwnerPreviewMode());
+    }
+
+    /**
+     * Handles shift+right-click panel cycling.
+     * Cycles: Panel 1 (Normal) → Panel 2 (Customer Preview) → Panel 3 (Shop Info) → Panel 1
+     */
+    private void handleOwnerShiftClick(Player player, Sign sign, BarterSign barterSign) {
+        ShopPreferenceManager prefs = plugin.getPreferenceManager();
+        String stateKey = player.getUniqueId() + ":" + sign.getLocation().toString();
+
+        int currentPanel = shiftClickPanelState.getOrDefault(stateKey, 1);
+        int nextPanel = currentPanel;
+
+        if (currentPanel == 1) {
+            // Panel 1 → 2: Show customer preview mode (silent)
+            nextPanel = 2;
+            barterSign.setOwnerPreviewMode(true);
+            SignDisplay.updateSign(sign, barterSign, true);
+            logger.debug("Shifted to Panel 2: Customer preview for " + player.getName());
+        }
+        else if (currentPanel == 2) {
+            // Panel 2 → 3: Check if player can view info (permission + preference)
+            boolean canViewInfo = prefs.isInfoDisplayEnabled(player.getUniqueId()) &&
+                (barterSign.getOwner().equals(player.getUniqueId()) ||
+                 player.hasPermission("bartershops.admin") ||
+                 player.hasPermission("bartershops.command.info"));
+
+            if (canViewInfo) {
+                // Show shop info and advance to Panel 3 (info display shows messages)
+                nextPanel = 3;
+                ShopInfoDisplayHelper helper = plugin.getShopInfoDisplayHelper();
+                helper.displayShopInfo(player, barterSign, sign.getLocation(), ShopInfoDisplayHelper.InfoDisplayContext.SHIFT_CLICK);
+                logger.debug("Shifted to Panel 3: Shop info for " + player.getName());
+            } else {
+                // Skip Panel 3, go back to Panel 1 (silent)
+                nextPanel = 1;
+                barterSign.setOwnerPreviewMode(false);
+                SignDisplay.updateSign(sign, barterSign, false);
+                logger.debug("Shifted to Panel 1: Normal (Panel 3 skipped - no permission or disabled)");
+            }
+        }
+        else if (currentPanel == 3) {
+            // Panel 3 → 1: Back to normal (silent)
+            nextPanel = 1;
+            barterSign.setOwnerPreviewMode(false);
+            SignDisplay.updateSign(sign, barterSign, false);
+            logger.debug("Shifted to Panel 1: Normal for " + player.getName());
+        }
+
+        // Store next panel state
+        shiftClickPanelState.put(stateKey, nextPanel);
     }
 
     private void handleCustomerRightClick(Player player, Sign sign, BarterSign barterSign) {

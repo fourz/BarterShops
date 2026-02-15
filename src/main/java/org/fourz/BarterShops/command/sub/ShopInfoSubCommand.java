@@ -3,9 +3,11 @@ package org.fourz.BarterShops.command.sub;
 import org.bukkit.ChatColor;
 import org.bukkit.Location;
 import org.bukkit.command.CommandSender;
+import org.bukkit.entity.Player;
 import org.bukkit.inventory.ItemStack;
 import org.fourz.BarterShops.BarterShops;
 import org.fourz.BarterShops.command.SubCommand;
+import org.fourz.BarterShops.inspection.ShopInfoDisplayHelper;
 import org.fourz.BarterShops.sign.BarterSign;
 import org.fourz.BarterShops.trade.TradeValidator;
 
@@ -49,52 +51,14 @@ public class ShopInfoSubCommand implements SubCommand {
         Location location = shopEntry.get().getKey();
         BarterSign shop = shopEntry.get().getValue();
 
-        // Display shop info
-        sender.sendMessage(ChatColor.GOLD + "===== Shop Info =====");
-        sender.sendMessage(ChatColor.YELLOW + "ID: " + ChatColor.WHITE + shop.getShopId());
-        sender.sendMessage(ChatColor.YELLOW + "Owner: " + ChatColor.WHITE +
-                plugin.getPlayerLookup().getPlayerName(shop.getOwner()));
-        sender.sendMessage(ChatColor.YELLOW + "Type: " + ChatColor.WHITE + shop.getType().name());
-        sender.sendMessage(ChatColor.YELLOW + "Mode: " + ChatColor.WHITE + shop.getMode().name());
-
-        if (location.getWorld() != null) {
-            sender.sendMessage(ChatColor.YELLOW + "Location: " + ChatColor.WHITE +
-                    String.format("%s: %d, %d, %d",
-                            location.getWorld().getName(),
-                            location.getBlockX(), location.getBlockY(), location.getBlockZ()));
+        // Use permission-aware display helper for players
+        if (sender instanceof Player player) {
+            ShopInfoDisplayHelper helper = plugin.getShopInfoDisplayHelper();
+            helper.displayShopInfo(player, shop, location, ShopInfoDisplayHelper.InfoDisplayContext.COMMAND);
+        } else {
+            // Console: Always show full details
+            displayConsoleInfo(sender, shop, location);
         }
-
-        // Show offering item
-        if (shop.getItemOffering() != null) {
-            ItemStack offering = shop.getItemOffering();
-            sender.sendMessage(ChatColor.YELLOW + "Offering: " + ChatColor.WHITE +
-                    offering.getAmount() + "x " + offering.getType().name());
-        }
-
-        // Show payment options
-        List<ItemStack> payments = shop.getAcceptedPayments();
-        if (!payments.isEmpty()) {
-            sender.sendMessage(ChatColor.YELLOW + "Payment Options:");
-            for (int i = 0; i < payments.size(); i++) {
-                ItemStack payment = payments.get(i);
-                sender.sendMessage(ChatColor.WHITE + "  " + (i + 1) + ". " +
-                        payment.getAmount() + "x " + payment.getType().name());
-            }
-        }
-
-        // Show stock
-        if (shop.getItemOffering() != null) {
-            int stock = calculateStock(shop, shop.getItemOffering());
-            if (shop.isAdmin()) {
-                sender.sendMessage(ChatColor.YELLOW + "Stock: " + ChatColor.GREEN + "Unlimited (admin shop)");
-            } else if (stock >= 0) {
-                sender.sendMessage(ChatColor.YELLOW + "Stock: " + ChatColor.WHITE + stock + " available");
-            } else {
-                sender.sendMessage(ChatColor.YELLOW + "Stock: " + ChatColor.RED + "No container found");
-            }
-        }
-
-        sender.sendMessage(ChatColor.YELLOW + "Active: " + ChatColor.WHITE + "Yes");
 
         return true;
     }
@@ -197,6 +161,58 @@ public class ShopInfoSubCommand implements SubCommand {
         }
 
         return completions;
+    }
+
+    /**
+     * Displays full shop info for console (no permission restrictions).
+     */
+    private void displayConsoleInfo(CommandSender sender, BarterSign shop, Location location) {
+        sender.sendMessage(ChatColor.GOLD + "===== Shop Info (Console) =====");
+        sender.sendMessage(ChatColor.YELLOW + "ID: " + ChatColor.WHITE + shop.getShopId());
+        sender.sendMessage(ChatColor.YELLOW + "Owner: " + ChatColor.WHITE +
+                plugin.getPlayerLookup().getPlayerName(shop.getOwner()));
+        sender.sendMessage(ChatColor.YELLOW + "Type: " + ChatColor.WHITE + shop.getType().name());
+        sender.sendMessage(ChatColor.YELLOW + "Mode: " + ChatColor.WHITE + shop.getMode().name());
+
+        if (location.getWorld() != null) {
+            sender.sendMessage(ChatColor.YELLOW + "Location: " + ChatColor.WHITE +
+                    String.format("%s: %d, %d, %d",
+                            location.getWorld().getName(),
+                            location.getBlockX(), location.getBlockY(), location.getBlockZ()));
+        }
+
+        // Show offering item
+        if (shop.getItemOffering() != null) {
+            ItemStack offering = shop.getItemOffering();
+            sender.sendMessage(ChatColor.YELLOW + "Offering: " + ChatColor.WHITE +
+                    offering.getAmount() + "x " + offering.getType().name());
+        }
+
+        // Show payment options
+        List<ItemStack> payments = shop.getAcceptedPayments();
+        if (!payments.isEmpty()) {
+            sender.sendMessage(ChatColor.YELLOW + "Payment Options:");
+            for (int i = 0; i < payments.size(); i++) {
+                ItemStack payment = payments.get(i);
+                sender.sendMessage(ChatColor.WHITE + "  " + (i + 1) + ". " +
+                        payment.getAmount() + "x " + payment.getType().name());
+            }
+        }
+
+        // Show stock
+        if (shop.getItemOffering() != null) {
+            int stock = calculateStock(shop, shop.getItemOffering());
+            if (shop.isAdmin()) {
+                sender.sendMessage(ChatColor.YELLOW + "Stock: " + ChatColor.GREEN + "Unlimited (admin shop)");
+            } else if (stock >= 0) {
+                sender.sendMessage(ChatColor.YELLOW + "Stock: " + ChatColor.WHITE + stock + " available");
+            } else {
+                sender.sendMessage(ChatColor.YELLOW + "Stock: " + ChatColor.RED + "No container found");
+            }
+        }
+
+        sender.sendMessage(ChatColor.YELLOW + "Active: " + ChatColor.WHITE + "Yes");
+        sender.sendMessage(ChatColor.GOLD + "================================");
     }
 
     @Override

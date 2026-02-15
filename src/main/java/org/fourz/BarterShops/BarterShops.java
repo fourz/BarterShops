@@ -32,6 +32,8 @@ import org.fourz.BarterShops.shop.ShopManager;
 import org.fourz.BarterShops.trade.TradeEngine;
 import org.fourz.BarterShops.trade.TradeConfirmationGUI;
 import org.fourz.BarterShops.template.TemplateManager;
+import org.fourz.BarterShops.preferences.ShopPreferenceManager;
+import org.fourz.BarterShops.inspection.ShopInfoDisplayHelper;
 import org.fourz.rvnkcore.util.PlayerLookup;
 import org.fourz.rvnkcore.util.log.LogManager;
 
@@ -47,6 +49,8 @@ public class BarterShops extends JavaPlugin {
     private TemplateManager templateManager;
     private ProtectionManager protectionManager;
     private org.fourz.BarterShops.inspection.InspectionManager inspectionManager;
+    private ShopPreferenceManager preferenceManager;
+    private ShopInfoDisplayHelper shopInfoDisplayHelper;
     private IRatingService ratingService;
     private IStatsService statsService;
     private EconomyManager economyManager;
@@ -115,6 +119,14 @@ public class BarterShops extends JavaPlugin {
                 new org.fourz.BarterShops.inspection.ShopInspectionListener(this, inspectionManager, signManager), this
         );
         logger.info("Shop inspection listener registered");
+
+        // Initialize preference system
+        this.preferenceManager = new ShopPreferenceManager(this);
+        logger.info("Preference manager initialized");
+
+        // Initialize info display helper
+        this.shopInfoDisplayHelper = new ShopInfoDisplayHelper(this, preferenceManager);
+        logger.info("Shop info display helper initialized");
 
         // Initialize RatingService (requires database layer)
         initializeRatingService();
@@ -383,6 +395,14 @@ public class BarterShops extends JavaPlugin {
             }
         });
 
+        cleanupManager("preferences", () -> {
+            if (preferenceManager != null) {
+                preferenceManager.save();
+                preferenceManager.clearAll();
+                preferenceManager = null;
+            }
+        });
+
         cleanupManager("notification", () -> {
             if (notificationManager != null) {
                 notificationManager.shutdown();
@@ -526,6 +546,14 @@ public class BarterShops extends JavaPlugin {
 
     public org.fourz.BarterShops.inspection.InspectionManager getInspectionManager() {
         return inspectionManager;
+    }
+
+    public ShopPreferenceManager getPreferenceManager() {
+        return preferenceManager;
+    }
+
+    public ShopInfoDisplayHelper getShopInfoDisplayHelper() {
+        return shopInfoDisplayHelper;
     }
 
     public IRatingService getRatingService() {
