@@ -88,14 +88,16 @@ public class SignInteraction {
 
                 // Step 1: Set offering item
                 if (barterSign.getItemOffering() == null) {
-                    logger.debug("Setting offering to " + itemInHand.getType() + " (qty=" + itemInHand.getAmount() + ")");
+                    logger.info("[OFFERING] Setting to " + itemInHand.getType() + " (qty=" + itemInHand.getAmount() + ")");
                     barterSign.configureStackableShop(itemInHand, itemInHand.getAmount());
-                    logger.debug("Calling updateValidationRules() after setting offering");
-                    barterSign.updateValidationRules(); // CRITICAL: Update validation rules after offering set
-                    logger.debug("updateValidationRules() completed. Container has " + (barterSign.getShopContainerWrapper() != null ? barterSign.getShopContainerWrapper().getValidationRules().size() : 0) + " rules");
+
+                    // UNIFIED: Refresh sign state (updates rules + displays sign immediately)
+                    refreshSignState(sign, barterSign);
+
+                    int ruleCount = barterSign.getShopContainerWrapper() != null ? barterSign.getShopContainerWrapper().getValidationRules().size() : 0;
+                    logger.info("[VALIDATION] Sign state refreshed - Container has " + ruleCount + " RULES");
                     player.sendMessage(ChatColor.GREEN + "+ Offering set: " + itemInHand.getAmount() + "x " + itemInHand.getType().name());
                     player.sendMessage(ChatColor.GRAY + "Now set payment/price");
-                    logger.debug("Offering configured: " + itemInHand.getType());
 
                     // Save configuration to database
                     if (barterSign.getShopId() > 0) {
@@ -111,6 +113,9 @@ public class SignInteraction {
                         if (player.isSneaking()) {
                             // Shift+L-Click: Remove payment option
                             if (barterSign.removePaymentOption(itemInHand.getType())) {
+                                // UNIFIED: Refresh sign state (updates rules + displays sign immediately)
+                                refreshSignState(sign, barterSign);
+
                                 player.sendMessage(ChatColor.RED + "- Removed: " + itemInHand.getType().name());
                                 barterSign.resetCustomerViewState(); // Reset pagination
                                 // Save configuration to database
@@ -122,13 +127,17 @@ public class SignInteraction {
                             }
                         } else {
                             // L-Click: Add payment option
-                            logger.debug("Adding payment option " + itemInHand.getType() + " (qty=" + itemInHand.getAmount() + ")");
+                            logger.info("[PAYMENT] Adding option " + itemInHand.getType() + " (qty=" + itemInHand.getAmount() + ")");
                             barterSign.addPaymentOption(itemInHand, itemInHand.getAmount());
-                            logger.debug("Calling updateValidationRules() after adding payment");
-                            barterSign.updateValidationRules(); // CRITICAL: Update validation rules after payment added
-                            logger.debug("updateValidationRules() completed. Container has " + (barterSign.getShopContainerWrapper() != null ? barterSign.getShopContainerWrapper().getValidationRules().size() : 0) + " rules");
+
+                            // UNIFIED: Refresh sign state (updates rules + displays sign immediately)
+                            refreshSignState(sign, barterSign);
+
+                            int ruleCount = barterSign.getShopContainerWrapper() != null ? barterSign.getShopContainerWrapper().getValidationRules().size() : 0;
+                            logger.info("[VALIDATION] Sign state refreshed - Container has " + ruleCount + " RULES");
                             player.sendMessage(ChatColor.GREEN + "+ Payment added: " + itemInHand.getAmount() + "x " + itemInHand.getType().name());
                             barterSign.resetCustomerViewState(); // Reset pagination
+
                             // Save configuration to database
                             if (barterSign.getShopId() > 0) {
                                 plugin.getSignManager().saveSignConfiguration(barterSign);
@@ -141,7 +150,10 @@ public class SignInteraction {
                         if (currentPrice == null) {
                             // First click: Set currency item
                             barterSign.configurePrice(itemInHand, 1);
-                            barterSign.updateValidationRules(); // CRITICAL: Update validation rules
+
+                            // UNIFIED: Refresh sign state (updates rules + displays sign immediately)
+                            refreshSignState(sign, barterSign);
+
                             player.sendMessage(ChatColor.GREEN + "+ Currency set: " + itemInHand.getType().name());
                             player.sendMessage(ChatColor.GRAY + "L-Click ±1, Shift+R +16");
 
@@ -163,7 +175,10 @@ public class SignInteraction {
                             }
 
                             barterSign.configurePrice(itemInHand, newAmount);
-                            barterSign.updateValidationRules(); // CRITICAL: Update validation rules
+
+                            // UNIFIED: Refresh sign state (updates rules + displays sign immediately)
+                            refreshSignState(sign, barterSign);
+
                             player.sendMessage(ChatColor.AQUA + "Price: " + newAmount + "x " + itemInHand.getType().name());
 
                             // Save configuration to database
@@ -174,6 +189,9 @@ public class SignInteraction {
                             // Different currency - confirm change
                             player.sendMessage(ChatColor.YELLOW + "! Currency change: " + currentPrice.getType().name() + " → " + itemInHand.getType().name());
                             barterSign.configurePrice(itemInHand, 1);
+
+                            // UNIFIED: Refresh sign state (updates rules + displays sign immediately)
+                            refreshSignState(sign, barterSign);
 
                             // Save configuration to database
                             if (barterSign.getShopId() > 0) {
@@ -718,6 +736,39 @@ public class SignInteraction {
     private void showTemporaryStatus(Sign sign, BarterSign barterSign, String line1, String line2) {
         SignDisplay.displayTemporaryMessage(sign, line1, line2);
         scheduleRevert(sign, barterSign, STATUS_DISPLAY_TICKS);
+    }
+
+    // ========== Sign State Refresh (Unified) ==========
+
+    /**
+     * UNIFIED METHOD: Refresh sign state immediately after configuration changes.
+     * Ensures consistent state refresh across all configuration paths (SETUP, TYPE, etc).
+     *
+     * Always does:
+     * 1. Update validation rules based on current shop configuration
+     * 2. Refresh sign display immediately (no delay)
+     *
+     * @param sign The sign to refresh
+     * @param barterSign The sign data
+     */
+    private void refreshSignState(Sign sign, BarterSign barterSign) {
+        // Step 1: Update validation rules based on current shop configuration
+        barterSign.updateValidationRules();
+
+        // Step 2: Refresh sign display immediately based on current mode
+        // This ensures sign reflects the updated state right away
+        if (barterSign.getMode() == ShopMode.SETUP) {
+            // In SETUP: Always show owner view (no preview mode in SETUP)
+            SignDisplay.updateSign(sign, barterSign, false);
+        } else if (barterSign.getMode() == ShopMode.BOARD) {
+            // In BOARD: Respect owner's preview mode preference
+            SignDisplay.updateSign(sign, barterSign, barterSign.isOwnerPreviewMode());
+        } else {
+            // In TYPE/HELP/DELETE: Show owner view
+            SignDisplay.updateSign(sign, barterSign, false);
+        }
+
+        logger.debug("Sign state refreshed: Rules updated + Display synchronized");
     }
 
     // ========== Auto-Revert Scheduling ==========

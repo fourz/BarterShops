@@ -113,7 +113,7 @@ public class ShopOwnershipServiceImpl implements IShopOwnershipService {
                     int tradesInvalidated = plugin.getTradeEngine().invalidateSessionsForShop(shopId);
                     plugin.getShopManager().invalidateSessionsForShop(reloadedSign);
 
-                    // Step 7: Update sign display (automatic broadcast via sign.update())
+                    // Step 7: Update sign display on main thread (Bukkit requires main thread for block operations)
                     Location signLoc = new Location(
                         Bukkit.getWorld(updatedShop.locationWorld()),
                         updatedShop.locationX(),
@@ -122,10 +122,13 @@ public class ShopOwnershipServiceImpl implements IShopOwnershipService {
                     );
 
                     if (signLoc.getWorld() != null) {
-                        BlockState state = signLoc.getBlock().getState();
-                        if (state instanceof Sign sign) {
-                            SignDisplay.updateSign(sign, reloadedSign);  // Broadcasts to all nearby players
-                        }
+                        // Schedule on main thread - block state access requires main thread
+                        Bukkit.getScheduler().runTask(plugin, () -> {
+                            BlockState state = signLoc.getBlock().getState();
+                            if (state instanceof Sign sign) {
+                                SignDisplay.updateSign(sign, reloadedSign);  // Broadcasts to all nearby players
+                            }
+                        });
                     }
 
                     logger.info("Shop #" + shopId + " ownership changed: " +

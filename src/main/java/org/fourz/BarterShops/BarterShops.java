@@ -46,6 +46,7 @@ public class BarterShops extends JavaPlugin {
     private NotificationManager notificationManager;
     private TemplateManager templateManager;
     private ProtectionManager protectionManager;
+    private org.fourz.BarterShops.inspection.InspectionManager inspectionManager;
     private IRatingService ratingService;
     private IStatsService statsService;
     private EconomyManager economyManager;
@@ -104,6 +105,16 @@ public class BarterShops extends JavaPlugin {
         if (signManager != null && shopRepository != null) {
             signManager.loadSignsFromDatabase();
         }
+
+        // Initialize inspection system
+        this.inspectionManager = new org.fourz.BarterShops.inspection.InspectionManager(this);
+        logger.info("Inspection manager initialized");
+
+        // Register inspection listener
+        getServer().getPluginManager().registerEvents(
+                new org.fourz.BarterShops.inspection.ShopInspectionListener(this, inspectionManager, signManager), this
+        );
+        logger.info("Shop inspection listener registered");
 
         // Initialize RatingService (requires database layer)
         initializeRatingService();
@@ -365,6 +376,13 @@ public class BarterShops extends JavaPlugin {
     }
 
     private void cleanupManagers() {
+        cleanupManager("inspection", () -> {
+            if (inspectionManager != null) {
+                inspectionManager.cleanup();
+                inspectionManager = null;
+            }
+        });
+
         cleanupManager("notification", () -> {
             if (notificationManager != null) {
                 notificationManager.shutdown();
@@ -504,6 +522,10 @@ public class BarterShops extends JavaPlugin {
 
     public ProtectionManager getProtectionManager() {
         return protectionManager;
+    }
+
+    public org.fourz.BarterShops.inspection.InspectionManager getInspectionManager() {
+        return inspectionManager;
     }
 
     public IRatingService getRatingService() {

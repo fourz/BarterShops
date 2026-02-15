@@ -1,19 +1,20 @@
 package org.fourz.BarterShops.command.sub;
 
-import org.bukkit.Bukkit;
 import org.bukkit.ChatColor;
-import org.bukkit.Location;
 import org.bukkit.command.CommandSender;
+import org.bukkit.entity.Player;
+import org.bukkit.inventory.ItemStack;
 import org.fourz.BarterShops.BarterShops;
 import org.fourz.BarterShops.command.SubCommand;
-import org.fourz.BarterShops.sign.BarterSign;
 
-import java.util.*;
+import java.util.Collections;
+import java.util.List;
 
 /**
- * Admin subcommand for inspecting any shop with trade history.
- * Usage: /shop inspect <id>
- * Console-friendly: Yes
+ * Admin subcommand for toggling shop inspection tool.
+ * When enabled, players can right-click shop signs to view detailed information.
+ * Usage: /shop inspect
+ * Console-friendly: No (requires player)
  */
 public class ShopInspectSubCommand implements SubCommand {
     private final BarterShops plugin;
@@ -24,83 +25,60 @@ public class ShopInspectSubCommand implements SubCommand {
 
     @Override
     public boolean execute(CommandSender sender, String[] args) {
-        if (args.length < 1) {
-            sender.sendMessage(ChatColor.RED + "Usage: " + getUsage());
+        if (!(sender instanceof Player player)) {
+            sender.sendMessage(ChatColor.RED + "Only players can use inspection mode");
             return true;
         }
 
-        String shopId = args[0];
-        Optional<Map.Entry<Location, BarterSign>> shopEntry = findShopById(shopId);
-
-        if (shopEntry.isEmpty()) {
-            sender.sendMessage(ChatColor.RED + "Shop not found: " + shopId);
+        var inspectionManager = plugin.getInspectionManager();
+        if (inspectionManager == null) {
+            player.sendMessage(ChatColor.RED + "Inspection system not initialized");
             return true;
         }
 
-        Location location = shopEntry.get().getKey();
-        BarterSign sign = shopEntry.get().getValue();
+        // Toggle inspection mode
+        boolean wasInspecting = inspectionManager.toggleInspectionMode(player.getUniqueId());
 
-        // Display detailed admin inspection
-        sender.sendMessage(ChatColor.GOLD + "===== Shop Inspection =====");
-        sender.sendMessage(ChatColor.YELLOW + "ID: " + ChatColor.WHITE + shopId);
-        sender.sendMessage(ChatColor.YELLOW + "Owner: " + ChatColor.WHITE +
-                plugin.getPlayerLookup().getPlayerName(sign.getOwner()));
-        sender.sendMessage(ChatColor.YELLOW + "Owner UUID: " + ChatColor.GRAY + sign.getOwner());
-        sender.sendMessage(ChatColor.YELLOW + "Type: " + ChatColor.WHITE + sign.getType());
-        sender.sendMessage(ChatColor.YELLOW + "Mode: " + ChatColor.WHITE + sign.getMode());
-        sender.sendMessage(ChatColor.YELLOW + "Location: " + ChatColor.WHITE +
-                String.format("%s: %d, %d, %d",
-                        location.getWorld().getName(),
-                        location.getBlockX(), location.getBlockY(), location.getBlockZ()));
-        sender.sendMessage(ChatColor.YELLOW + "Active: " + ChatColor.WHITE + "Yes");
-
-        // Trade history placeholder (will use ITradeRepository when available)
-        sender.sendMessage(ChatColor.GOLD + "--- Recent Trades (last 10) ---");
-        sender.sendMessage(ChatColor.GRAY + "Trade history requires ITradeRepository implementation");
+        if (wasInspecting) {
+            // Mode turned OFF - remove tool from inventory
+            removeInspectionTool(player);
+            player.sendMessage(ChatColor.YELLOW + "- Inspection mode disabled");
+        } else {
+            // Mode turned ON - give inspection tool
+            ItemStack tool = inspectionManager.createInspectionTool();
+            player.getInventory().addItem(tool);
+            player.sendMessage(ChatColor.GREEN + "+ Inspection mode enabled");
+            player.sendMessage(ChatColor.GRAY + "Right-click shop signs with the tool to inspect");
+        }
 
         return true;
     }
 
-    private Optional<Map.Entry<Location, BarterSign>> findShopById(String id) {
-        Map<Location, BarterSign> shops = plugin.getSignManager().getBarterSigns();
+    /**
+     * Removes inspection tools from player inventory.
+     *
+     * @param player Player to remove tools from
+     */
+    private void removeInspectionTool(Player player) {
+        var inspectionManager = plugin.getInspectionManager();
+        ItemStack[] contents = player.getInventory().getContents();
 
-        if (id.contains(",")) {
-            String[] parts = id.split(",");
-            if (parts.length >= 3) {
-                try {
-                    int x = Integer.parseInt(parts[0].trim());
-                    int y = Integer.parseInt(parts[1].trim());
-                    int z = Integer.parseInt(parts[2].trim());
-
-                    return shops.entrySet().stream()
-                            .filter(entry -> {
-                                Location loc = entry.getKey();
-                                return loc.getBlockX() == x && loc.getBlockY() == y && loc.getBlockZ() == z;
-                            })
-                            .findFirst();
-                } catch (NumberFormatException ignored) {}
+        for (int i = 0; i < contents.length; i++) {
+            ItemStack item = contents[i];
+            if (inspectionManager.isInspectionTool(item)) {
+                player.getInventory().setItem(i, null);
             }
         }
-
-        try {
-            int index = Integer.parseInt(id) - 1;
-            List<Map.Entry<Location, BarterSign>> shopList = new ArrayList<>(shops.entrySet());
-            if (index >= 0 && index < shopList.size()) {
-                return Optional.of(shopList.get(index));
-            }
-        } catch (NumberFormatException ignored) {}
-
-        return Optional.empty();
     }
 
     @Override
     public String getDescription() {
-        return "Inspect detailed shop information (admin)";
+        return "Toggle shop inspection tool for real-time inspection";
     }
 
     @Override
     public String getUsage() {
-        return "/shop inspect <id|x,y,z>";
+        return "/shop inspect";
     }
 
     @Override
@@ -115,20 +93,11 @@ public class ShopInspectSubCommand implements SubCommand {
 
     @Override
     public List<String> getTabCompletions(CommandSender sender, String[] args) {
-        List<String> completions = new ArrayList<>();
-        if (args.length == 1) {
-            Map<Location, BarterSign> shops = plugin.getSignManager().getBarterSigns();
-            for (int i = 1; i <= Math.min(shops.size(), 10); i++) {
-                if (String.valueOf(i).startsWith(args[0])) {
-                    completions.add(String.valueOf(i));
-                }
-            }
-        }
-        return completions;
+        return Collections.emptyList(); // No arguments needed
     }
 
     @Override
     public boolean requiresPlayer() {
-        return false;
+        return true;
     }
 }

@@ -26,6 +26,9 @@ permissions:
   bartershops.nearby:
     description: Allows finding nearby shops
     default: true
+  bartershops.command.info:
+    description: Allows viewing shop information
+    default: true
   bartershops.admin:
     description: General admin bypass for shop operations
     default: op

@@ -3,10 +3,12 @@ package org.fourz.BarterShops.container;
 import org.bukkit.Location;
 import org.bukkit.Material;
 import org.bukkit.block.Container;
+import org.bukkit.entity.Player;
 import org.bukkit.inventory.Inventory;
 import org.bukkit.inventory.ItemStack;
 import org.fourz.BarterShops.container.validation.ValidationResult;
 import org.fourz.BarterShops.container.validation.ValidationRule;
+import org.fourz.BarterShops.sign.BarterSign;
 
 import java.util.*;
 
@@ -20,6 +22,7 @@ public class ShopContainer {
     private final UUID shopId;
     private final List<ValidationRule> validationRules;
     private final long createdAt;
+    private BarterSign barterSign; // Optional: Provided for user-aware validation context
 
     /**
      * Creates a shop container wrapper.
@@ -34,6 +37,22 @@ public class ShopContainer {
         this.shopId = shopId;
         this.validationRules = new ArrayList<>(validationRules);
         this.createdAt = System.currentTimeMillis();
+        this.barterSign = null;
+    }
+
+    /**
+     * Sets the BarterSign for this container (for user-aware validation context).
+     * Called when the container is associated with a shop sign.
+     */
+    public void setBarterSign(BarterSign barterSign) {
+        this.barterSign = barterSign;
+    }
+
+    /**
+     * Gets the BarterSign associated with this container (if any).
+     */
+    public BarterSign getBarterSign() {
+        return barterSign;
     }
 
     /**
@@ -79,6 +98,25 @@ public class ShopContainer {
             }
         }
         return ValidationResult.success();
+    }
+
+    /**
+     * UNIFIED: Validates an item with user context (owner vs customer).
+     * If BarterSign is available, applies role-specific validation rules.
+     * Otherwise falls back to standard validation.
+     *
+     * @param item The item being placed
+     * @param player The player placing the item (null for automated events)
+     * @return ValidationResult with success/failure
+     */
+    public ValidationResult validateItemForUser(ItemStack item, Player player) {
+        // If BarterSign context is available, use user-aware validation
+        if (barterSign != null) {
+            return ContainerValidationHelper.validateItemForUser(item, player, barterSign, this);
+        }
+
+        // Fallback: Use standard validation if no BarterSign context
+        return validateItem(item);
     }
 
     /**

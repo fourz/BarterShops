@@ -781,7 +781,7 @@ public class SignManager implements Listener {
 
                 // Step 4: CRITICAL - Unregister old ShopContainer wrapper
                 if (oldSign.getShopContainerWrapper() != null) {
-                    UUID oldShopUuid = java.util.UUID.fromString(oldSign.getId());
+                    UUID oldShopUuid = java.util.UUID.nameUUIDFromBytes(("bartershop:" + oldSign.getShopId()).getBytes());
                     plugin.getContainerManager().getValidationListener()
                         .unregisterContainer(oldShopUuid);
                 }
@@ -789,7 +789,7 @@ public class SignManager implements Listener {
                 // Step 5: Rebuild ShopContainer wrapper with new BarterSign
                 Container container = oldSign.getContainer();
                 if (container != null) {
-                    UUID shopUuid = java.util.UUID.fromString(newSign.getId());
+                    UUID shopUuid = java.util.UUID.nameUUIDFromBytes(("bartershop:" + newSign.getShopId()).getBytes());
                     ShopContainer newContainer = createShopContainerFromBarterSign(newSign, container, shopUuid);
                     newSign.setShopContainerWrapper(newContainer);
 

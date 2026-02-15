@@ -104,20 +104,15 @@ public class InventoryValidationListener implements Listener {
         logger.info("InventoryClickEvent: Player " + (player != null ? player.getName() : "?") +
                   " clicking with " + cursor.getType() + " (qty=" + cursor.getAmount() + ") at slot " + event.getRawSlot());
 
-        // Validate the item being placed
-        ValidationResult result = shopContainer.validateItem(cursor);
+        // UNIFIED: Validate with user context (owner vs customer)
+        ValidationResult result = shopContainer.validateItemForUser(cursor, player);
         if (!result.isValid()) {
             logger.warning("InventoryClickEvent: Validation FAILED - " + result.reason() +
                           ". Item: " + cursor.getType() + ", Shop rules: " + shopContainer.getValidationRules().size());
-            event.setCancelled(true);
 
-            // Eject invalid item from container
-            ItemStack itemToEject = cursor.clone();
-            Location containerLoc = event.getInventory().getLocation();
-            if (containerLoc != null && containerLoc.getWorld() != null) {
-                containerLoc.getWorld().dropItem(containerLoc, itemToEject);
-                logger.debug("InventoryClickEvent: Ejected invalid item at " + containerLoc);
-            }
+            // FIX: Cancel event only - Bukkit keeps item in cursor (no manual drop needed)
+            // Manual dropping caused item duplication (cursor + dropped)
+            event.setCancelled(true);
 
             // Send error notification to player
             if (player != null) {
@@ -145,18 +140,15 @@ public class InventoryValidationListener implements Listener {
         logger.info("InventoryMoveItemEvent: Automated item move detected: " + item.getType() +
                    " (qty=" + item.getAmount() + ") to shop at " + shopContainer.getLocation());
 
-        ValidationResult result = shopContainer.validateItem(item);
+        // UNIFIED: Validate with user context (null player = automated system like hopper)
+        ValidationResult result = shopContainer.validateItemForUser(item, null);
         if (!result.isValid()) {
             logger.warning("InventoryMoveItemEvent: Validation FAILED - " + result.reason() +
                           ". Item: " + item.getType());
-            event.setCancelled(true);
 
-            // Eject invalid item from container
-            Location containerLoc = event.getDestination().getLocation();
-            if (containerLoc != null && containerLoc.getWorld() != null) {
-                containerLoc.getWorld().dropItem(containerLoc, item.clone());
-                logger.debug("InventoryMoveItemEvent: Ejected invalid item at " + containerLoc);
-            }
+            // FIX: Cancel event only - Bukkit returns item to source (no manual drop needed)
+            // Manual dropping caused item duplication
+            event.setCancelled(true);
         } else {
             logger.debug("InventoryMoveItemEvent: Validation PASSED for " + item.getType());
         }
@@ -191,19 +183,15 @@ public class InventoryValidationListener implements Listener {
             if (slot < event.getInventory().getSize()) {
                 // Slot is in shop container, validate
                 logger.debug("InventoryDragEvent: Checking slot " + slot + " in container");
-                ValidationResult result = shopContainer.validateItem(cursor);
+                // UNIFIED: Validate with user context (owner vs customer)
+                ValidationResult result = shopContainer.validateItemForUser(cursor, player);
                 if (!result.isValid()) {
                     logger.warning("InventoryDragEvent: Validation FAILED - " + result.reason() +
                                   ". Item: " + cursor.getType() + ", Slot: " + slot);
-                    event.setCancelled(true);
 
-                    // Eject invalid item from container
-                    ItemStack itemToEject = cursor.clone();
-                    Location containerLoc = event.getInventory().getLocation();
-                    if (containerLoc != null && containerLoc.getWorld() != null) {
-                        containerLoc.getWorld().dropItem(containerLoc, itemToEject);
-                        logger.debug("InventoryDragEvent: Ejected invalid item at " + containerLoc);
-                    }
+                    // FIX: Cancel event only - Bukkit keeps item in cursor (no manual drop needed)
+                    // Manual dropping caused item duplication
+                    event.setCancelled(true);
 
                     // Send error notification to player
                     if (player != null) {
