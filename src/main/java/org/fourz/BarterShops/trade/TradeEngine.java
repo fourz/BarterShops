@@ -411,6 +411,43 @@ public class TradeEngine {
     }
 
     /**
+     * Invalidate all active trade sessions for a shop.
+     * Used when shop ownership changes to prevent old owner from completing trades.
+     *
+     * @param shopId The shop ID
+     * @return Number of sessions invalidated
+     */
+    public int invalidateSessionsForShop(int shopId) {
+        int invalidated = 0;
+
+        // Find all sessions for this shop
+        java.util.List<String> sessionsToRemove = new java.util.ArrayList<>();
+        for (Map.Entry<String, TradeSession> entry : activeSessions.entrySet()) {
+            TradeSession session = entry.getValue();
+            if (session.getShop() != null && session.getShop().getShopId() == shopId) {
+                sessionsToRemove.add(entry.getKey());
+
+                // Notify player
+                UUID playerId = session.getBuyerUuid();
+                Player player = Bukkit.getPlayer(playerId);
+                if (player != null) {
+                    player.sendMessage(org.bukkit.ChatColor.YELLOW + "⚠ Shop ownership changed - trade cancelled");
+                }
+            }
+        }
+
+        // Remove sessions
+        for (String sessionId : sessionsToRemove) {
+            activeSessions.remove(sessionId);
+            playerSessions.values().remove(sessionId);
+            invalidated++;
+        }
+
+        logger.info("Invalidated " + invalidated + " active trade sessions for shop " + shopId);
+        return invalidated;
+    }
+
+    /**
      * Gets the trade validator.
      */
     public TradeValidator getValidator() {

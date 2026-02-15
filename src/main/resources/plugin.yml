@@ -105,3 +105,10 @@ permissions:
   bartershops.admin.seed:
     description: Allows seeding test data into the database
     default: op
+  # Ownership transfer permissions
+  bartershops.admin.changeowner:
+    description: Change shop ownership
+    default: op
+  bartershops.admin.changeowner.bypass:
+    description: Bypass ownership change restrictions (for automation)
+    default: false

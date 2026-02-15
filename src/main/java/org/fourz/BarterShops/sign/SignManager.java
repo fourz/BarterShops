@@ -719,9 +719,105 @@ public class SignManager implements Listener {
     }
 
     /**
+     * Reload a shop from database and update in-memory cache.
+     * Used after ownership changes to sync immutable BarterSign.owner field.
+     * Handles ShopContainer wrapper lifecycle (unregister old, register new).
+     *
+     * @param shopId The shop ID to reload
+     * @return CompletableFuture with reloaded BarterSign, or null if not found/error
+     */
+    public java.util.concurrent.CompletableFuture<BarterSign> reloadShopFromDatabase(int shopId) {
+        return java.util.concurrent.CompletableFuture.supplyAsync(() -> {
+            try {
+                // Step 1: Load fresh DTO from database
+                ShopDataDTO shopData = plugin.getShopRepository().findById(shopId)
+                    .get(5, java.util.concurrent.TimeUnit.SECONDS)
+                    .orElse(null);
+
+                if (shopData == null) {
+                    logger.warning("Cannot reload shop " + shopId + " - not found in database");
+                    return null;
+                }
+
+                // Step 2: Find old BarterSign by location
+                Location signLoc = shopData.getSignLocation();
+                if (signLoc == null || signLoc.getWorld() == null) {
+                    logger.warning("Cannot reload shop " + shopId + " - invalid sign location");
+                    return null;
+                }
+
+                BarterSign oldSign = barterSigns.get(signLoc);
+                if (oldSign == null) {
+                    logger.warning("Cannot reload shop " + shopId + " - sign not in cache at " + signLoc);
+                    return null;
+                }
+
+                // Step 3: Build new BarterSign with updated owner
+                BarterSign.Builder builder = new BarterSign.Builder()
+                    .id(oldSign.getId())
+                    .owner(shopData.ownerUuid())  // NEW OWNER from database
+                    .signLocation(signLoc)
+                    .container(oldSign.getContainer())
+                    .mode(oldSign.getMode())  // Preserve current mode
+                    .type(oldSign.getType())
+                    .signSideDisplayFront(oldSign.getSignSideDisplayFront())
+                    .signSideDisplayBack(oldSign.getSignSideDisplayBack());
+
+                BarterSign newSign = builder.build();
+                newSign.setShopId(shopId);
+
+                // Copy configuration from old sign
+                newSign.setStackable(oldSign.isStackable());
+                if (oldSign.getItemOffering() != null) {
+                    newSign.configureStackableShop(oldSign.getItemOffering(), oldSign.getItemOffering().getAmount());
+                }
+                if (oldSign.getPriceItem() != null) {
+                    newSign.configurePrice(oldSign.getPriceItem(), oldSign.getPriceAmount());
+                }
+                for (ItemStack payment : oldSign.getAcceptedPayments()) {
+                    newSign.addPaymentOption(payment, payment.getAmount());
+                }
+                newSign.setTypeDetected(oldSign.isTypeDetected());
+
+                // Step 4: CRITICAL - Unregister old ShopContainer wrapper
+                if (oldSign.getShopContainerWrapper() != null) {
+                    UUID oldShopUuid = java.util.UUID.fromString(oldSign.getId());
+                    plugin.getContainerManager().getValidationListener()
+                        .unregisterContainer(oldShopUuid);
+                }
+
+                // Step 5: Rebuild ShopContainer wrapper with new BarterSign
+                Container container = oldSign.getContainer();
+                if (container != null) {
+                    UUID shopUuid = java.util.UUID.fromString(newSign.getId());
+                    ShopContainer newContainer = createShopContainerFromBarterSign(newSign, container, shopUuid);
+                    newSign.setShopContainerWrapper(newContainer);
+
+                    // Register new wrapper with validation listener
+                    plugin.getContainerManager().getValidationListener()
+                        .registerContainer(newContainer);
+                }
+
+                // Step 6: Update cache
+                barterSigns.put(signLoc, newSign);
+
+                logger.info("Reloaded shop " + shopId + " with new owner: " + shopData.ownerUuid());
+                return newSign;
+
+            } catch (Exception e) {
+                logger.error("Failed to reload shop " + shopId + " from database", e);
+                return null;
+            }
+        });
+    }
+
+    /**
      * Creates and registers a ShopContainer wrapper for a BarterSign.
      * Applies appropriate validation rules based on shop type and configuration.
      * Used during shop creation, database hydration, and type detection.
+     *
+     * UNIFIED: Sets bidirectional reference between BarterSign and ShopContainer
+     * so validation can access shop configuration (owner, offerings, payments).
      *
      * @param barterSign The BarterSign to create a container for
      * @param container The Bukkit Container block
@@ -729,22 +825,31 @@ public class SignManager implements Listener {
      * @return ShopContainer with appropriate validation rules
      */
     private ShopContainer createShopContainerFromBarterSign(BarterSign barterSign, Container container, UUID shopUuid) {
+        ShopContainer shopContainer;
+
         if (barterSign.isTypeDetected()) {
             if (barterSign.isStackable()) {
                 // Stackable: use dynamic multi-type validation (offering + payments)
                 var allowedTypes = barterSign.getAllowedChestTypes();
                 if (!allowedTypes.isEmpty()) {
-                    return ShopContainerFactory.createStackableMultiTypeLocked(
+                    shopContainer = ShopContainerFactory.createStackableMultiTypeLocked(
                         container, shopUuid, allowedTypes
                     );
+                } else {
+                    shopContainer = ShopContainerFactory.createContainer(container, shopUuid);
                 }
             } else {
                 // Unstackable only: create unstackable container
-                return ShopContainerFactory.createUnstackableOnly(container, shopUuid);
+                shopContainer = ShopContainerFactory.createUnstackableOnly(container, shopUuid);
             }
+        } else {
+            // No type detected or no special rules: create base container
+            shopContainer = ShopContainerFactory.createContainer(container, shopUuid);
         }
-        // No type detected or no special rules: create base container
-        return ShopContainerFactory.createContainer(container, shopUuid);
+
+        // UNIFIED: Set bidirectional reference for user-aware validation context
+        shopContainer.setBarterSign(barterSign);
+        return shopContainer;
     }
 
     public void cleanup() {

@@ -101,11 +101,37 @@ public class ShopManager {
 
     /**
      * Gets a read-only view of all active sessions.
-     * 
+     *
      * @return Unmodifiable map of all active sessions
      */
     public Map<UUID, ShopSession> getActiveSessions() {
         return Collections.unmodifiableMap(activeSessions);
+    }
+
+    /**
+     * Invalidate owner's active session for a shop.
+     * Prevents old owner from continuing configuration after ownership change.
+     *
+     * @param shop The shop that changed ownership
+     */
+    public void invalidateSessionsForShop(org.fourz.BarterShops.sign.BarterSign shop) {
+        if (shop == null) {
+            return;
+        }
+
+        UUID oldOwner = shop.getOwner();
+        ShopSession session = activeSessions.get(oldOwner);
+
+        if (session == null) {
+            return; // No active session for old owner
+        }
+
+        // Remove old owner's session to force them out of configuration mode
+        org.bukkit.entity.Player player = org.bukkit.Bukkit.getPlayer(oldOwner);
+        if (player != null) {
+            removeSession(player);
+            logger.debug("Invalidated shop session for old owner: " + oldOwner);
+        }
     }
 
     /**

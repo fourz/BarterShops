@@ -53,6 +53,7 @@ public class BarterShops extends JavaPlugin {
     private TypeAvailabilityManager typeAvailabilityManager;
     private LogManager logger;
     private PlayerLookup playerLookup;
+    private org.fourz.BarterShops.service.IShopOwnershipService ownershipService;
 
     // Database layer (impl-11)
     private ConnectionProviderImpl connectionProvider;
@@ -94,6 +95,10 @@ public class BarterShops extends JavaPlugin {
         this.shopManager = new ShopManager(this);
         this.tradeEngine = new TradeEngine(this);
         this.tradeConfirmationGUI = new TradeConfirmationGUI(this);
+
+        // Initialize ownership service (centralized shop ownership management)
+        this.ownershipService = new org.fourz.BarterShops.service.impl.ShopOwnershipServiceImpl(this);
+        logger.info("Ownership service initialized");
 
         // Load signs from database now that both signManager and shopRepository are initialized
         if (signManager != null && shopRepository != null) {
@@ -551,5 +556,14 @@ public class BarterShops extends JavaPlugin {
 
     public TypeAvailabilityManager getTypeAvailabilityManager() {
         return typeAvailabilityManager;
+    }
+
+    /**
+     * Gets the shop ownership service for real-time ownership transfers.
+     *
+     * @return The IShopOwnershipService instance
+     */
+    public org.fourz.BarterShops.service.IShopOwnershipService getOwnershipService() {
+        return ownershipService;
     }
 }

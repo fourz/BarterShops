@@ -213,7 +213,7 @@ public class ShopDebugSubCommand implements SubCommand {
     /**
      * Handle the changeowner subcommand.
      * Usage: /shop debug changeowner <shopId> <playerName>
-     * Updates both database and in-memory shop data.
+     * Delegates to IShopOwnershipService for real-time ownership transfer.
      */
     private boolean handleChangeOwner(CommandSender sender, String[] args) {
         if (args.length < 2) {
@@ -248,78 +248,25 @@ public class ShopDebugSubCommand implements SubCommand {
             newOwnerUUID = offlinePlayer.getUniqueId();
         }
 
-        // Load existing shop from database
-        if (plugin.getShopRepository() == null) {
-            sender.sendMessage(ChatColor.RED + "Shop repository is not available");
-            return true;
-        }
-
-        // Async database operation
-        plugin.getShopRepository().findById(shopId).thenAccept(optionalShop -> {
-            if (optionalShop.isEmpty()) {
-                sender.sendMessage(ChatColor.RED + "Shop not found with ID: " + shopId);
-                return;
-            }
-
-            ShopDataDTO existingShop = optionalShop.get();
-
-            // Create new DTO with updated owner
-            ShopDataDTO updatedShop = ShopDataDTO.builder()
-                    .shopId(existingShop.shopId())
-                    .ownerUuid(newOwnerUUID)  // UPDATE: New owner
-                    .shopName(existingShop.shopName())
-                    .shopType(existingShop.shopType())
-                    .signLocation(existingShop.locationWorld(), existingShop.locationX(),
-                            existingShop.locationY(), existingShop.locationZ())
-                    .chestLocation(existingShop.chestLocationWorld(), existingShop.chestLocationX(),
-                            existingShop.chestLocationY(), existingShop.chestLocationZ())
-                    .isActive(existingShop.isActive())
-                    .createdAt(existingShop.createdAt())
-                    .lastModified(new java.sql.Timestamp(System.currentTimeMillis()))
-                    .build();
-
-            // Save to database
-            plugin.getShopRepository().save(updatedShop).thenAccept(saved -> {
-                // Update in-memory BarterSign if loaded
-                if (plugin.getSignManager() != null) {
-                    // Find BarterSign by shopId
-                    BarterSign barterSign = plugin.getSignManager().getBarterSigns().values().stream()
-                            .filter(sign -> sign.getShopId() == shopId)
-                            .findFirst()
-                            .orElse(null);
-
-                    if (barterSign != null) {
-                        // Refresh the sign display to show updated state
-                        try {
-                            Block signBlock = barterSign.getSignLocation().getBlock();
-                            if (signBlock.getState() instanceof Sign) {
-                                Sign sign = (Sign) signBlock.getState();
-                                SignDisplay.updateSign(sign, barterSign, false); // Show owner view
-                                logger.debug("Sign display refreshed after owner change");
-                            }
-                        } catch (Exception e) {
-                            logger.warning("Failed to refresh sign display: " + e.getMessage());
-                        }
-                    }
+        // Delegate to ownership service
+        plugin.getOwnershipService().transferOwnership(shopId, newOwnerUUID, sender)
+            .thenAccept(result -> {
+                if (result.success()) {
+                    sender.sendMessage(ChatColor.GREEN + "✓ " + result.message());
+                    sender.sendMessage(ChatColor.GRAY + "  Shop: " + ChatColor.WHITE + "#" + shopId);
+                    sender.sendMessage(ChatColor.GRAY + "  Old owner: " + ChatColor.WHITE + result.oldOwner());
+                    sender.sendMessage(ChatColor.GRAY + "  New owner: " + ChatColor.WHITE + result.newOwner());
+                    sender.sendMessage(ChatColor.GRAY + "  Sessions invalidated: " + ChatColor.YELLOW +
+                        result.sessionsInvalidated());
+                } else {
+                    sender.sendMessage(ChatColor.RED + "✗ " + result.message());
                 }
-
-                sender.sendMessage(ChatColor.GREEN + "✓ Shop owner changed!");
-                sender.sendMessage(ChatColor.GRAY + "  Shop ID: " + shopId);
-                sender.sendMessage(ChatColor.GRAY + "  Old Owner: " + existingShop.ownerUuid());
-                sender.sendMessage(ChatColor.GRAY + "  New Owner: " + newOwnerUUID + " (" + playerName + ")");
-                logger.info("Shop " + shopId + " owner changed from " + existingShop.ownerUuid() +
-                        " to " + newOwnerUUID + " by " + sender.getName());
-            }).exceptionally(e -> {
-                sender.sendMessage(ChatColor.RED + "Failed to update shop owner: " + e.getMessage());
-                logger.error("Error changing shop owner: " + e.getMessage());
+            })
+            .exceptionally(ex -> {
+                sender.sendMessage(ChatColor.RED + "✗ Error: " + ex.getMessage());
+                logger.error("Error during ownership transfer", ex);
                 return null;
             });
-
-        }).exceptionally(e -> {
-            sender.sendMessage(ChatColor.RED + "Error loading shop: " + e.getMessage());
-            logger.error("Error loading shop " + shopId + ": " + e.getMessage());
-            return null;
-        });
 
         sender.sendMessage(ChatColor.YELLOW + "* Changing shop owner...");
         return true;
