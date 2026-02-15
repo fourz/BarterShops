@@ -8,6 +8,8 @@ import org.bukkit.Sound;
 import org.bukkit.entity.Player;
 import org.bukkit.scheduler.BukkitTask;
 import org.fourz.BarterShops.BarterShops;
+import org.fourz.BarterShops.integration.preferences.PreferencesServiceLookup;
+import org.fourz.rvnkcore.api.service.PlayerPreferencesService;
 import org.fourz.rvnkcore.util.log.LogManager;
 
 import java.time.LocalTime;
@@ -17,6 +19,9 @@ import java.util.concurrent.ConcurrentHashMap;
 /**
  * Central notification dispatcher for trade events and shop updates.
  * Manages notification preferences, channels, and delivery.
+ *
+ * Integrated with RVNKCore PlayerPreferencesService (Phase 3).
+ * Falls back to local preferences if service unavailable.
  */
 public class NotificationManager {
 
@@ -25,15 +30,20 @@ public class NotificationManager {
     private final Map<UUID, NotificationPreferencesDTO> preferences;
     private final Queue<PendingNotification> notificationQueue;
     private BukkitTask queueProcessor;
+    private final PreferencesServiceLookup preferencesServiceLookup;
 
     private static final int QUEUE_PROCESS_INTERVAL = 20; // 1 second
     private static final int MAX_QUEUE_SIZE = 1000;
+
+    // Plugin identifier for PlayerPreferencesService
+    private static final String PLUGIN_ID = "bartershops";
 
     public NotificationManager(BarterShops plugin) {
         this.plugin = plugin;
         this.logger = LogManager.getInstance(plugin, "NotificationManager");
         this.preferences = new ConcurrentHashMap<>();
         this.notificationQueue = new LinkedList<>();
+        this.preferencesServiceLookup = new PreferencesServiceLookup(plugin);
         startQueueProcessor();
         logger.info("NotificationManager initialized");
     }
@@ -177,18 +187,131 @@ public class NotificationManager {
 
     /**
      * Gets notification preferences for a player.
-     * Creates defaults if not found.
+     * Checks PlayerPreferencesService first, falls back to local storage.
+     * Creates defaults if not found in either system.
      */
     public NotificationPreferencesDTO getPreferences(UUID playerUuid) {
+        // Try PlayerPreferencesService first
+        if (preferencesServiceLookup.isAvailable()) {
+            try {
+                return getPreferencesFromService(playerUuid);
+            } catch (Exception e) {
+                logger.debug("Failed to get preferences from service, using fallback: " + e.getMessage());
+            }
+        }
+
+        // Fallback to local preferences
         return preferences.computeIfAbsent(playerUuid, NotificationPreferencesDTO::createDefaults);
     }
 
     /**
+     * Retrieves preferences from PlayerPreferencesService.
+     * Converts RVNKCore service data to NotificationPreferencesDTO.
+     * Uses .join() to block since this is called synchronously from commands.
+     */
+    private NotificationPreferencesDTO getPreferencesFromService(UUID playerUuid) {
+        PlayerPreferencesService service = preferencesServiceLookup.getService();
+        if (service == null) {
+            throw new IllegalStateException("Service not available");
+        }
+
+        try {
+            // Build preferences from service
+            Map<NotificationType, Boolean> enabledTypes = new EnumMap<>(NotificationType.class);
+            for (NotificationType type : NotificationType.values()) {
+                boolean enabled = service.isNotificationEnabled(
+                        playerUuid,
+                        PLUGIN_ID,
+                        type.name()
+                ).join(); // Block synchronously
+                enabledTypes.put(type, enabled);
+            }
+
+            // Check master toggle (default: true)
+            boolean masterEnabled = service.isMasterEnabled(playerUuid, PLUGIN_ID).join();
+
+            // Get quiet hours configuration
+            org.fourz.rvnkcore.api.model.QuietHoursConfig quietHours =
+                    service.getQuietHours(playerUuid, PLUGIN_ID).join();
+            int quietStart = quietHours.getStartHour();
+            int quietEnd = quietHours.getEndHour();
+
+            // Use default channel preferences for now (can be expanded later via setChannelEnabled)
+            Map<NotificationType, NotificationPreferencesDTO.ChannelPreference> channels = new EnumMap<>(NotificationType.class);
+            for (NotificationType type : NotificationType.values()) {
+                channels.put(type, NotificationPreferencesDTO.ChannelPreference.defaults());
+            }
+
+            return new NotificationPreferencesDTO(
+                    playerUuid,
+                    channels,
+                    enabledTypes,
+                    quietStart,
+                    quietEnd,
+                    masterEnabled
+            );
+        } catch (Exception e) {
+            logger.error("Failed to retrieve preferences from service: " + e.getMessage());
+            throw e;
+        }
+    }
+
+    /**
      * Updates notification preferences for a player.
+     * Saves to PlayerPreferencesService if available, otherwise uses local storage.
      */
     public void updatePreferences(NotificationPreferencesDTO newPreferences) {
+        // Save to PlayerPreferencesService if available
+        if (preferencesServiceLookup.isAvailable()) {
+            try {
+                savePreferencesToService(newPreferences);
+            } catch (Exception e) {
+                logger.warning("Failed to save preferences to service: " + e.getMessage());
+            }
+        }
+
+        // Always save to local cache as fallback
         preferences.put(newPreferences.playerUuid(), newPreferences);
         logger.debug("Updated preferences for player: " + newPreferences.playerUuid());
+    }
+
+    /**
+     * Saves preferences to PlayerPreferencesService.
+     * Uses .join() to block since this is called synchronously from commands.
+     */
+    private void savePreferencesToService(NotificationPreferencesDTO prefs) {
+        PlayerPreferencesService service = preferencesServiceLookup.getService();
+        if (service == null) {
+            throw new IllegalStateException("Service not available");
+        }
+
+        try {
+            // Save master toggle
+            service.setMasterEnabled(prefs.playerUuid(), PLUGIN_ID, prefs.masterEnabled()).join();
+
+            // Save notification type toggles
+            for (Map.Entry<NotificationType, Boolean> entry : prefs.enabledTypes().entrySet()) {
+                service.setNotificationEnabled(
+                        prefs.playerUuid(),
+                        PLUGIN_ID,
+                        entry.getKey().name(),
+                        entry.getValue()
+                ).join();
+            }
+
+            // Save quiet hours
+            service.setQuietHours(
+                    prefs.playerUuid(),
+                    PLUGIN_ID,
+                    prefs.quietHoursStart(),
+                    prefs.quietHoursEnd()
+            ).join();
+
+            logger.debug("Saved preferences to PlayerPreferencesService: " + prefs.playerUuid());
+        } catch (Exception e) {
+            logger.error("Failed to save preferences to service: " + e.getMessage());
+            throw e;
+        }
     }
 
     /**
