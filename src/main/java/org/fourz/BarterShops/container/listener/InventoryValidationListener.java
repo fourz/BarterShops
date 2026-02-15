@@ -4,18 +4,21 @@ import org.bukkit.ChatColor;
 import org.bukkit.Location;
 import org.bukkit.Material;
 import org.bukkit.block.Container;
+import org.bukkit.block.Sign;
 import org.bukkit.entity.Player;
 import org.bukkit.event.EventHandler;
 import org.bukkit.event.EventPriority;
 import org.bukkit.event.Listener;
 import org.bukkit.event.inventory.*;
 import org.bukkit.inventory.ItemStack;
-import org.bukkit.plugin.Plugin;
 import org.fourz.BarterShops.BarterShops;
 import org.fourz.BarterShops.container.ShopContainer;
+import org.fourz.BarterShops.container.factory.ShopContainerFactory;
 import org.fourz.BarterShops.container.validation.ValidationResult;
 import org.fourz.BarterShops.notification.NotificationManager;
 import org.fourz.BarterShops.notification.NotificationType;
+import org.fourz.BarterShops.sign.BarterSign;
+import org.fourz.BarterShops.sign.SignDisplay;
 import org.fourz.rvnkcore.util.log.LogManager;
 
 import java.util.HashMap;
@@ -35,14 +38,12 @@ import java.util.UUID;
 public class InventoryValidationListener implements Listener {
     private final Map<UUID, ShopContainer> shopContainers = new HashMap<>();
     private final long creationTime = System.currentTimeMillis();
+    private final BarterShops plugin;
     private final LogManager logger;
 
-    public InventoryValidationListener() {
-        try {
-            this.logger = LogManager.getInstance(org.bukkit.Bukkit.getPluginManager().getPlugin("BarterShops"), "InventoryValidation");
-        } catch (Exception e) {
-            throw new RuntimeException("Failed to initialize LogManager", e);
-        }
+    public InventoryValidationListener(BarterShops plugin) {
+        this.plugin = plugin;
+        this.logger = LogManager.getInstance(plugin, "InventoryValidation");
     }
 
     /**
@@ -73,9 +74,123 @@ public class InventoryValidationListener implements Listener {
         return shopContainers.size();
     }
 
+    // ========== Type Detection (merged from deprecated SignManager.startChestValidationTask) ==========
+
+    /**
+     * Handles auto-detection of shop type (stackable/unstackable) when the first item
+     * is placed into a shop container that hasn't been typed yet.
+     *
+     * Merged from deprecated SignManager.startChestValidationTask() logic.
+     * Triggers on first item placement, then locks the type and rebuilds validation rules.
+     *
+     * @param shopContainer The shop container receiving the item
+     * @param item The item being placed
+     * @param player The player placing the item (for notifications)
+     * @return true if type was detected (caller should skip normal validation since rules just changed)
+     */
+    private boolean handleTypeDetection(ShopContainer shopContainer, ItemStack item, Player player) {
+        BarterSign barterSign = shopContainer.getBarterSign();
+        if (barterSign == null || barterSign.isTypeDetected()) {
+            return false;
+        }
+
+        // Detect type from item stackability
+        boolean itemIsStackable = BarterSign.isItemStackable(item);
+        barterSign.setStackable(itemIsStackable);
+        barterSign.setTypeDetected(true);
+
+        logger.info("Type detection triggered: " + item.getType() +
+                " → stackable=" + itemIsStackable + " for shop " + barterSign.getShopId());
+
+        // Rebuild validation rules on the BarterSign (updates getAllowedChestTypes)
+        barterSign.updateValidationRules();
+
+        // Rebuild ShopContainer with correct validation rules
+        rebuildShopContainer(shopContainer, barterSign);
+
+        // Persist configuration to database
+        plugin.getSignManager().saveSignConfiguration(barterSign);
+
+        // Update sign display to reflect the detected type
+        refreshSignDisplay(barterSign);
+
+        // Notify owner
+        if (player != null) {
+            String typeLabel = itemIsStackable ? "Stackable" : "Unstackable";
+            player.sendMessage(ChatColor.GREEN + "+ Shop type detected: " + ChatColor.WHITE + typeLabel);
+            player.sendMessage(ChatColor.GRAY + "Type is now locked. Use DELETE mode to reset.");
+        }
+
+        return true;
+    }
+
+    /**
+     * Rebuilds the ShopContainer validation rules after type detection.
+     * Re-registers the container with updated rules.
+     */
+    private void rebuildShopContainer(ShopContainer oldContainer, BarterSign barterSign) {
+        Container container = barterSign.getShopContainer();
+        if (container == null) {
+            container = barterSign.getContainer();
+        }
+        if (container == null) {
+            logger.warning("Cannot rebuild ShopContainer - no container found for shop " + barterSign.getShopId());
+            return;
+        }
+
+        UUID shopUuid = oldContainer.getShopId();
+
+        // Create new container with correct rules based on detected type
+        ShopContainer newContainer;
+        if (barterSign.isStackable()) {
+            var allowedTypes = barterSign.getAllowedChestTypes();
+            if (!allowedTypes.isEmpty()) {
+                newContainer = ShopContainerFactory.createStackableMultiTypeLocked(
+                        container, shopUuid, allowedTypes);
+            } else {
+                newContainer = ShopContainerFactory.createContainer(container, shopUuid);
+            }
+        } else {
+            newContainer = ShopContainerFactory.createUnstackableOnly(container, shopUuid);
+        }
+
+        // Set bidirectional reference
+        newContainer.setBarterSign(barterSign);
+
+        // Also update wrapper on the BarterSign so trade engine uses the right container
+        barterSign.setShopContainerWrapper(newContainer);
+
+        // Re-register in our map
+        shopContainers.put(shopUuid, newContainer);
+
+        logger.debug("Rebuilt ShopContainer for shop " + barterSign.getShopId() +
+                ": rules=" + newContainer.getValidationRules().size());
+    }
+
+    /**
+     * Refreshes the sign display after type detection.
+     * Finds the Sign block from the BarterSign's sign location.
+     */
+    private void refreshSignDisplay(BarterSign barterSign) {
+        try {
+            org.bukkit.Location signLoc = barterSign.getSignLocation();
+            if (signLoc != null && signLoc.getBlock().getState() instanceof Sign sign) {
+                SignDisplay.updateSign(sign, barterSign, false);
+            }
+        } catch (Exception e) {
+            logger.debug("Could not refresh sign display after type detection: " + e.getMessage());
+        }
+    }
+
+    // ========== Event Handlers ==========
+
     /**
      * Handles player clicking in shop inventory.
      * Prevents placing invalid items.
+     *
+     * Handles TWO cases:
+     * 1. Direct click: Player clicks cursor item into shop container slot
+     * 2. Shift-click: Player shift-clicks item in player inventory → moves to shop container
      */
     @EventHandler(priority = EventPriority.HIGH, ignoreCancelled = true)
     public void onInventoryClick(InventoryClickEvent event) {
@@ -86,11 +201,48 @@ public class InventoryValidationListener implements Listener {
         }
 
         Player player = (event.getWhoClicked() instanceof Player) ? (Player) event.getWhoClicked() : null;
-        logger.debug("InventoryClickEvent: Shop container found at " + shopContainer.getLocation());
+        logger.debug("InventoryClickEvent: Shop container found at " + shopContainer.getLocation() +
+                    ", action=" + event.getAction() + ", slot=" + event.getRawSlot());
 
-        // Only check items being placed into the container
+        // CASE 1: SHIFT-CLICK from player inventory → moves item TO shop container
+        // This bypasses the raw slot check since the clicked slot is in player inv,
+        // but the RESULT moves item to the container
+        if (event.getAction() == InventoryAction.MOVE_TO_OTHER_INVENTORY) {
+            // Item being moved is the clicked slot item (not cursor)
+            ItemStack movingItem = event.getCurrentItem();
+            if (movingItem == null || movingItem.getType() == Material.AIR) {
+                logger.debug("InventoryClickEvent: Shift-click but slot is empty");
+                return;
+            }
+
+            logger.info("InventoryClickEvent: SHIFT-CLICK detected! Player " + (player != null ? player.getName() : "?") +
+                       " shift-clicking " + movingItem.getType() + " (qty=" + movingItem.getAmount() + ")");
+
+            // Type detection for shift-click
+            if (handleTypeDetection(shopContainer, movingItem, player)) {
+                return; // Type just detected, allow item
+            }
+
+            // Validate the item being shift-clicked into the container
+            ValidationResult result = shopContainer.validateItemForUser(movingItem, player);
+            if (!result.isValid()) {
+                logger.warning("InventoryClickEvent: Shift-click validation FAILED - " + result.reason() +
+                              ". Item: " + movingItem.getType() + ", Shop rules: " + shopContainer.getValidationRules().size());
+
+                event.setCancelled(true);
+
+                if (player != null) {
+                    sendValidationError(player, result.reason());
+                }
+            } else {
+                logger.debug("InventoryClickEvent: Shift-click validation PASSED for " + movingItem.getType());
+            }
+            return; // Handled shift-click case
+        }
+
+        // CASE 2: Direct click in container - player places cursor item into shop slot
         if (event.getRawSlot() >= event.getInventory().getSize()) {
-            // Click is in player inventory, not shop container
+            // Click is in player inventory, not shop container (and not a shift-click)
             logger.debug("InventoryClickEvent: Click is in player inventory (slot " + event.getRawSlot() + "), not shop container");
             return;
         }
@@ -99,6 +251,13 @@ public class InventoryValidationListener implements Listener {
         if (cursor == null || cursor.getType() == Material.AIR) {
             logger.debug("InventoryClickEvent: Cursor is empty");
             return; // Empty cursor
+        }
+
+        // Type detection: If shop hasn't been typed yet, detect from first item placed
+        if (handleTypeDetection(shopContainer, cursor, player)) {
+            // Type was just detected and rules rebuilt - allow the item through
+            // (it was used to determine the type, so it's valid by definition)
+            return;
         }
 
         logger.info("InventoryClickEvent: Player " + (player != null ? player.getName() : "?") +
@@ -181,6 +340,11 @@ public class InventoryValidationListener implements Listener {
         // Check if any drag slots are in the shop container
         for (int slot : event.getRawSlots()) {
             if (slot < event.getInventory().getSize()) {
+                // Type detection on drag into untyped shop
+                if (handleTypeDetection(shopContainer, cursor, player)) {
+                    return; // Type just detected, allow the drag
+                }
+
                 // Slot is in shop container, validate
                 logger.debug("InventoryDragEvent: Checking slot " + slot + " in container");
                 // UNIFIED: Validate with user context (owner vs customer)
@@ -212,18 +376,14 @@ public class InventoryValidationListener implements Listener {
      */
     private void sendValidationError(Player player, String reason) {
         try {
-            // Try to get the BarterShops plugin instance
-            Plugin plugin = org.bukkit.Bukkit.getPluginManager().getPlugin("BarterShops");
-            if (plugin instanceof BarterShops barterShops) {
-                NotificationManager notificationManager = barterShops.getNotificationManager();
-                if (notificationManager != null) {
-                    notificationManager.sendNotification(
-                        player.getUniqueId(),
-                        NotificationType.SYSTEM,
-                        ChatColor.RED + "✗ " + reason
-                    );
-                    return;
-                }
+            NotificationManager notificationManager = plugin.getNotificationManager();
+            if (notificationManager != null) {
+                notificationManager.sendNotification(
+                    player.getUniqueId(),
+                    NotificationType.SYSTEM,
+                    ChatColor.RED + "✗ " + reason
+                );
+                return;
             }
         } catch (Exception ignored) {
             // Fall through to chat message

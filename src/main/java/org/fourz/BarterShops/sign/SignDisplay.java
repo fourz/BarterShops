@@ -469,7 +469,7 @@ public class SignDisplay {
         }
     }
 
-    private static String formatItemName(ItemStack item) {
+    static String formatItemName(ItemStack item) {
         if (item == null || item.getType().isAir()) {
             return "None";
         }

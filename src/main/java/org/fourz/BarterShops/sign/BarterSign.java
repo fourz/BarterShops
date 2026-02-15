@@ -39,7 +39,7 @@ public class BarterSign {
     private boolean isStackable = true;  // Whether this shop is stackable or unstackable
     private boolean typeDetected = false;  // Whether shop type has been auto-detected (locked)
     private boolean isAdmin = false;  // Admin shops have infinite inventory, no chest needed
-    private Material lockedItemType = null;  // For stackable shops: the item type that's locked in
+    // lockedItemType removed - multi-type validation via getAllowedChestTypes() replaces single-type locking
     private List<ItemStack> acceptedPayments = new ArrayList<>();  // Multiple payment options for BARTER mode
 
     // SESSION-ONLY FIELDS (UI state, NOT persisted to database)
@@ -83,10 +83,6 @@ public class BarterSign {
     public ShopContainer getShopContainerWrapper() { return shopContainerWrapper; }
     public void setShopContainerWrapper(ShopContainer wrapper) { this.shopContainerWrapper = wrapper; }
 
-    // Compatibility: Return wrapper if available, otherwise fallback to plain container
-    public Container getShopContainerCompat() {
-        return shopContainerWrapper != null ? shopContainerWrapper.getContainer() : shopContainer;
-    }
 
     // NEW: Item offering configuration
     public ItemStack getItemOffering() { return itemOffering; }
@@ -272,7 +268,7 @@ public class BarterSign {
     /**
      * Detects if first item in chest is stackable and sets shop type accordingly.
      * Only sets type on first detection - type is locked after initial detection.
-     * For stackable shops, locks the item type to prevent mixing.
+     * Validation rules are derived from getAllowedChestTypes() (multi-type system).
      * Returns true if type was set, false if chest is empty, type already locked, or no detection needed.
      */
     public boolean detectAndSetTypeFromChest() {
@@ -295,12 +291,6 @@ public class BarterSign {
                 // Set shop type based on item stackability
                 boolean itemIsStackable = isItemStackable(item);
                 setStackable(itemIsStackable);
-
-                // For stackable shops, lock the item type
-                if (itemIsStackable) {
-                    lockedItemType = item.getType();
-                }
-
                 typeDetected = true;  // Lock the type
                 return true;
             }
@@ -309,11 +299,10 @@ public class BarterSign {
     }
 
     /**
-     * Resets type detection flag and locked item type (called when shop is deleted/recreated).
+     * Resets type detection flag (called when shop is deleted/recreated).
      */
     public void resetTypeDetection() {
         typeDetected = false;
-        lockedItemType = null;
     }
 
     /**
@@ -331,17 +320,17 @@ public class BarterSign {
     }
 
     /**
-     * Returns the locked item type for stackable shops, or null if not locked.
+     * Returns the allowed item types for this shop (derived from offering + payments).
+     * Replaces the legacy single lockedItemType field.
+     * @deprecated Use getAllowedChestTypes() directly for validation.
      */
+    @Deprecated
     public Material getLockedItemType() {
-        return lockedItemType;
-    }
-
-    /**
-     * Sets the locked item type for stackable shops.
-     */
-    public void setLockedItemType(Material itemType) {
-        this.lockedItemType = itemType;
+        // Backwards compatibility: return first allowed type (offering type)
+        if (itemOffering != null) {
+            return itemOffering.getType();
+        }
+        return null;
     }
 
     /**

@@ -24,7 +24,7 @@ public class ContainerManager implements Listener {
 
     public ContainerManager(BarterShops plugin) {
         this.plugin = plugin;
-        this.validationListener = new InventoryValidationListener();
+        this.validationListener = new InventoryValidationListener(plugin);
         plugin.getServer().getPluginManager().registerEvents(this, plugin);
         plugin.getServer().getPluginManager().registerEvents(validationListener, plugin);
     }

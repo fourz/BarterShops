@@ -48,7 +48,6 @@ public class BarterShops extends JavaPlugin {
     private NotificationManager notificationManager;
     private TemplateManager templateManager;
     private ProtectionManager protectionManager;
-    private org.fourz.BarterShops.inspection.InspectionManager inspectionManager;
     private ShopPreferenceManager preferenceManager;
     private ShopInfoDisplayHelper shopInfoDisplayHelper;
     private IRatingService ratingService;
@@ -109,16 +108,6 @@ public class BarterShops extends JavaPlugin {
         if (signManager != null && shopRepository != null) {
             signManager.loadSignsFromDatabase();
         }
-
-        // Initialize inspection system
-        this.inspectionManager = new org.fourz.BarterShops.inspection.InspectionManager(this);
-        logger.info("Inspection manager initialized");
-
-        // Register inspection listener
-        getServer().getPluginManager().registerEvents(
-                new org.fourz.BarterShops.inspection.ShopInspectionListener(this, inspectionManager, signManager), this
-        );
-        logger.info("Shop inspection listener registered");
 
         // Initialize preference system
         this.preferenceManager = new ShopPreferenceManager(this);
@@ -388,13 +377,6 @@ public class BarterShops extends JavaPlugin {
     }
 
     private void cleanupManagers() {
-        cleanupManager("inspection", () -> {
-            if (inspectionManager != null) {
-                inspectionManager.cleanup();
-                inspectionManager = null;
-            }
-        });
-
         cleanupManager("preferences", () -> {
             if (preferenceManager != null) {
                 preferenceManager.save();
@@ -542,10 +524,6 @@ public class BarterShops extends JavaPlugin {
 
     public ProtectionManager getProtectionManager() {
         return protectionManager;
-    }
-
-    public org.fourz.BarterShops.inspection.InspectionManager getInspectionManager() {
-        return inspectionManager;
     }
 
     public ShopPreferenceManager getPreferenceManager() {

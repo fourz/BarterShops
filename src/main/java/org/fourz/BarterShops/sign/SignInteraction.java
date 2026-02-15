@@ -7,6 +7,7 @@ import org.bukkit.block.Container;
 import org.bukkit.block.Sign;
 import org.bukkit.entity.Player;
 import org.bukkit.event.player.PlayerInteractEvent;
+import org.bukkit.inventory.Inventory;
 import org.bukkit.inventory.ItemStack;
 import org.bukkit.scheduler.BukkitRunnable;
 import org.bukkit.scheduler.BukkitTask;
@@ -594,20 +595,24 @@ public class SignInteraction {
             }
         }
 
-        // Get shop container for stock verification
-        Container shopContainer = barterSign.getShopContainer();
-        if (shopContainer == null) {
-            shopContainer = barterSign.getContainer();
+        // Get shop container for stock verification (wrapper-aware)
+        Inventory stockInv = null;
+        if (barterSign.getShopContainerWrapper() != null) {
+            stockInv = barterSign.getShopContainerWrapper().getInventory();
+        } else {
+            Container shopContainer = barterSign.getShopContainer();
+            if (shopContainer == null) shopContainer = barterSign.getContainer();
+            if (shopContainer != null) stockInv = shopContainer.getInventory();
         }
 
-        if (shopContainer == null) {
+        if (stockInv == null) {
             showTemporaryStatus(sign, barterSign, "\u00A7cNo container", "\u00A7cfound");
             return;
         }
 
         // Verify stock availability
         int availableStock = 0;
-        for (ItemStack item : shopContainer.getInventory().getContents()) {
+        for (ItemStack item : stockInv.getContents()) {
             if (item != null && item.isSimilar(offering)) {
                 availableStock += item.getAmount();
             }
@@ -653,13 +658,17 @@ public class SignInteraction {
             return;
         }
 
-        // Get shop container
-        Container shopContainer = barterSign.getShopContainer();
-        if (shopContainer == null) {
-            shopContainer = barterSign.getContainer();
+        // Get shop container (wrapper-aware)
+        Inventory nsStockInv = null;
+        if (barterSign.getShopContainerWrapper() != null) {
+            nsStockInv = barterSign.getShopContainerWrapper().getInventory();
+        } else {
+            Container shopContainer = barterSign.getShopContainer();
+            if (shopContainer == null) shopContainer = barterSign.getContainer();
+            if (shopContainer != null) nsStockInv = shopContainer.getInventory();
         }
 
-        if (shopContainer == null) {
+        if (nsStockInv == null) {
             showTemporaryStatus(sign, barterSign, "\u00A7cNo container", "\u00A7cfound");
             logger.debug("Trade rejected - no shop container");
             return;
@@ -667,7 +676,7 @@ public class SignInteraction {
 
         // Get first non-air item from chest (any item)
         ItemStack offering = null;
-        for (ItemStack item : shopContainer.getInventory().getContents()) {
+        for (ItemStack item : nsStockInv.getContents()) {
             if (item != null && item.getType() != Material.AIR) {
                 offering = item.clone();
                 offering.setAmount(1); // Non-stackable: quantity 1
@@ -918,18 +927,8 @@ public class SignInteraction {
         }
     }
 
-    /**
-     * Formats an ItemStack into a readable name for display.
-     */
     private static String formatItemName(ItemStack item) {
-        if (item == null || item.getType().isAir()) {
-            return "None";
-        }
-        if (item.hasItemMeta() && item.getItemMeta().hasDisplayName()) {
-            return item.getItemMeta().getDisplayName();
-        }
-        String name = item.getType().name().toLowerCase().replace('_', ' ');
-        return name.substring(0, 1).toUpperCase() + name.substring(1);
+        return SignDisplay.formatItemName(item);
     }
 
     public void cleanup() {

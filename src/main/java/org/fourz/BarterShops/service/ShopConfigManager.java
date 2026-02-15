@@ -75,9 +75,7 @@ public class ShopConfigManager {
                         builder.acceptedPayments(barterSign.getAcceptedPayments());
                     }
 
-                    if (barterSign.getLockedItemType() != null) {
-                        builder.lockedItemType(barterSign.getLockedItemType());
-                    }
+                    // lockedItemType no longer persisted - multi-type derived from offering + payments
 
                     builder.isStackable(barterSign.isStackable())
                            .typeDetected(barterSign.isTypeDetected())
@@ -133,11 +131,7 @@ public class ShopConfigManager {
         barterSign.setTypeDetected(dto.isTypeDetected());
         barterSign.setAdmin(dto.isAdminShop());
 
-        // Restore locked item type (if applicable)
-        var lockedType = dto.getLockedItemType();
-        if (lockedType != null) {
-            barterSign.setLockedItemType(lockedType);
-        }
+        // lockedItemType no longer loaded - multi-type derived from offering + payments at runtime
 
         logger.debug("Loaded config for shop " + dto.shopId() +
                 ": offering=" + (offering != null ? offering.getType() : "none") +

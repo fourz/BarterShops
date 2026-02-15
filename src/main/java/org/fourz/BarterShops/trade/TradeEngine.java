@@ -168,11 +168,23 @@ public class TradeEngine {
         ItemStack requested = session.getRequestedItem();
         int requestedQty = session.getRequestedQuantity();
 
-        // Step 1: Create snapshots BEFORE any modifications
+        // Step 1: Create snapshots BEFORE any modifications (wrapper-aware)
         InventorySnapshot buyerSnapshot = new InventorySnapshot(buyer.getInventory());
         InventorySnapshot shopSnapshot = null;
-        if (shop.getShopContainer() != null) {
+        org.fourz.BarterShops.container.ShopContainer snapshotWrapper = shop.getShopContainerWrapper();
+        if (snapshotWrapper != null) {
+            shopSnapshot = new InventorySnapshot(snapshotWrapper.getInventory());
+        } else if (shop.getShopContainer() != null) {
             shopSnapshot = new InventorySnapshot(shop.getShopContainer().getInventory());
+        }
+
+        // Resolve shop inventory once (wrapper-aware) - used for trade + rollback
+        Inventory shopInv = null;
+        org.fourz.BarterShops.container.ShopContainer wrapper = shop.getShopContainerWrapper();
+        if (wrapper != null) {
+            shopInv = wrapper.getInventory();
+        } else if (shop.getShopContainer() != null) {
+            shopInv = shop.getShopContainer().getInventory();
         }
 
         try {
@@ -184,15 +196,6 @@ public class TradeEngine {
             }
 
             // Step 3: Remove items from shop container (if not admin shop)
-            // Use wrapper-aware logic (match TradeValidator pattern)
-            Inventory shopInv = null;
-            org.fourz.BarterShops.container.ShopContainer wrapper = shop.getShopContainerWrapper();
-            if (wrapper != null) {
-                shopInv = wrapper.getInventory();
-            } else if (shop.getShopContainer() != null) {
-                shopInv = shop.getShopContainer().getInventory();
-            }
-
             if (shopInv != null && offered != null) {
                 if (!removeItems(shopInv, offered, offeredQty)) {
                     throw new TradeException("Shop out of stock");
@@ -238,11 +241,11 @@ public class TradeEngine {
             return TradeResultDTO.success(transactionId);
 
         } catch (TradeException e) {
-            // Transaction failed: ROLLBACK both inventories
+            // Transaction failed: ROLLBACK both inventories (wrapper-aware)
             logger.error("Trade failed, rolling back: " + e.getMessage());
             buyerSnapshot.restore(buyer.getInventory());
-            if (shopSnapshot != null && shop.getShopContainer() != null) {
-                shopSnapshot.restore(shop.getShopContainer().getInventory());
+            if (shopSnapshot != null && shopInv != null) {
+                shopSnapshot.restore(shopInv);
             }
 
             session.setState(TradeSession.TradeState.FAILED);
@@ -251,11 +254,11 @@ public class TradeEngine {
             return TradeResultDTO.failure("Trade failed and rolled back: " + e.getMessage());
 
         } catch (Exception e) {
-            // Unexpected exception: ROLLBACK both inventories
+            // Unexpected exception: ROLLBACK both inventories (wrapper-aware)
             logger.error("Unexpected error during trade execution: " + e.getMessage());
             buyerSnapshot.restore(buyer.getInventory());
-            if (shopSnapshot != null && shop.getShopContainer() != null) {
-                shopSnapshot.restore(shop.getShopContainer().getInventory());
+            if (shopSnapshot != null && shopInv != null) {
+                shopSnapshot.restore(shopInv);
             }
 
             session.setState(TradeSession.TradeState.FAILED);
