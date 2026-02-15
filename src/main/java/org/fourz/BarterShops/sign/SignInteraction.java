@@ -445,10 +445,11 @@ public class SignInteraction {
         int nextPanel = currentPanel;
 
         if (currentPanel == 1) {
-            // Panel 1 → 2: Show customer preview mode (silent)
+            // Panel 1 → 2: Show customer preview mode
             nextPanel = 2;
             barterSign.setOwnerPreviewMode(true);
             SignDisplay.updateSign(sign, barterSign, true);
+            player.sendMessage("§7[Preview] §fViewing as customer. Sneak+R-click to exit.");
             logger.debug("Shifted to Panel 2: Customer preview for " + player.getName());
         }
         else if (currentPanel == 2) {
@@ -461,22 +462,25 @@ public class SignInteraction {
             if (canViewInfo) {
                 // Show shop info and advance to Panel 3 (info display shows messages)
                 nextPanel = 3;
+                barterSign.setOwnerPreviewMode(false); // Exit preview mode when viewing info
                 ShopInfoDisplayHelper helper = plugin.getShopInfoDisplayHelper();
                 helper.displayShopInfo(player, barterSign, sign.getLocation(), ShopInfoDisplayHelper.InfoDisplayContext.SHIFT_CLICK);
                 logger.debug("Shifted to Panel 3: Shop info for " + player.getName());
             } else {
-                // Skip Panel 3, go back to Panel 1 (silent)
+                // Skip Panel 3, go back to Panel 1
                 nextPanel = 1;
                 barterSign.setOwnerPreviewMode(false);
                 SignDisplay.updateSign(sign, barterSign, false);
+                player.sendMessage("§7[Preview] §fExited customer view.");
                 logger.debug("Shifted to Panel 1: Normal (Panel 3 skipped - no permission or disabled)");
             }
         }
         else if (currentPanel == 3) {
-            // Panel 3 → 1: Back to normal (silent)
+            // Panel 3 → 1: Back to normal
             nextPanel = 1;
             barterSign.setOwnerPreviewMode(false);
             SignDisplay.updateSign(sign, barterSign, false);
+            // No message needed - Panel 3 (shop info) already shows messages
             logger.debug("Shifted to Panel 1: Normal for " + player.getName());
         }
 

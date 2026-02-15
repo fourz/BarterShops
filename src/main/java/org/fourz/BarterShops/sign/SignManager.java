@@ -93,6 +93,14 @@ public class SignManager implements Listener {
                 }
 
                 Sign sign = (Sign) block.getState();
+
+                // Unwax signs that may have been incorrectly waxed (restore interaction)
+                if (sign.isWaxed()) {
+                    sign.setWaxed(false);
+                    sign.update();
+                    logger.debug("Unwaxed shop " + shop.shopId() + " sign for interaction");
+                }
+
                 Container container = findAssociatedContainer(sign);
 
                 BarterSign barterSign = new BarterSign.Builder()

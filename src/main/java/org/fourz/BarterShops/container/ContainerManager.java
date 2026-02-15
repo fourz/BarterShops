@@ -6,8 +6,11 @@ import org.bukkit.block.Container;
 import org.bukkit.block.DoubleChest;
 import org.bukkit.entity.Player;
 import org.bukkit.event.EventHandler;
+import org.bukkit.event.EventPriority;
 import org.bukkit.event.Listener;
 import org.bukkit.event.block.BlockBreakEvent;
+import org.bukkit.event.block.BlockExplodeEvent;
+import org.bukkit.event.entity.EntityExplodeEvent;
 import org.bukkit.event.inventory.InventoryOpenEvent;
 import org.bukkit.inventory.InventoryHolder;
 import org.bukkit.persistence.PersistentDataType;
@@ -16,7 +19,6 @@ import org.bukkit.event.HandlerList;
 import org.fourz.BarterShops.BarterShops;
 import org.fourz.BarterShops.container.listener.InventoryValidationListener;
 import org.fourz.BarterShops.sign.BarterSign;
-import org.fourz.BarterShops.shop.ShopMode;
 
 public class ContainerManager implements Listener {
     private final BarterShops plugin;
@@ -49,50 +51,49 @@ public class ContainerManager implements Listener {
         }
     }
 
-    @EventHandler
+    @EventHandler(priority = EventPriority.HIGH, ignoreCancelled = true)
     public void onContainerBreak(BlockBreakEvent event) {
         Block block = event.getBlock();
         if (!(block.getState() instanceof Container)) {
             return;
         }
 
-        Container container = (Container) block.getState();
-        if (!isShopContainer(container)) {
-            return;
-        }
-
-        Player player = event.getPlayer();
-
-        // Find the associated shop sign
+        // Find if this container belongs to a shop
         BarterSign barterSign = plugin.getSignManager().findSignByContainerLocation(block.getLocation());
+
+        // If no sign exists, allow normal vanilla chest break
         if (barterSign == null) {
-            // Container is marked as shop container but no sign found
-            event.setCancelled(true);
-            player.sendMessage(ChatColor.RED + "✗ This shop container is corrupted. Contact an admin.");
             return;
         }
 
-        // Only owner or admin can break
-        if (!barterSign.getOwner().equals(player.getUniqueId())
-                && !player.hasPermission("bartershops.admin")) {
-            event.setCancelled(true);
-            player.sendMessage(ChatColor.RED + "✗ You cannot break this shop chest.");
-            player.sendMessage(ChatColor.GRAY + "Only the shop owner can remove it.");
-            return;
-        }
+        // Sign exists - chest is protected
+        // Chest can ONLY be broken after sign is removed via DELETE mode
+        Player player = event.getPlayer();
+        event.setCancelled(true);
 
-        // Must be in DELETE mode to break (or admin with override)
-        if (barterSign.getMode() != ShopMode.DELETE
-                && !player.hasPermission("bartershops.admin")) {
-            event.setCancelled(true);
-            player.sendMessage(ChatColor.YELLOW + "! Right-click the sign to enter DELETE mode.");
-            player.sendMessage(ChatColor.GRAY + "Then you can remove the shop.");
-            return;
+        if (barterSign.getOwner().equals(player.getUniqueId())
+                || player.hasPermission("bartershops.admin")) {
+            player.sendMessage(ChatColor.YELLOW + "! Remove the shop sign first to break this chest.");
+            player.sendMessage(ChatColor.GRAY + "Right-click sign → cycle to DELETE mode → break sign.");
+        } else {
+            player.sendMessage(ChatColor.RED + "✗ This chest belongs to a shop.");
         }
+    }
 
-        // Authorized break - proceed with removal via sign deletion
-        // The sign break event will handle cleanup
-        event.setCancelled(false);
+    @EventHandler(priority = EventPriority.HIGH, ignoreCancelled = true)
+    public void onContainerExplode(BlockExplodeEvent event) {
+        event.blockList().removeIf(block -> {
+            if (!(block.getState() instanceof Container)) return false;
+            return plugin.getSignManager().findSignByContainerLocation(block.getLocation()) != null;
+        });
+    }
+
+    @EventHandler(priority = EventPriority.HIGH, ignoreCancelled = true)
+    public void onContainerEntityExplode(EntityExplodeEvent event) {
+        event.blockList().removeIf(block -> {
+            if (!(block.getState() instanceof Container)) return false;
+            return plugin.getSignManager().findSignByContainerLocation(block.getLocation()) != null;
+        });
     }
 
     private boolean isShopContainer(InventoryHolder holder) {
