@@ -148,7 +148,7 @@ public class TradeEngine {
 
             // Execute the item exchange
             session.setState(TradeSession.TradeState.PROCESSING);
-            return executeItemExchange(session, buyer);
+            return executeItemExchange(session, buyer, TradeSource.GUI_CONFIRMATION);
 
         }).exceptionally(ex -> {
             logger.error("Trade execution failed: " + ex.getMessage());
@@ -158,10 +158,73 @@ public class TradeEngine {
     }
 
     /**
+     * Executes a direct trade without creating a session.
+     * Used for auto-exchange features (instant purchase, deposit, withdrawal).
+     * Bypasses GUI confirmation and trade session management.
+     *
+     * @param buyer The buying player
+     * @param shop The shop to trade with
+     * @param offering Item being offered by shop
+     * @param offeredQty Quantity of offering
+     * @param payment Payment item from buyer
+     * @param paymentQty Payment amount
+     * @param source Trade source (instant, deposit, withdrawal)
+     * @return CompletableFuture with the trade result
+     */
+    public CompletableFuture<TradeResultDTO> executeDirectTrade(
+        Player buyer,
+        BarterSign shop,
+        ItemStack offering,
+        int offeredQty,
+        ItemStack payment,
+        int paymentQty,
+        TradeSource source
+    ) {
+        return CompletableFuture.supplyAsync(() -> {
+            if (buyer == null || shop == null) {
+                return TradeResultDTO.failure("Invalid trade parameters");
+            }
+
+            // Prevent owner from trading with own shop
+            if (shop.getOwner().equals(buyer.getUniqueId())) {
+                return TradeResultDTO.failure("Cannot trade with own shop");
+            }
+
+            // Create temporary session for validation and execution
+            TradeSession tempSession = new TradeSession(buyer.getUniqueId(), shop);
+            tempSession.setOfferedItem(offering, offeredQty);
+            tempSession.setRequestedItem(payment, paymentQty);
+
+            // Validate the trade
+            tempSession.setState(TradeSession.TradeState.VALIDATING);
+            TradeValidator.ValidationResult validation = validator.validate(tempSession, buyer);
+
+            if (!validation.valid()) {
+                tempSession.setState(TradeSession.TradeState.FAILED);
+                String errors = String.join(", ", validation.errors());
+                return TradeResultDTO.failure(errors);
+            }
+
+            // Execute the item exchange
+            tempSession.setState(TradeSession.TradeState.PROCESSING);
+            return executeItemExchange(tempSession, buyer, source);
+
+        }).exceptionally(ex -> {
+            logger.error("Direct trade execution failed: " + ex.getMessage());
+            fallbackTracker.recordFailure("Direct trade: " + ex.getMessage());
+            return TradeResultDTO.failure("Internal error: " + ex.getMessage());
+        });
+    }
+
+    /**
      * Executes the actual item exchange between buyer and shop.
      * Implements full transaction safety with snapshots and rollback on any failure.
+     *
+     * @param session Trade session containing trade details
+     * @param buyer The buying player
+     * @param source Trade source for logging (GUI, instant, deposit, withdrawal)
      */
-    private TradeResultDTO executeItemExchange(TradeSession session, Player buyer) {
+    private TradeResultDTO executeItemExchange(TradeSession session, Player buyer, TradeSource source) {
         BarterSign shop = session.getShop();
         ItemStack offered = session.getOfferedItem();
         int offeredQty = session.getOfferedQuantity();
@@ -230,12 +293,12 @@ public class TradeEngine {
             // Step 6: Log successful trade
             session.setState(TradeSession.TradeState.COMPLETED);
             String transactionId = UUID.randomUUID().toString();
-            logTrade(session, transactionId);
+            logTrade(session, transactionId, source);
 
             // Step 7: Cleanup session
             cleanupSession(session.getSessionId());
 
-            logger.info("Trade completed: " + transactionId + " for " + buyer.getName());
+            logger.info("Trade completed (" + source + "): " + transactionId + " for " + buyer.getName());
             fallbackTracker.recordSuccess();
 
             return TradeResultDTO.success(transactionId);
@@ -344,8 +407,12 @@ public class TradeEngine {
 
     /**
      * Logs a completed trade to the repository.
+     *
+     * @param session Trade session
+     * @param transactionId Transaction ID
+     * @param source Trade source for analytics
      */
-    private void logTrade(TradeSession session, String transactionId) {
+    private void logTrade(TradeSession session, String transactionId, TradeSource source) {
         // Build trade record DTO
         TradeRecordDTO record = TradeRecordDTO.builder()
                 .transactionId(transactionId)

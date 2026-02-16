@@ -50,6 +50,7 @@ public class BarterShops extends JavaPlugin {
     private ProtectionManager protectionManager;
     private ShopPreferenceManager preferenceManager;
     private ShopInfoDisplayHelper shopInfoDisplayHelper;
+    private org.fourz.BarterShops.trade.AutoExchangeHandler autoExchangeHandler;
     private IRatingService ratingService;
     private IStatsService statsService;
     private EconomyManager economyManager;
@@ -112,6 +113,12 @@ public class BarterShops extends JavaPlugin {
         // Initialize preference system
         this.preferenceManager = new ShopPreferenceManager(this);
         logger.info("Preference manager initialized");
+
+        // Initialize auto-exchange handler (after tradeEngine + preferenceManager)
+        this.autoExchangeHandler = new org.fourz.BarterShops.trade.AutoExchangeHandler(
+            this, tradeEngine, preferenceManager
+        );
+        logger.info("Auto-exchange handler initialized");
 
         // Initialize info display helper
         this.shopInfoDisplayHelper = new ShopInfoDisplayHelper(this, preferenceManager);
@@ -434,6 +441,13 @@ public class BarterShops extends JavaPlugin {
             }
         });
 
+        cleanupManager("autoExchange", () -> {
+            if (autoExchangeHandler != null) {
+                autoExchangeHandler.cleanup();
+                autoExchangeHandler = null;
+            }
+        });
+
         cleanupManager("trade", () -> {
             if (tradeEngine != null) {
                 tradeEngine.shutdown();
@@ -528,6 +542,10 @@ public class BarterShops extends JavaPlugin {
 
     public ShopPreferenceManager getPreferenceManager() {
         return preferenceManager;
+    }
+
+    public org.fourz.BarterShops.trade.AutoExchangeHandler getAutoExchangeHandler() {
+        return autoExchangeHandler;
     }
 
     public ShopInfoDisplayHelper getShopInfoDisplayHelper() {

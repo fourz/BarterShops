@@ -287,6 +287,84 @@ public class InventoryValidationListener implements Listener {
     }
 
     /**
+     * Handles customer depositing payment in shop chest (deposit auto-exchange).
+     * Uses MONITOR priority to detect items AFTER they are placed.
+     * Automatically exchanges payment for offering if auto-exchange is enabled.
+     */
+    @EventHandler(priority = EventPriority.MONITOR, ignoreCancelled = true)
+    public void onCustomerDepositPayment(InventoryClickEvent event) {
+        ShopContainer shopContainer = getShopContainerFromEvent(event);
+        if (shopContainer == null) return;
+
+        Player player = (event.getWhoClicked() instanceof Player) ? (Player) event.getWhoClicked() : null;
+        if (player == null) return;
+
+        BarterSign barterSign = shopContainer.getBarterSign();
+        if (barterSign == null) return;
+
+        // Owner restocking → not a purchase
+        if (barterSign.getOwner().equals(player.getUniqueId())) {
+            return;
+        }
+
+        // Check if player is placing item INTO shop container (not taking)
+        if (event.getRawSlot() >= event.getInventory().getSize()) {
+            // Click in player inventory - could be shift-click to shop
+            if (event.getAction() != InventoryAction.MOVE_TO_OTHER_INVENTORY) {
+                return; // Not moving to shop
+            }
+        }
+
+        // Get item being deposited
+        ItemStack cursorItem = event.getCursor();
+        ItemStack depositedItem = cursorItem;
+        if (depositedItem == null || depositedItem.getType() == Material.AIR) {
+            // Might be shift-click
+            depositedItem = event.getCurrentItem();
+            if (depositedItem == null || depositedItem.getType() == Material.AIR) {
+                return;
+            }
+        }
+
+        // Check if deposited item is accepted payment (not offering)
+        if (!barterSign.isPaymentAccepted(depositedItem)) {
+            return; // Not a payment item
+        }
+
+        // Check auto-exchange preference
+        org.fourz.BarterShops.trade.AutoExchangeHandler autoExchange = plugin.getAutoExchangeHandler();
+        if (autoExchange == null || !autoExchange.isAutoExchangeEnabled(player)) {
+            return; // Auto-exchange disabled
+        }
+
+        logger.debug("Processing payment deposit auto-exchange for " + player.getName());
+
+        // Make final for lambda
+        final ItemStack finalDepositedItem = depositedItem.clone();
+
+        // Schedule for next tick to ensure item is in chest
+        plugin.getServer().getScheduler().runTaskLater(plugin, () -> {
+            autoExchange.handlePaymentDeposit(player, finalDepositedItem, barterSign)
+                .thenAccept(result -> {
+                    plugin.getServer().getScheduler().runTask(plugin, () -> {
+                        if (result.success()) {
+                            player.sendMessage(ChatColor.GREEN + "+ Purchased " +
+                                barterSign.getItemOffering().getAmount() + "x " +
+                                barterSign.getItemOffering().getType().name());
+                            logger.debug("Deposit auto-exchange completed: " + result.transactionId());
+                        } else {
+                            logger.debug("Deposit auto-exchange failed: " + result.message());
+                        }
+                    });
+                })
+                .exceptionally(ex -> {
+                    logger.error("Deposit auto-exchange error: " + ex.getMessage());
+                    return null;
+                });
+        }, 1L); // 1 tick delay to ensure item is in chest
+    }
+
+    /**
      * Handles hoppers and droppers moving items.
      * Prevents automated systems from bypassing type locking.
      */
@@ -372,6 +450,99 @@ public class InventoryValidationListener implements Listener {
                 }
             }
         }
+    }
+
+    /**
+     * Handles customer taking offering from shop chest (withdrawal auto-deduct).
+     * Uses MONITOR priority to detect items AFTER they are taken.
+     * Automatically deducts payment from customer inventory if auto-exchange is enabled.
+     */
+    @EventHandler(priority = EventPriority.MONITOR, ignoreCancelled = true)
+    public void onCustomerTakeOffering(InventoryClickEvent event) {
+        ShopContainer shopContainer = getShopContainerFromEvent(event);
+        if (shopContainer == null) return;
+
+        Player player = (event.getWhoClicked() instanceof Player) ? (Player) event.getWhoClicked() : null;
+        if (player == null) return;
+
+        BarterSign barterSign = shopContainer.getBarterSign();
+        if (barterSign == null) return;
+
+        // Owner taking items → not a purchase
+        if (barterSign.getOwner().equals(player.getUniqueId())) {
+            return;
+        }
+
+        // Check if player is taking item FROM shop container (not placing)
+        if (event.getRawSlot() >= event.getInventory().getSize()) {
+            return; // Click in player inventory, not shop
+        }
+
+        // Get item being taken
+        ItemStack takenItem = event.getCurrentItem();
+        if (takenItem == null || takenItem.getType() == Material.AIR) {
+            return;
+        }
+
+        // Check if taken item matches offering
+        ItemStack offering = barterSign.getItemOffering();
+        if (offering == null || !takenItem.isSimilar(offering)) {
+            return; // Not the offering item
+        }
+
+        // Calculate quantity taken
+        int takenQty = calculateTakeQuantity(event, takenItem);
+        if (takenQty <= 0) return;
+
+        // Check auto-exchange preference
+        org.fourz.BarterShops.trade.AutoExchangeHandler autoExchange = plugin.getAutoExchangeHandler();
+        if (autoExchange == null || !autoExchange.isAutoExchangeEnabled(player)) {
+            return; // Auto-exchange disabled
+        }
+
+        logger.debug("Processing offering withdrawal auto-deduct for " + player.getName());
+
+        // Execute auto-deduct asynchronously
+        autoExchange.handleOfferingWithdrawal(player, takenItem, takenQty, barterSign)
+            .thenAccept(result -> {
+                plugin.getServer().getScheduler().runTask(plugin, () -> {
+                    if (result.success()) {
+                        // Payment deducted successfully
+                        player.sendMessage(ChatColor.GREEN + "+ Purchased " + takenQty + "x " + takenItem.getType().name());
+                        logger.debug("Withdrawal auto-deduct completed: " + result.transactionId());
+                    } else {
+                        // Payment deduction failed - cancel the take (return item to chest)
+                        event.setCancelled(true);
+                        player.sendMessage(ChatColor.RED + "✗ " + result.message());
+                        logger.debug("Withdrawal auto-deduct failed: " + result.message());
+                    }
+                });
+            })
+            .exceptionally(ex -> {
+                plugin.getServer().getScheduler().runTask(plugin, () -> {
+                    event.setCancelled(true);
+                    player.sendMessage(ChatColor.RED + "✗ Trade failed");
+                    logger.error("Withdrawal auto-deduct error: " + ex.getMessage());
+                });
+                return null;
+            });
+    }
+
+    /**
+     * Calculates the quantity of items being taken from inventory.
+     * Handles different click types (normal click, shift-click, etc).
+     *
+     * @param event The inventory click event
+     * @param item The item being taken
+     * @return Quantity being taken
+     */
+    private int calculateTakeQuantity(InventoryClickEvent event, ItemStack item) {
+        return switch (event.getAction()) {
+            case PICKUP_ALL, MOVE_TO_OTHER_INVENTORY -> item.getAmount(); // Take whole stack
+            case PICKUP_HALF -> (int) Math.ceil(item.getAmount() / 2.0); // Take half
+            case PICKUP_ONE -> 1; // Take one
+            default -> 0; // Other actions don't take items
+        };
     }
 
     /**
