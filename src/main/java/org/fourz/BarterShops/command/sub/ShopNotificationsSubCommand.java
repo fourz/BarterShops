@@ -15,7 +15,7 @@ import java.util.stream.Collectors;
 
 /**
  * Subcommand for managing notification preferences.
- * Usage: /shop notifications [toggle|type|quiet|status]
+ * Usage: /shop notifications [toggle [type]|quiet <start> <end>]
  * Player-only command (requires notification preferences).
  */
 public class ShopNotificationsSubCommand implements SubCommand {
@@ -37,17 +37,17 @@ public class ShopNotificationsSubCommand implements SubCommand {
 
         String action = args[0].toLowerCase();
 
+        // Handle "list" as alias for showing notifications
+        if (action.equals("list")) {
+            showNotificationStatus(player);
+            return true;
+        }
+
         switch (action) {
             case "toggle" -> {
-                plugin.getNotificationManager().toggleMasterEnabled(player.getUniqueId());
-                NotificationPreferencesDTO prefs = plugin.getNotificationManager().getPreferences(player.getUniqueId());
-                String status = prefs.masterEnabled() ? ChatColor.GREEN + "enabled" : ChatColor.RED + "disabled";
-                player.sendMessage(ChatColor.GOLD + "Notifications " + status);
-                return true;
-            }
-            case "type" -> {
+                // Require a notification type to toggle
                 if (args.length < 2) {
-                    player.sendMessage(ChatColor.RED + "Usage: /shop notifications type <type>");
+                    player.sendMessage(ChatColor.RED + "Usage: /shop notifications toggle <type>");
                     player.sendMessage(ChatColor.GRAY + "Available types: " +
                             Arrays.stream(NotificationType.values())
                                     .map(t -> t.name().toLowerCase())
@@ -55,15 +55,21 @@ public class ShopNotificationsSubCommand implements SubCommand {
                     return true;
                 }
 
+                // Toggle specific notification type
                 String typeName = args[1].toUpperCase();
                 try {
                     NotificationType type = NotificationType.valueOf(typeName);
+
+                    // Get current state first, calculate new state
+                    NotificationPreferencesDTO currentPrefs = plugin.getNotificationManager().getPreferences(player.getUniqueId());
+                    boolean currentState = currentPrefs.enabledTypes().getOrDefault(type, false);
+                    boolean newState = !currentState;
+
+                    // Perform toggle
                     plugin.getNotificationManager().toggleNotificationType(player.getUniqueId(), type);
 
-                    NotificationPreferencesDTO prefs = plugin.getNotificationManager().getPreferences(player.getUniqueId());
-                    boolean enabled = prefs.enabledTypes().getOrDefault(type, false);
-                    String status = enabled ? ChatColor.GREEN + "enabled" : ChatColor.RED + "disabled";
-
+                    // Display new state
+                    String status = newState ? ChatColor.GREEN + "enabled" : ChatColor.RED + "disabled";
                     player.sendMessage(ChatColor.GOLD + type.getDisplayName() + " notifications " + status);
                 } catch (IllegalArgumentException e) {
                     player.sendMessage(ChatColor.RED + "Invalid notification type: " + args[1]);
@@ -100,13 +106,9 @@ public class ShopNotificationsSubCommand implements SubCommand {
                 }
                 return true;
             }
-            case "status" -> {
-                showNotificationStatus(player);
-                return true;
-            }
             default -> {
                 player.sendMessage(ChatColor.RED + "Unknown action: " + action);
-                player.sendMessage(ChatColor.GRAY + "Available: toggle, type, quiet, status");
+                player.sendMessage(ChatColor.GRAY + "Available: toggle, quiet");
                 return true;
             }
         }
@@ -119,11 +121,6 @@ public class ShopNotificationsSubCommand implements SubCommand {
         NotificationPreferencesDTO prefs = plugin.getNotificationManager().getPreferences(player.getUniqueId());
 
         player.sendMessage(ChatColor.GOLD + "=== Notification Settings ===");
-
-        // Master toggle
-        String masterStatus = prefs.masterEnabled() ?
-                ChatColor.GREEN + "Enabled" : ChatColor.RED + "Disabled";
-        player.sendMessage(ChatColor.YELLOW + "Master: " + masterStatus);
 
         // Quiet hours
         if (prefs.quietHoursStart() != -1 && prefs.quietHoursEnd() != -1) {
@@ -141,8 +138,8 @@ public class ShopNotificationsSubCommand implements SubCommand {
             player.sendMessage(ChatColor.GRAY + "  " + status + " " + ChatColor.WHITE + type.getDisplayName());
         }
 
-        player.sendMessage(ChatColor.GRAY + "Use /shop notifications <action> to manage");
-        player.sendMessage(ChatColor.GRAY + "Actions: toggle, type <name>, quiet <start> <end>, status");
+        player.sendMessage(ChatColor.GRAY + "Use /shop notifications toggle <type> to manage");
+        player.sendMessage(ChatColor.GRAY + "Or: /shop notifications quiet <start> <end>");
     }
 
     @Override
@@ -152,7 +149,7 @@ public class ShopNotificationsSubCommand implements SubCommand {
 
     @Override
     public String getUsage() {
-        return "/shop notifications [toggle|type|quiet|status]";
+        return "/shop notifications [list|toggle <type>|quiet <start> <end>]";
     }
 
     @Override
@@ -171,13 +168,14 @@ public class ShopNotificationsSubCommand implements SubCommand {
 
         if (args.length == 1) {
             String partial = args[0].toLowerCase();
-            List<String> actions = Arrays.asList("toggle", "type", "quiet", "status");
+            List<String> actions = Arrays.asList("list", "toggle", "quiet");
             for (String action : actions) {
                 if (action.startsWith(partial)) {
                     completions.add(action);
                 }
             }
-        } else if (args.length == 2 && args[0].equalsIgnoreCase("type")) {
+        } else if (args.length == 2 && args[0].equalsIgnoreCase("toggle")) {
+            // Tab completion for toggle subcommand - show available notification types
             String partial = args[1].toLowerCase();
             for (NotificationType type : NotificationType.values()) {
                 String typeName = type.name().toLowerCase();

@@ -100,8 +100,8 @@ public class SignDisplay {
             case SELL -> "§a[We Sell]";
         };
         side.setLine(0, header);
-        side.setLine(1, "§7Not configured");
-        side.setLine(2, "§7Ask owner");
+        side.setLine(1, "§eNot configured");
+        side.setLine(2, "§eAsk owner");
         side.setLine(3, "");
     }
 
@@ -141,10 +141,10 @@ public class SignDisplay {
             // payments already fetched above
             if (payments.isEmpty()) {
                 if (offeringWrapped) {
-                    side.setLine(3, "§7No pay options");
+                    side.setLine(3, "§eNo pay options");
                 } else {
-                    side.setLine(2, "§7No payment");
-                    side.setLine(3, "§7options");
+                    side.setLine(2, "§eNo payment");
+                    side.setLine(3, "§eoptions");
                 }
             } else if (payments.size() == 1) {
                 // Single payment: Show payment details (no pagination)
@@ -162,14 +162,14 @@ public class SignDisplay {
                     // Offering wrapped, payment short: condensed on line 3
                     // MUST clear line 2 when offering uses lines 0-1
                     side.setLine(2, "");
-                    side.setLine(3, "§7for: " + payment.getAmount() + "x " + formatItemName(payment));
+                    side.setLine(3, "§efor: " + payment.getAmount() + "x " + formatItemName(payment));
                 } else if (paymentNeedsWrapping) {
                     // Offering short, payment long: payment wraps on lines 2-3
                     displayPaymentWithWrapping(side, payment, 2);
                 } else {
                     // Both short: standard 2-line display
-                    side.setLine(2, "§7for: " + payment.getAmount() + "x /");
-                    side.setLine(3, "§7" + formatItemName(payment));
+                    side.setLine(2, "§efor: " + payment.getAmount() + "x /");
+                    side.setLine(3, "§e" + formatItemName(payment));
                 }
             } else {
                 // Multiple payments: Show summary (page 0) or single payment per page (pages 1+)
@@ -178,10 +178,10 @@ public class SignDisplay {
                 if (currentPaymentIndex == 0) {
                     // Summary view (page 1)
                     if (offeringWrapped) {
-                        side.setLine(3, "§7" + payments.size() + " pay options");
+                        side.setLine(3, "§e" + payments.size() + " pay options");
                     } else {
-                        side.setLine(2, "§7" + payments.size() + " payment");
-                        side.setLine(3, "§7options");
+                        side.setLine(2, "§e" + payments.size() + " payment");
+                        side.setLine(3, "§eoptions");
                     }
                 } else {
                     // Single payment per page (page 2+)
@@ -194,7 +194,7 @@ public class SignDisplay {
                     String itemName = formatItemName(payment);
 
                     // Line 0: "for Qx"
-                    side.setLine(0, "§7for " + payment.getAmount() + "x");
+                    side.setLine(0, "§efor " + payment.getAmount() + "x");
 
                     // Lines 1-2: Item name (wrap if > 15 chars)
                     if (itemName.length() > 15) {
@@ -202,16 +202,16 @@ public class SignDisplay {
                         int splitIndex = itemName.lastIndexOf(' ', 15);
                         if (splitIndex == -1) splitIndex = 15;
 
-                        side.setLine(1, "§7" + itemName.substring(0, splitIndex).trim());
-                        side.setLine(2, "§7" + itemName.substring(splitIndex).trim());
+                        side.setLine(1, "§e" + itemName.substring(0, splitIndex).trim());
+                        side.setLine(2, "§e" + itemName.substring(splitIndex).trim());
                     } else {
                         // Short name: Line 1 only, line 2 blank
-                        side.setLine(1, "§7" + itemName);
+                        side.setLine(1, "§e" + itemName);
                         side.setLine(2, "");
                     }
 
                     // Line 3: "page X of Y"
-                    side.setLine(3, "§8page " + displayPageNumber + " of " + totalPages);
+                    side.setLine(3, "§6page " + displayPageNumber + " of " + totalPages);
                 }
             }
         } else {
@@ -221,11 +221,11 @@ public class SignDisplay {
 
             if (offeringWrapped) {
                 // Offering uses lines 1-2, condense price to line 3
-                side.setLine(3, "§7" + priceAmount + "x " + formatItemName(priceItem));
+                side.setLine(3, "§e" + priceAmount + "x " + formatItemName(priceItem));
             } else {
                 // Offering uses line 1, price uses lines 2-3 as before
-                side.setLine(2, "§7" + priceAmount + "x");
-                side.setLine(3, "§7" + formatItemName(priceItem));
+                side.setLine(2, "§e" + priceAmount + "x");
+                side.setLine(3, "§e" + formatItemName(priceItem));
             }
         }
     }
@@ -263,10 +263,10 @@ public class SignDisplay {
         // Show preview mode indicator or payment summary
         if (barterSign.isOwnerPreviewMode()) {
             if (offeringWrapped) {
-                side.setLine(3, "§7Customer View");
+                side.setLine(3, "§eCustomer View");
             } else {
-                side.setLine(2, "§7[Customer View]");
-                side.setLine(3, "§7Sneak+R: exit");
+                side.setLine(2, "§e[Customer View]");
+                side.setLine(3, "§eSneak+R: exit");
             }
         } else if (type == SignType.BARTER) {
             // payments already fetched above
@@ -279,22 +279,22 @@ public class SignDisplay {
                     // Both offering and payment wrapped: wrap payment across lines 2-3
                     int paymentSplit = paymentName.lastIndexOf(' ', 15);
                     if (paymentSplit == -1) paymentSplit = 15;
-                    side.setLine(2, "§7for: " + payment.getAmount() + "x " + paymentName.substring(0, paymentSplit).trim());
-                    side.setLine(3, "§7" + paymentName.substring(paymentSplit).trim());
+                    side.setLine(2, "§efor: " + payment.getAmount() + "x " + paymentName.substring(0, paymentSplit).trim());
+                    side.setLine(3, "§e" + paymentName.substring(paymentSplit).trim());
                 } else if (offeringWrapped) {
                     // Offering wrapped, payment short: condensed on line 3
                     side.setLine(2, "");
-                    side.setLine(3, "§7for: " + payment.getAmount() + "x " + formatItemName(payment));
+                    side.setLine(3, "§efor: " + payment.getAmount() + "x " + formatItemName(payment));
                 } else {
-                    side.setLine(2, "§7for: " + payment.getAmount() + "x");
-                    side.setLine(3, "§7" + formatItemName(payment));
+                    side.setLine(2, "§efor: " + payment.getAmount() + "x");
+                    side.setLine(3, "§e" + formatItemName(payment));
                 }
             } else {
                 if (offeringWrapped) {
-                    side.setLine(3, "§7" + payments.size() + " pay options");
+                    side.setLine(3, "§e" + payments.size() + " pay options");
                 } else {
-                    side.setLine(2, "§7" + payments.size() + " payment");
-                    side.setLine(3, "§7options");
+                    side.setLine(2, "§e" + payments.size() + " payment");
+                    side.setLine(3, "§eoptions");
                 }
             }
         } else {
@@ -303,11 +303,11 @@ public class SignDisplay {
 
             if (offeringWrapped) {
                 // Offering uses lines 1-2, condense price to line 3
-                side.setLine(3, "§7" + priceAmount + "x " + formatItemName(priceItem));
+                side.setLine(3, "§e" + priceAmount + "x " + formatItemName(priceItem));
             } else {
                 // Offering uses line 1, price uses lines 2-3 as before
-                side.setLine(2, "§7" + priceAmount + "x");
-                side.setLine(3, "§7" + formatItemName(priceItem));
+                side.setLine(2, "§e" + priceAmount + "x");
+                side.setLine(3, "§e" + formatItemName(priceItem));
             }
         }
     }
@@ -380,15 +380,15 @@ public class SignDisplay {
             if (splitIndex == -1) splitIndex = 15;
 
             // Line N: "for: Qx FirstPart"
-            side.setLine(startLine, "§7for: " + amount + "x " + itemName.substring(0, splitIndex).trim());
+            side.setLine(startLine, "§efor: " + amount + "x " + itemName.substring(0, splitIndex).trim());
 
             // Line N+1: "SecondPart"
-            side.setLine(startLine + 1, "§7" + itemName.substring(splitIndex).trim());
+            side.setLine(startLine + 1, "§e" + itemName.substring(splitIndex).trim());
 
             return true; // Wrapped
         } else {
             // Short name: single line
-            side.setLine(startLine, "§7for: " + amount + "x " + itemName);
+            side.setLine(startLine, "§efor: " + amount + "x " + itemName);
             return false; // Not wrapped
         }
     }
@@ -417,8 +417,8 @@ public class SignDisplay {
         int paymentSplit = paymentName.lastIndexOf(' ', 15);
         if (paymentSplit == -1) paymentSplit = 15;
 
-        side.setLine(2, "§7for: " + payment.getAmount() + "x " + paymentName.substring(0, paymentSplit).trim());
-        side.setLine(3, "§7" + paymentName.substring(paymentSplit).trim());
+        side.setLine(2, "§efor: " + payment.getAmount() + "x " + paymentName.substring(0, paymentSplit).trim());
+        side.setLine(3, "§e" + paymentName.substring(paymentSplit).trim());
     }
 
     private static void displayTypeMode(SignSide side, BarterSign barterSign) {
@@ -427,11 +427,11 @@ public class SignDisplay {
 
         if (barterSign.isTypeDetected()) {
             // Inventory type locked, but can still change shop type
-            side.setLine(1, "§7L-Click to cycle");
+            side.setLine(1, "§eL-Click to cycle");
             side.setLine(2, "§bType: " + currentType.name());
-            side.setLine(3, "§8(Inv: " + (barterSign.getShopStackableMode() ? "STACK" : "UNIQ") + ")");
+            side.setLine(3, "§6(Inv: " + (barterSign.getShopStackableMode() ? "STACK" : "UNIQ") + ")");
         } else {
-            side.setLine(1, "§7L-Click to cycle");
+            side.setLine(1, "§eL-Click to cycle");
             side.setLine(2, "§bType: " + currentType.name());
             side.setLine(3, "");
         }
@@ -452,7 +452,7 @@ public class SignDisplay {
         frontSide.setLine(0, "§c[CONFIRM?]");
         frontSide.setLine(1, "§cL-Click AGAIN");
         frontSide.setLine(2, "§cto confirm");
-        frontSide.setLine(3, "§7(5s timeout)");
+        frontSide.setLine(3, "§e(5s timeout)");
         sign.update();
     }
 

@@ -210,6 +210,8 @@ public class SignManager implements Listener {
         // Save asynchronously - don't block the sign creation event
         plugin.getShopRepository().save(shopDTO)
             .thenAccept(savedDTO -> {
+                // CRITICAL: Update BarterSign with generated shop ID from database
+                barterSign.setShopId(savedDTO.shopId());
                 logger.debug("Barter sign persisted to database with shop ID: " + savedDTO.shopId());
             })
             .exceptionally(ex -> {

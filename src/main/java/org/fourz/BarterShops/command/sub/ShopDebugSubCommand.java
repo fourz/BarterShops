@@ -323,11 +323,19 @@ public class ShopDebugSubCommand implements SubCommand {
                     }
                 }
             } else if (subCmd.equals("changeowner")) {
-                // Return shop IDs (or suggest generic numbers)
-                partial = args[1].toLowerCase();
-                if ("all".startsWith(partial)) {
-                    completions.add("<shopId>");
-                }
+                // Return actual shop IDs sorted newest first
+                final String shopIdPartial = args[1].toLowerCase();
+
+                // Get all shops from SignManager
+                var allShops = plugin.getSignManager().getBarterSigns();
+
+                // Collect shop IDs and sort newest first (assuming higher ID = newer)
+                allShops.values().stream()
+                    .filter(shop -> shop.getShopId() > 0) // Exclude -1 IDs
+                    .map(shop -> String.valueOf(shop.getShopId()))
+                    .sorted((a, b) -> Integer.compare(Integer.parseInt(b), Integer.parseInt(a))) // Descending
+                    .filter(id -> id.startsWith(shopIdPartial))
+                    .forEach(completions::add);
             } else if (subCmd.equals("seed")) {
                 return seedCommand.getTabCompletions(sender, Arrays.copyOfRange(args, 1, args.length));
             }

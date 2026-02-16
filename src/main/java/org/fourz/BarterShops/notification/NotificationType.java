@@ -8,17 +8,17 @@ public enum NotificationType {
     /**
      * Trade request received from another player.
      */
-    TRADE_REQUEST("Trade Request", true),
+    TRADE_REQUEST("Trade Request", false),
 
     /**
      * Trade successfully completed.
      */
-    TRADE_COMPLETE("Trade Complete", true),
+    TRADE_COMPLETE("Trade Complete", false),
 
     /**
      * Trade was cancelled by either party.
      */
-    TRADE_CANCELLED("Trade Cancelled", true),
+    TRADE_CANCELLED("Trade Cancelled", false),
 
     /**
      * Shop stock is running low (configurable threshold).
@@ -33,7 +33,7 @@ public enum NotificationType {
     /**
      * New review received on your shop.
      */
-    REVIEW_RECEIVED("Review Received", true),
+    REVIEW_RECEIVED("Review Received", false),
 
     /**
      * Price change alert for watched shops.
