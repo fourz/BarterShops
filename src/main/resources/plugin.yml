@@ -27,7 +27,7 @@ permissions:
     description: Allows finding nearby shops
     default: true
   bartershops.command.info:
-    description: Allows viewing shop information
+    description: View limited shop information (offering + payments)
     default: true
   bartershops.admin:
     description: General admin bypass for shop operations
@@ -42,7 +42,7 @@ permissions:
     description: Allows managing notification preferences
     default: true
   bartershops.admin.inspect:
-    description: Allows inspecting any shop (admin)
+    description: Manage shop inspection preferences & see full details
     default: op
   bartershops.admin.clear:
     description: Allows clearing shop inventories (admin)
