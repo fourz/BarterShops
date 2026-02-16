@@ -111,13 +111,26 @@ public class BarterSign {
 
     /**
      * Configures price for the shop.
+     * CRITICAL: Also populates acceptedPayments for BUY/SELL shops.
      */
     public void configurePrice(ItemStack paymentItem, int amount) {
         if (paymentItem != null) {
             this.priceItem = paymentItem.clone();
             this.priceItem.setAmount(1); // Store single item, amount separate
+
+            // CRITICAL FIX: Populate acceptedPayments for BUY/SELL shops
+            // This ensures getPaymentAmount() and isPaymentAccepted() work correctly
+            if (type != SignType.BARTER) {
+                acceptedPayments.clear();
+                ItemStack payment = paymentItem.clone();
+                payment.setAmount(amount);
+                acceptedPayments.add(payment);
+            }
         } else {
             this.priceItem = null;
+            if (type != SignType.BARTER) {
+                acceptedPayments.clear();
+            }
         }
         this.priceAmount = amount;
     }
@@ -178,13 +191,23 @@ public class BarterSign {
 
     /**
      * Gets the payment amount for a given material.
+     * CRITICAL FIX: Fallback to priceItem for BUY/SELL shops if acceptedPayments empty.
      */
     public int getPaymentAmount(Material material) {
-        return acceptedPayments.stream()
+        int amount = acceptedPayments.stream()
             .filter(p -> p.getType() == material)
             .map(ItemStack::getAmount)
             .findFirst()
             .orElse(0);
+
+        // Fallback for BUY/SELL shops if acceptedPayments not populated
+        if (amount == 0 && type != SignType.BARTER && priceItem != null) {
+            if (priceItem.getType() == material) {
+                return priceAmount;
+            }
+        }
+
+        return amount;
     }
 
     /**
@@ -196,6 +219,9 @@ public class BarterSign {
      */
     public Set<Material> getAllowedChestTypes() {
         Set<Material> allowedTypes = new HashSet<>();
+        // CRITICAL FIX: Ensure acceptedPayments is populated for legacy shops
+        ensurePaymentListPopulated();
+
 
         // Allow offering item (for owner restocking)
         if (itemOffering != null) {
@@ -389,6 +415,20 @@ public class BarterSign {
     public void resetCustomerViewState() {
         ownerPreviewMode = false;
         currentPaymentPage = 0;
+    }
+
+    /**
+     * Migration fix for legacy shops created before acceptedPayments list was auto-populated.
+     * If acceptedPayments is empty but priceItem is set (BUY/SELL shop), populate it automatically.
+     * This ensures validation and auto-exchange work correctly for existing shops.
+     * Called by getAllowedChestTypes() to ensure payment list is always valid.
+     */
+    private void ensurePaymentListPopulated() {
+        if (acceptedPayments.isEmpty() && type != SignType.BARTER && priceItem != null && priceAmount > 0) {
+            ItemStack payment = priceItem.clone();
+            payment.setAmount(priceAmount);
+            acceptedPayments.add(payment);
+        }
     }
 
     public static class Builder {
