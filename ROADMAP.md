@@ -1,8 +1,30 @@
 # BarterShops Development Roadmap
 
-**Last Updated**: February 13, 2026
+**Last Updated**: February 16, 2026
 **Archon Board**: `bd4e478b-772a-4b97-bd99-300552840815`
-**Version**: 1.0.1 (Sign UI Complete)
+**Version**: 1.0.3 (Auto-Exchange Fix Complete)
+
+## February 16, 2026 Status: Auto-Exchange System Fixed (bug-41)
+
+**Today's Development** (Feb 15-16):
+
+- ✅ **bug-41**: Auto-exchange system fixed - payment configuration, bulk purchases, legacy migration
+  - **Phase 1 (P0)**: Payment configuration fix
+    - acceptedPayments list now populates for BUY/SELL shops via configurePrice()
+    - Added fallback in getPaymentAmount() for legacy compatibility
+    - Files: BarterSign.java lines 115-133, 196-211
+  - **Phase 2 (P1)**: Increment scaling logic
+    - Bulk purchase support: deposit 2x payment → receive 2x offering
+    - Exact multiple validation prevents fractional payments
+    - Files: AutoExchangeHandler.java lines 87-115, 168-229
+  - **Phase 3 (P2)**: Legacy shop migration
+    - Added ensurePaymentListPopulated() auto-repair method
+    - Legacy shops auto-migrate on first validation check
+    - Files: BarterSign.java lines 220-247
+  - **Testing**: Verified 4x bulk purchase on RVNK Dev (deposit 4x payment → receive 4x offering)
+  - **Version**: 1.0.3 deployed to RVNK Dev
+
+---
 
 ## February 13, 2026 Status: Sign UI Phases Complete + UX Polish
 
