@@ -26,24 +26,26 @@ public class ShopPreferenceManager {
 
     /**
      * Update a preference setting.
-     * 
+     *
      * @param playerId Player ID
-     * @param key Setting key: "infoDisplay", "chatFormat", "ownShopsOnly"
+     * @param key Setting key: "infoDisplay", "chatFormat", "ownShopsOnly", "autoExchange"
      * @param value Boolean value
      */
     public void setPreference(UUID playerId, String key, boolean value) {
         PlayerShopPreferences current = getPreferences(playerId);
-        
+
         PlayerShopPreferences updated = switch(key.toLowerCase()) {
-            case "infodisplay" -> 
-                new PlayerShopPreferences(playerId, value, current.chatFormat(), current.ownShopsOnly());
-            case "chatformat" -> 
-                new PlayerShopPreferences(playerId, current.infoDisplayEnabled(), value, current.ownShopsOnly());
-            case "ownshopsonly" -> 
-                new PlayerShopPreferences(playerId, current.infoDisplayEnabled(), current.chatFormat(), value);
+            case "infodisplay" ->
+                new PlayerShopPreferences(playerId, value, current.chatFormat(), current.ownShopsOnly(), current.autoExchangeEnabled());
+            case "chatformat" ->
+                new PlayerShopPreferences(playerId, current.infoDisplayEnabled(), value, current.ownShopsOnly(), current.autoExchangeEnabled());
+            case "ownshopsonly" ->
+                new PlayerShopPreferences(playerId, current.infoDisplayEnabled(), current.chatFormat(), value, current.autoExchangeEnabled());
+            case "autoexchange" ->
+                new PlayerShopPreferences(playerId, current.infoDisplayEnabled(), current.chatFormat(), current.ownShopsOnly(), value);
             default -> current;
         };
-        
+
         preferences.put(playerId, updated);
     }
 
@@ -66,6 +68,20 @@ public class ShopPreferenceManager {
      */
     public boolean showOwnShopsOnly(UUID playerId) {
         return getPreferences(playerId).ownShopsOnly();
+    }
+
+    /**
+     * Quick check if auto-exchange is enabled for player.
+     */
+    public boolean isAutoExchangeEnabled(UUID playerId) {
+        return getPreferences(playerId).autoExchangeEnabled();
+    }
+
+    /**
+     * Set auto-exchange preference for a player.
+     */
+    public void setAutoExchangeEnabled(UUID playerId, boolean enabled) {
+        setPreference(playerId, "autoexchange", enabled);
     }
 
     /**

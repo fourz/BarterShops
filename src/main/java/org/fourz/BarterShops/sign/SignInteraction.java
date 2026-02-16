@@ -641,8 +641,15 @@ public class SignInteraction {
             return;
         }
 
-        // Both validations passed - initiate trade session
-        executeConfiguredTrade(player, sign, barterSign, tradeEngine, offering, paymentItem, paymentAmount);
+        // Both validations passed - check auto-exchange preference
+        if (plugin.getAutoExchangeHandler() != null &&
+            plugin.getAutoExchangeHandler().isAutoExchangeEnabled(player)) {
+            // Auto-exchange ON: Execute instant purchase
+            executeDirectPurchase(player, sign, barterSign, offering, paymentItem, paymentAmount);
+        } else {
+            // Auto-exchange OFF: Open GUI confirmation (traditional flow)
+            executeConfiguredTrade(player, sign, barterSign, tradeEngine, offering, paymentItem, paymentAmount);
+        }
     }
 
     /**
@@ -772,6 +779,57 @@ public class SignInteraction {
                 // (GUI confirmation already shows cancellation)
             }
         );
+    }
+
+    /**
+     * Executes a direct purchase without GUI confirmation (auto-exchange enabled).
+     * Triggered by left-click with payment in hand when auto-exchange preference is ON.
+     *
+     * @param player The customer purchasing
+     * @param sign The shop sign
+     * @param barterSign Shop sign data
+     * @param offering Item being offered
+     * @param payment Payment item
+     * @param paymentAmount Payment quantity
+     */
+    private void executeDirectPurchase(Player player, Sign sign, BarterSign barterSign,
+                                      ItemStack offering, ItemStack payment, int paymentAmount) {
+        logger.debug("Executing direct purchase for " + player.getName());
+
+        TradeEngine tradeEngine = plugin.getTradeEngine();
+        if (tradeEngine == null) {
+            showTemporaryStatus(sign, barterSign, "\u00A7cTrade", "\u00A7cunavailable");
+            return;
+        }
+
+        // Execute direct trade via AutoExchangeHandler pattern
+        tradeEngine.executeDirectTrade(
+            player,
+            barterSign,
+            offering,
+            offering.getAmount(),
+            payment,
+            paymentAmount,
+            org.fourz.BarterShops.trade.TradeSource.INSTANT_PURCHASE
+        ).thenAccept(result -> {
+            plugin.getServer().getScheduler().runTask(plugin, () -> {
+                if (result.success()) {
+                    // Brief success feedback (no spam)
+                    showTemporaryStatus(sign, barterSign, "\u00A7aPurchased", "\u00A7a" + offering.getAmount() + "x");
+                    logger.debug("Direct purchase completed: " + result.transactionId());
+                } else {
+                    // Show error
+                    showTemporaryStatus(sign, barterSign, "\u00A7cFailed", "\u00A7c" + result.message());
+                    logger.debug("Direct purchase failed: " + result.message());
+                }
+            });
+        }).exceptionally(ex -> {
+            plugin.getServer().getScheduler().runTask(plugin, () -> {
+                showTemporaryStatus(sign, barterSign, "\u00A7cError", "\u00A7cTrade failed");
+                logger.error("Direct purchase error: " + ex.getMessage());
+            });
+            return null;
+        });
     }
 
     // ========== Temporary Status Display ==========
