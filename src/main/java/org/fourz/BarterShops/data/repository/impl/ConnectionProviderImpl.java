@@ -2,12 +2,13 @@ package org.fourz.BarterShops.data.repository.impl;
 
 import com.zaxxer.hikari.HikariConfig;
 import com.zaxxer.hikari.HikariDataSource;
-import org.bukkit.configuration.file.FileConfiguration;
 import org.fourz.BarterShops.BarterShops;
+import org.fourz.BarterShops.config.dto.DatabaseSettingsDTO;
+import org.fourz.BarterShops.config.dto.MySQLSettingsDTO;
+import org.fourz.BarterShops.config.dto.SQLiteSettingsDTO;
 import org.fourz.BarterShops.data.IConnectionProvider;
 import org.fourz.rvnkcore.util.log.LogManager;
 
-import java.io.File;
 import java.sql.Connection;
 import java.sql.SQLException;
 import java.sql.Statement;
@@ -59,12 +60,9 @@ public class ConnectionProviderImpl implements IConnectionProvider {
     public ConnectionProviderImpl(BarterShops plugin, LogManager logger) {
         this.plugin = plugin;
         this.logger = logger;
-        FileConfiguration config = plugin.getConfigManager().getConfig();
-        this.databaseType = config.getString("storage.type", "sqlite").toLowerCase();
-
-        // Load table prefix from config
-        String prefixPath = "mysql".equals(databaseType) ? "storage.mysql.tablePrefix" : "storage.sqlite.tablePrefix";
-        this.tablePrefix = config.getString(prefixPath, "");
+        DatabaseSettingsDTO settings = plugin.getConfigManager().getDatabaseSettings();
+        this.databaseType = settings.isMySQL() ? "mysql" : "sqlite";
+        this.tablePrefix = settings.getTablePrefix();
         if (tablePrefix != null && !tablePrefix.isEmpty()) {
             logger.info("Using table prefix: " + tablePrefix);
         }
@@ -101,21 +99,16 @@ public class ConnectionProviderImpl implements IConnectionProvider {
     }
 
     private void configureMysql(HikariConfig config) {
-        FileConfiguration cfg = plugin.getConfigManager().getConfig();
-        String host = cfg.getString("storage.mysql.host", "localhost");
-        int port = cfg.getInt("storage.mysql.port", 3306);
-        String database = cfg.getString("storage.mysql.database", "bartershops");
-        String username = cfg.getString("storage.mysql.username", "root");
-        String password = cfg.getString("storage.mysql.password", "");
+        MySQLSettingsDTO mysql = plugin.getConfigManager().getDatabaseSettings().getMysqlSettings();
 
-        config.setJdbcUrl("jdbc:mysql://" + host + ":" + port + "/" + database +
+        config.setJdbcUrl("jdbc:mysql://" + mysql.getHost() + ":" + mysql.getPort() + "/" + mysql.getDatabase() +
                 "?useSSL=false&autoReconnect=true&useUnicode=true&characterEncoding=UTF-8");
-        config.setUsername(username);
-        config.setPassword(password);
+        config.setUsername(mysql.getUsername());
+        config.setPassword(mysql.getPassword());
         config.setDriverClassName("com.mysql.cj.jdbc.Driver");
 
         // MySQL-specific settings
-        config.setMaximumPoolSize(cfg.getInt("storage.mysql.pool-size", 10));
+        config.setMaximumPoolSize(mysql.getPoolSize());
         config.setMinimumIdle(2);
         config.setIdleTimeout(600000); // 10 minutes
         config.setMaxLifetime(1800000); // 30 minutes
@@ -123,13 +116,9 @@ public class ConnectionProviderImpl implements IConnectionProvider {
     }
 
     private void configureSqlite(HikariConfig config) {
-        File dataFolder = plugin.getDataFolder();
-        if (!dataFolder.exists()) {
-            dataFolder.mkdirs();
-        }
+        SQLiteSettingsDTO sqlite = plugin.getConfigManager().getDatabaseSettings().getSqliteSettings();
 
-        File dbFile = new File(dataFolder, "bartershops.db");
-        config.setJdbcUrl("jdbc:sqlite:" + dbFile.getAbsolutePath());
+        config.setJdbcUrl("jdbc:sqlite:" + sqlite.getFilePath());
         config.setDriverClassName("org.sqlite.JDBC");
 
         // SQLite-specific settings (single connection is often best)

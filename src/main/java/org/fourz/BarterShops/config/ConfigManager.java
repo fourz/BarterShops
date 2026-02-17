@@ -3,6 +3,9 @@ package org.fourz.BarterShops.config;
 import org.bukkit.configuration.file.FileConfiguration;
 import org.bukkit.configuration.file.YamlConfiguration;
 import org.fourz.BarterShops.BarterShops;
+import org.fourz.BarterShops.config.dto.DatabaseSettingsDTO;
+import org.fourz.BarterShops.config.dto.MySQLSettingsDTO;
+import org.fourz.BarterShops.config.dto.SQLiteSettingsDTO;
 import org.fourz.BarterShops.data.dto.ShopDataDTO;
 import org.fourz.BarterShops.sign.SignType;
 import org.fourz.rvnkcore.util.log.LogManager;
@@ -17,6 +20,7 @@ public class ConfigManager {
     private final BarterShops plugin;
     private FileConfiguration config;
     private File configFile;
+    private DatabaseSettingsDTO databaseSettings;
 
     public ConfigManager(BarterShops plugin) {
         this.plugin = plugin;
@@ -33,11 +37,64 @@ public class ConfigManager {
         }
 
         config = YamlConfiguration.loadConfiguration(configFile);
+
+        try {
+            this.databaseSettings = createDatabaseSettings();
+        } catch (IllegalArgumentException e) {
+            plugin.getLogger().severe("Invalid database configuration: " + e.getMessage());
+        }
+    }
+
+    private DatabaseSettingsDTO createDatabaseSettings() {
+        String storageType = config.getString("storage.type", "sqlite");
+        DatabaseSettingsDTO.DatabaseType type = "mysql".equalsIgnoreCase(storageType)
+                ? DatabaseSettingsDTO.DatabaseType.MYSQL
+                : DatabaseSettingsDTO.DatabaseType.SQLITE;
+
+        MySQLSettingsDTO mysqlSettings = null;
+        if (type == DatabaseSettingsDTO.DatabaseType.MYSQL) {
+            mysqlSettings = new MySQLSettingsDTO(
+                    config.getString("storage.mysql.host", "localhost"),
+                    config.getInt("storage.mysql.port", 3306),
+                    config.getString("storage.mysql.database", "bartershops"),
+                    config.getString("storage.mysql.username", "root"),
+                    config.getString("storage.mysql.password", ""),
+                    config.getBoolean("storage.mysql.useSSL", false),
+                    config.getString("storage.mysql.tablePrefix", ""),
+                    config.getInt("storage.mysql.pool-size", 10)
+            );
+        }
+
+        SQLiteSettingsDTO sqliteSettings = null;
+        if (type == DatabaseSettingsDTO.DatabaseType.SQLITE) {
+            String dbFile = config.getString("storage.sqlite.database", "bartershops.db");
+            String filePath = new File(plugin.getDataFolder(), dbFile).getAbsolutePath();
+            sqliteSettings = new SQLiteSettingsDTO(
+                    filePath,
+                    config.getString("storage.sqlite.tablePrefix", "")
+            );
+        }
+
+        DatabaseSettingsDTO dto = new DatabaseSettingsDTO(type, mysqlSettings, sqliteSettings);
+        dto.validate();
+        return dto;
+    }
+
+    public DatabaseSettingsDTO getDatabaseSettings() {
+        if (databaseSettings == null) {
+            databaseSettings = createDatabaseSettings();
+        }
+        return databaseSettings;
     }
 
     public void reloadConfig() {
         loadConfig();
         plugin.getLogger().info("Configuration reloaded");
+    }
+
+    public void cleanup() {
+        config = null;
+        databaseSettings = null;
     }
 
     public void saveConfig() {
@@ -130,7 +187,4 @@ public class ConfigManager {
         return enabled;
     }
 
-    public void cleanup() {
-        config = null;
-    }
 }
