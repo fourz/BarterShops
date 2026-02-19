@@ -301,6 +301,9 @@ public class BarterShops extends JavaPlugin {
             rvnkCoreInstance = coreInstance;
             logger.info("RVNKCore integration enabled - services registered");
 
+            // Register notification types with PlayerPreferencesService
+            registerNotificationTypes();
+
         } catch (ClassNotFoundException e) {
             logger.info("RVNKCore classes not found - running in standalone mode");
         } catch (NoClassDefFoundError e) {
@@ -310,6 +313,53 @@ public class BarterShops extends JavaPlugin {
         } catch (Exception e) {
             logger.warning("Failed to register with RVNKCore: " + e.getMessage());
             logger.warning("Running in standalone mode");
+        }
+    }
+
+    /**
+     * Registers notification types with PlayerPreferencesService so players can control
+     * which shop notifications they receive via /pref bartershops.
+     */
+    private void registerNotificationTypes() {
+        try {
+            org.fourz.rvnkcore.RVNKCore core = org.fourz.rvnkcore.RVNKCore.getInstance();
+            if (core == null) return;
+
+            org.fourz.rvnkcore.service.registry.ServiceRegistry registry = core.getServiceRegistry();
+            if (registry == null) return;
+
+            org.fourz.rvnkcore.api.service.PlayerPreferencesService prefsService =
+                    registry.getService(org.fourz.rvnkcore.api.service.PlayerPreferencesService.class);
+            if (prefsService == null) {
+                logger.debug("PlayerPreferencesService not available - notification types not registered");
+                return;
+            }
+
+            java.util.List<org.fourz.rvnkcore.api.model.NotificationTypeDefinition> types =
+                    java.util.Arrays.asList(
+                            new org.fourz.rvnkcore.api.model.NotificationTypeDefinition(
+                                    "bartershops", "trade_request", "Trade request received", true),
+                            new org.fourz.rvnkcore.api.model.NotificationTypeDefinition(
+                                    "bartershops", "trade_complete", "Trade completed successfully", true),
+                            new org.fourz.rvnkcore.api.model.NotificationTypeDefinition(
+                                    "bartershops", "trade_cancelled", "Trade cancelled by buyer", true),
+                            new org.fourz.rvnkcore.api.model.NotificationTypeDefinition(
+                                    "bartershops", "shop_stock_low", "Shop stock running low", true),
+                            new org.fourz.rvnkcore.api.model.NotificationTypeDefinition(
+                                    "bartershops", "shop_sale", "Shop item sold", true),
+                            new org.fourz.rvnkcore.api.model.NotificationTypeDefinition(
+                                    "bartershops", "review_received", "Shop review received", true),
+                            new org.fourz.rvnkcore.api.model.NotificationTypeDefinition(
+                                    "bartershops", "price_change", "Nearby shop price changed", false),
+                            new org.fourz.rvnkcore.api.model.NotificationTypeDefinition(
+                                    "bartershops", "system", "System and admin announcements", true)
+                    );
+
+            prefsService.registerNotificationTypes("bartershops", types);
+            logger.info("Registered " + types.size() + " notification types with PlayerPreferencesService");
+
+        } catch (Exception e) {
+            logger.debug("Failed to register notification types: " + e.getMessage());
         }
     }
 
