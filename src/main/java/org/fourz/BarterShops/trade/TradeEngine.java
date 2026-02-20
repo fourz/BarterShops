@@ -6,7 +6,7 @@ import org.bukkit.entity.Player;
 import org.bukkit.inventory.Inventory;
 import org.bukkit.inventory.ItemStack;
 import org.fourz.BarterShops.BarterShops;
-import org.fourz.BarterShops.data.FallbackTracker;
+import org.fourz.rvnkcore.data.FallbackTracker;
 import org.fourz.BarterShops.data.dto.TradeRecordDTO;
 import org.fourz.BarterShops.service.ITradeService.TradeResultDTO;
 import org.fourz.BarterShops.sign.BarterSign;
@@ -41,7 +41,10 @@ public class TradeEngine {
         this.plugin = plugin;
         this.logger = LogManager.getInstance(plugin, "TradeEngine");
         this.validator = new TradeValidator(plugin);
-        this.fallbackTracker = new FallbackTracker(plugin);
+        this.fallbackTracker = new FallbackTracker(
+                plugin.getConfigManager().getInt("database.max-failures", 3),
+                plugin.getConfigManager().getLong("database.recovery-time-ms", 30000L),
+                LogManager.getInstance(plugin, "FallbackTracker"));
     }
 
     /**

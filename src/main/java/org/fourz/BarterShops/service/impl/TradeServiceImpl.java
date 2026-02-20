@@ -3,7 +3,7 @@ package org.fourz.BarterShops.service.impl;
 import org.bukkit.configuration.file.YamlConfiguration;
 import org.bukkit.inventory.ItemStack;
 import org.fourz.BarterShops.BarterShops;
-import org.fourz.BarterShops.data.FallbackTracker;
+import org.fourz.rvnkcore.data.FallbackTracker;
 import org.fourz.BarterShops.data.dto.TradeRecordDTO;
 import org.fourz.BarterShops.data.repository.ITradeRepository;
 import org.fourz.BarterShops.service.ITradeService;

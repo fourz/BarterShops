@@ -6,7 +6,7 @@ import org.bukkit.plugin.java.JavaPlugin;
 import org.fourz.BarterShops.command.CommandManager;
 import org.fourz.BarterShops.config.ConfigManager;
 import org.fourz.BarterShops.config.TypeAvailabilityManager;
-import org.fourz.BarterShops.data.FallbackTracker;
+import org.fourz.rvnkcore.data.FallbackTracker;
 import org.fourz.BarterShops.data.IConnectionProvider;
 import org.fourz.BarterShops.data.repository.IShopRepository;
 import org.fourz.BarterShops.data.repository.impl.ConnectionProviderImpl;
@@ -168,7 +168,10 @@ public class BarterShops extends JavaPlugin {
      */
     private void initializeDatabaseLayer() {
         try {
-            this.fallbackTracker = new FallbackTracker(this);
+            this.fallbackTracker = new FallbackTracker(
+                    getConfigManager().getInt("database.max-failures", 3),
+                    getConfigManager().getLong("database.recovery-time-ms", 30000L),
+                    org.fourz.rvnkcore.util.log.LogManager.getInstance(this, "FallbackTracker"));
             this.connectionProvider = new ConnectionProviderImpl(this);
             this.connectionProvider.initialize();
             this.shopRepository = new ShopRepositoryImpl(this, connectionProvider, fallbackTracker);

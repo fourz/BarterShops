@@ -3,9 +3,9 @@ package org.fourz.BarterShops.data.repository.impl;
 import com.zaxxer.hikari.HikariConfig;
 import com.zaxxer.hikari.HikariDataSource;
 import org.fourz.BarterShops.BarterShops;
-import org.fourz.BarterShops.config.dto.DatabaseSettingsDTO;
-import org.fourz.BarterShops.config.dto.MySQLSettingsDTO;
-import org.fourz.BarterShops.config.dto.SQLiteSettingsDTO;
+import org.fourz.rvnkcore.config.dto.DatabaseSettingsDTO;
+import org.fourz.rvnkcore.config.dto.MySQLSettingsDTO;
+import org.fourz.rvnkcore.config.dto.SQLiteSettingsDTO;
 import org.fourz.BarterShops.data.IConnectionProvider;
 import org.fourz.rvnkcore.util.log.LogManager;
 

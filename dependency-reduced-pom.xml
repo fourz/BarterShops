@@ -4,7 +4,7 @@
   <groupId>org.fourz.BarterShops</groupId>
   <artifactId>BarterShops</artifactId>
   <name>BarterShops</name>
-  <version>1.0.3</version>
+  <version>1.0.4</version>
   <url>http://www.example.com</url>
   <build>
     <resources>
@@ -97,7 +97,7 @@
     <dependency>
       <groupId>org.fourz</groupId>
       <artifactId>rvnkcore</artifactId>
-      <version>1.3.0-alpha</version>
+      <version>1.3.2-alpha</version>
       <scope>provided</scope>
     </dependency>
     <dependency>

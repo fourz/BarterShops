@@ -9,7 +9,7 @@ import org.bukkit.entity.Player;
 import org.fourz.BarterShops.BarterShops;
 import org.fourz.BarterShops.command.SeedSubCommand;
 import org.fourz.BarterShops.command.SubCommand;
-import org.fourz.BarterShops.data.FallbackTracker;
+import org.fourz.rvnkcore.data.FallbackTracker;
 import org.fourz.BarterShops.data.IConnectionProvider;
 import org.fourz.BarterShops.data.dto.ShopDataDTO;
 import org.fourz.BarterShops.sign.BarterSign;

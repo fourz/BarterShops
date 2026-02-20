@@ -8,7 +8,7 @@ import org.bukkit.Sound;
 import org.bukkit.entity.Player;
 import org.bukkit.scheduler.BukkitTask;
 import org.fourz.BarterShops.BarterShops;
-import org.fourz.BarterShops.integration.preferences.PreferencesServiceLookup;
+import org.fourz.rvnkcore.RVNKCore;
 import org.fourz.rvnkcore.api.service.PlayerPreferencesService;
 import org.fourz.rvnkcore.util.log.LogManager;
 
@@ -30,8 +30,6 @@ public class NotificationManager {
     private final Map<UUID, NotificationPreferencesDTO> preferences;
     private final Queue<PendingNotification> notificationQueue;
     private BukkitTask queueProcessor;
-    private final PreferencesServiceLookup preferencesServiceLookup;
-
     private static final int QUEUE_PROCESS_INTERVAL = 20; // 1 second
     private static final int MAX_QUEUE_SIZE = 1000;
 
@@ -43,7 +41,6 @@ public class NotificationManager {
         this.logger = LogManager.getInstance(plugin, "NotificationManager");
         this.preferences = new ConcurrentHashMap<>();
         this.notificationQueue = new LinkedList<>();
-        this.preferencesServiceLookup = new PreferencesServiceLookup(plugin);
         startQueueProcessor();
         logger.info("NotificationManager initialized");
     }
@@ -192,7 +189,7 @@ public class NotificationManager {
      */
     public NotificationPreferencesDTO getPreferences(UUID playerUuid) {
         // Try PlayerPreferencesService first
-        if (preferencesServiceLookup.isAvailable()) {
+        if (RVNKCore.getServiceSafe(PlayerPreferencesService.class) != null) {
             try {
                 return getPreferencesFromService(playerUuid);
             } catch (Exception e) {
@@ -210,7 +207,7 @@ public class NotificationManager {
      * Uses .join() to block since this is called synchronously from commands.
      */
     private NotificationPreferencesDTO getPreferencesFromService(UUID playerUuid) {
-        PlayerPreferencesService service = preferencesServiceLookup.getService();
+        PlayerPreferencesService service = RVNKCore.getServiceSafe(PlayerPreferencesService.class);
         if (service == null) {
             throw new IllegalStateException("Service not available");
         }
@@ -262,7 +259,7 @@ public class NotificationManager {
      */
     public void updatePreferences(NotificationPreferencesDTO newPreferences) {
         // Save to PlayerPreferencesService if available
-        if (preferencesServiceLookup.isAvailable()) {
+        if (RVNKCore.getServiceSafe(PlayerPreferencesService.class) != null) {
             try {
                 savePreferencesToService(newPreferences);
             } catch (Exception e) {
@@ -280,7 +277,7 @@ public class NotificationManager {
      * Uses .join() to block since this is called synchronously from commands.
      */
     private void savePreferencesToService(NotificationPreferencesDTO prefs) {
-        PlayerPreferencesService service = preferencesServiceLookup.getService();
+        PlayerPreferencesService service = RVNKCore.getServiceSafe(PlayerPreferencesService.class);
         if (service == null) {
             throw new IllegalStateException("Service not available");
         }

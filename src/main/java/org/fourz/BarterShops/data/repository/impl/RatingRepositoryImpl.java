@@ -1,7 +1,7 @@
 package org.fourz.BarterShops.data.repository.impl;
 
 import org.fourz.BarterShops.BarterShops;
-import org.fourz.BarterShops.data.FallbackTracker;
+import org.fourz.rvnkcore.data.FallbackTracker;
 import org.fourz.BarterShops.data.IConnectionProvider;
 import org.fourz.BarterShops.data.dto.RatingDataDTO;
 import org.fourz.BarterShops.data.repository.IRatingRepository;

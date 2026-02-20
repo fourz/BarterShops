@@ -11,7 +11,7 @@ import org.bukkit.inventory.ItemStack;
 import org.bukkit.inventory.PlayerInventory;
 import org.fourz.BarterShops.BarterShops;
 import org.fourz.BarterShops.config.ConfigManager;
-import org.fourz.BarterShops.data.FallbackTracker;
+import org.fourz.rvnkcore.data.FallbackTracker;
 import org.fourz.BarterShops.service.ITradeService.TradeResultDTO;
 import org.fourz.BarterShops.service.impl.TradeServiceImpl;
 import org.fourz.BarterShops.sign.BarterSign;
