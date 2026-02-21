@@ -204,14 +204,37 @@ public class InventoryValidationListener implements Listener {
         logger.debug("InventoryClickEvent: Shop container found at " + shopContainer.getLocation() +
                     ", action=" + event.getAction() + ", slot=" + event.getRawSlot());
 
+        BarterSign barterSign = shopContainer.getBarterSign();
+
+        // SECURITY: Block customers from taking items directly from the shop chest.
+        // Only the offering item may be taken, and only when auto-exchange is enabled.
+        // All other removals must go through the sign trade flow.
+        if (barterSign != null && player != null
+                && !barterSign.getOwner().equals(player.getUniqueId())
+                && isRemovingFromShopSlot(event)) {
+            ItemStack shopItem = event.getCurrentItem();
+            ItemStack offering = barterSign.getItemOffering();
+            boolean isOffering = offering != null && shopItem != null
+                    && !shopItem.getType().isAir() && shopItem.isSimilar(offering);
+            org.fourz.BarterShops.trade.AutoExchangeHandler autoExchange = plugin.getAutoExchangeHandler();
+            boolean autoExchangeActive = autoExchange != null && autoExchange.isAutoExchangeEnabled(player);
+
+            if (!isOffering || !autoExchangeActive) {
+                event.setCancelled(true);
+                player.sendMessage(ChatColor.RED + "x Use the sign to trade.");
+                return;
+            }
+            // Offering item + auto-exchange enabled: pass through to MONITOR handler
+            return;
+        }
+
         // CASE 1: SHIFT-CLICK from player inventory → moves item TO shop container
         // Only validate when clicked slot is in PLAYER inventory (item going INTO shop)
-        // If clicked slot is in SHOP inventory, player is taking item OUT - always allow
         if (event.getAction() == InventoryAction.MOVE_TO_OTHER_INVENTORY) {
             // Check if click is in player inventory (moving item TO shop)
             if (event.getRawSlot() < event.getInventory().getSize()) {
-                // Clicked slot is in shop container = player is taking item OUT (allow)
-                logger.debug("Shift-click from shop container (removal) - allowed");
+                // Owner shift-clicking from shop slot (removal) - allowed
+                logger.debug("Shift-click from shop container (removal) - allowed for owner");
                 return;
             }
 
@@ -611,14 +634,15 @@ public class InventoryValidationListener implements Listener {
      * Gets the shop container for an inventory, or null if not registered.
      * CRITICAL FIX: Compare by Location instead of object reference.
      * Bukkit creates new Container object instances for each event, so comparing == fails.
+     * Handles both single chests (Container holder) and double chests (DoubleChest holder).
      */
     private ShopContainer getShopContainerFromInventory(org.bukkit.inventory.Inventory inventory) {
+        // Single chest: holder is a Container
         if (inventory.getHolder() instanceof Container container) {
             Location containerLoc = container.getLocation();
             logger.debug("getShopContainerFromInventory: Container holder found at " + containerLoc +
                         ", searching " + shopContainers.size() + " registered containers");
 
-            // Try to find this container by LOCATION (not object reference)
             for (ShopContainer shopContainer : shopContainers.values()) {
                 if (shopContainer.getLocation().equals(containerLoc)) {
                     logger.debug("getShopContainerFromInventory: Found matching shop container by location!");
@@ -626,10 +650,32 @@ public class InventoryValidationListener implements Listener {
                 }
             }
             logger.debug("getShopContainerFromInventory: No matching shop container found in registered map");
-        } else {
-            logger.debug("getShopContainerFromInventory: Inventory holder is not a Container (type: " +
-                        (inventory.getHolder() != null ? inventory.getHolder().getClass().getName() : "null") + ")");
+            return null;
         }
+
+        // Double chest: holder is a DoubleChest — check both halves
+        if (inventory.getHolder() instanceof org.bukkit.block.DoubleChest doubleChest) {
+            logger.debug("getShopContainerFromInventory: DoubleChest holder, checking both halves against " +
+                        shopContainers.size() + " registered containers");
+            for (ShopContainer shopContainer : shopContainers.values()) {
+                Location regLoc = shopContainer.getLocation();
+                if (doubleChest.getLeftSide() instanceof Container left
+                        && left.getLocation().equals(regLoc)) {
+                    logger.debug("getShopContainerFromInventory: Matched shop container via left half!");
+                    return shopContainer;
+                }
+                if (doubleChest.getRightSide() instanceof Container right
+                        && right.getLocation().equals(regLoc)) {
+                    logger.debug("getShopContainerFromInventory: Matched shop container via right half!");
+                    return shopContainer;
+                }
+            }
+            logger.debug("getShopContainerFromInventory: No matching shop container found for double chest");
+            return null;
+        }
+
+        logger.debug("getShopContainerFromInventory: Holder is not a Container or DoubleChest (type: " +
+                    (inventory.getHolder() != null ? inventory.getHolder().getClass().getName() : "null") + ")");
         return null;
     }
 
@@ -638,6 +684,20 @@ public class InventoryValidationListener implements Listener {
      */
     public long getUptimeMillis() {
         return System.currentTimeMillis() - creationTime;
+    }
+
+    /**
+     * Returns true if the inventory click action removes an item from a shop container slot.
+     * Used to gate customer access: only the offering item (with auto-exchange on) is permitted.
+     */
+    private boolean isRemovingFromShopSlot(InventoryClickEvent event) {
+        if (event.getRawSlot() >= event.getInventory().getSize()) return false; // Not a shop slot
+        return switch (event.getAction()) {
+            case PICKUP_ALL, PICKUP_HALF, PICKUP_ONE, PICKUP_SOME,
+                 SWAP_WITH_CURSOR, DROP_ONE_SLOT, DROP_ALL_SLOT,
+                 MOVE_TO_OTHER_INVENTORY -> true;
+            default -> false;
+        };
     }
 
     /**

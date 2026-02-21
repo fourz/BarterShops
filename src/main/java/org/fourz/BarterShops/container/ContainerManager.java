@@ -97,9 +97,14 @@ public class ContainerManager implements Listener {
     }
 
     private boolean isShopContainer(InventoryHolder holder) {
-        if (holder instanceof Container) {
-            BarterContainer barterContainer = new BarterContainer((Container) holder, plugin);
-            return barterContainer.isBarterContainer();
+        if (holder instanceof Container container) {
+            return new BarterContainer(container, plugin).isBarterContainer();
+        }
+        if (holder instanceof DoubleChest doubleChest) {
+            if (doubleChest.getLeftSide() instanceof Container left
+                    && new BarterContainer(left, plugin).isBarterContainer()) return true;
+            if (doubleChest.getRightSide() instanceof Container right
+                    && new BarterContainer(right, plugin).isBarterContainer()) return true;
         }
         return false;
     }
@@ -113,7 +118,7 @@ public class ContainerManager implements Listener {
     }
 
     private void handleShopContainerAccess(Player player, InventoryHolder container) {
-        // Handle custom shop interface opening
+        player.sendMessage(ChatColor.RED + "x Use the sign to trade with this shop.");
     }
 
     public void registerShopContainer(Block container) {
