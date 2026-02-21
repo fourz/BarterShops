@@ -21,8 +21,6 @@ import org.fourz.BarterShops.trade.TradeSession;
 import org.fourz.BarterShops.trade.TradeConfirmationGUI;
 import org.fourz.rvnkcore.util.log.LogManager;
 
-import java.util.HashMap;
-import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -43,8 +41,10 @@ public class SignInteraction {
     private final Map<String, Long> pendingDeletions = new ConcurrentHashMap<>(); // signId -> timestamp
     private final Map<Location, Long> lastPreviewToggleTime = new ConcurrentHashMap<>(); // Debounce preview toggle
     private final Map<String, Integer> shiftClickPanelState = new ConcurrentHashMap<>(); // Track shift+click panel per player/sign
-    private final Set<UUID> customerInfoToggled = new HashSet<>(); // Per-session info toggle for customers
+    private final Set<UUID> customerInfoToggled = ConcurrentHashMap.newKeySet(); // Per-session info toggle for customers
     private static final long PREVIEW_TOGGLE_DEBOUNCE_MS = 150; // Ignore toggles within 150ms
+    private final Map<String, Long> lastPurchaseTime = new ConcurrentHashMap<>(); // Debounce left-click purchases
+    private static final long PURCHASE_DEBOUNCE_MS = 1000;
 
     public SignInteraction(BarterShops plugin) {
         this.plugin = plugin;
@@ -62,6 +62,8 @@ public class SignInteraction {
     }
 
     public void handleLeftClick(Player player, Sign sign, BarterSign barterSign, PlayerInteractEvent event) {
+        if (barterSign == null) return;
+
         // CUSTOMER LEFT-CLICK: Direct trade initiation
         if (isCustomer(player, barterSign)) {
             handleCustomerLeftClick(player, sign, barterSign, event);
@@ -74,7 +76,7 @@ public class SignInteraction {
             return;
         }
 
-        if (barterSign == null || !barterSign.getOwner().equals(player.getUniqueId())) {
+        if (!barterSign.getOwner().equals(player.getUniqueId())) {
             return; // Not owner
         }
 
@@ -348,22 +350,22 @@ public class SignInteraction {
         SignType shopType = barterSign.getType();
 
         if (shopType == SignType.BARTER) {
-            // BARTER: Validate held item matches CURRENT PAYMENT PAGE
+            // BARTER: Validate held item is an accepted payment
             List<ItemStack> payments = barterSign.getAcceptedPayments();
             if (payments.isEmpty()) {
                 showTemporaryStatus(sign, barterSign, "\u00A7cNo payment", "\u00A7coptions");
                 return;
             }
 
-            int currentPage = barterSign.getCurrentPaymentPage();
-            ItemStack expectedPayment = payments.get(currentPage);
-
-            if (expectedPayment.getType() != itemInHand.getType()) {
-                showTemporaryStatus(sign, barterSign, "\u00A7cHold " + formatItemName(expectedPayment), "\u00A7eR-click to cycle");
+            if (!barterSign.isPaymentAccepted(itemInHand)) {
+                showTemporaryStatus(sign, barterSign, "\u00A7cHold payment", "\u00A7cR-click to cycle");
                 return;
             }
 
-            // Valid payment - initiate trade
+            if (isPurchaseDebounceActive(player.getUniqueId(), barterSign.getShopId())) {
+                return; // Rapid re-click during async trade window — success message still visible
+            }
+            recordPurchaseTime(player.getUniqueId(), barterSign.getShopId());
             processTrade(player, sign, barterSign);
         } else {
             // BUY/SELL: Validate held item matches price item
@@ -373,7 +375,10 @@ public class SignInteraction {
                 return;
             }
 
-            // Valid payment - initiate trade
+            if (isPurchaseDebounceActive(player.getUniqueId(), barterSign.getShopId())) {
+                return; // Rapid re-click during async trade window
+            }
+            recordPurchaseTime(player.getUniqueId(), barterSign.getShopId());
             processTrade(player, sign, barterSign);
         }
 
@@ -1078,10 +1083,20 @@ public class SignInteraction {
         return SignDisplay.formatItemName(item);
     }
 
+    private boolean isPurchaseDebounceActive(UUID playerId, int shopId) {
+        Long last = lastPurchaseTime.get(playerId + ":" + shopId);
+        return last != null && (System.currentTimeMillis() - last) < PURCHASE_DEBOUNCE_MS;
+    }
+
+    private void recordPurchaseTime(UUID playerId, int shopId) {
+        lastPurchaseTime.put(playerId + ":" + shopId, System.currentTimeMillis());
+    }
+
     public void cleanup() {
         activeRevertTasks.values().forEach(BukkitTask::cancel);
         activeRevertTasks.clear();
         pendingDeletions.clear();
         customerInfoToggled.clear();
+        lastPurchaseTime.clear();
     }
 }
