@@ -2,6 +2,7 @@ package org.fourz.BarterShops.inspection;
 
 import net.md_5.bungee.api.ChatMessageType;
 import net.md_5.bungee.api.chat.TextComponent;
+import org.bukkit.Bukkit;
 import org.bukkit.ChatColor;
 import org.bukkit.Location;
 import org.bukkit.entity.Player;
@@ -78,15 +79,36 @@ public class ShopInfoDisplayHelper {
             return;
         }
 
-        // Send appropriate display format
-        if (prefs.chatFormat()) {
-            sendChatInfo(player, view, shop, location);
-        } else {
-            sendActionBarInfo(player, view, shop, location);
-        }
-
+        boolean useChatFormat = prefs.chatFormat();
         logger.debug("Info displayed - Player: " + player.getName() + ", View: " + view + ", Format: " +
-                (prefs.chatFormat() ? "chat" : "actionbar"));
+                (useChatFormat ? "chat" : "actionbar"));
+
+        // Resolve owner name async (hits Mojang API if not in local cache), then send on main thread
+        plugin.getPlayerLookup().getPlayerNameAsync(shop.getOwner())
+                .thenAcceptAsync(ownerName ->
+                        Bukkit.getScheduler().runTask(plugin, () -> {
+                            if (useChatFormat) {
+                                sendChatInfo(player, view, shop, location, ownerName);
+                            } else {
+                                sendActionBarInfo(player, view, shop, location, ownerName);
+                            }
+                        })
+                );
+    }
+
+    /**
+     * Displays shop info for a customer's explicit shift+click request.
+     * Bypasses preference gates — customer is actively asking for this info.
+     * Always uses chat format. Non-owners get LIMITED_VIEW (offering + payments).
+     */
+    public void displayShopInfoForCustomer(Player player, BarterSign shop, Location location) {
+        ShopInfoView view = getPermissionAwareView(player, shop);
+        plugin.getPlayerLookup().getPlayerNameAsync(shop.getOwner())
+                .thenAcceptAsync(ownerName ->
+                        Bukkit.getScheduler().runTask(plugin, () ->
+                                sendChatInfo(player, view, shop, location, ownerName)
+                        )
+                );
     }
 
     /**
@@ -117,14 +139,13 @@ public class ShopInfoDisplayHelper {
     /**
      * Sends shop info in chat format.
      */
-    private void sendChatInfo(Player player, ShopInfoView view, BarterSign shop, Location location) {
+    private void sendChatInfo(Player player, ShopInfoView view, BarterSign shop, Location location, String ownerName) {
         player.sendMessage(ChatColor.GOLD + "========== Shop Inspection ==========");
 
         if (view == ShopInfoView.FULL_DETAILS) {
             // Full details view
             player.sendMessage(ChatColor.YELLOW + "ID: " + ChatColor.WHITE + shop.getShopId());
-            player.sendMessage(ChatColor.YELLOW + "Owner: " + ChatColor.WHITE +
-                    plugin.getPlayerLookup().getPlayerName(shop.getOwner()));
+            player.sendMessage(ChatColor.YELLOW + "Owner: " + ChatColor.WHITE + ownerName);
             player.sendMessage(ChatColor.YELLOW + "Type: " + ChatColor.WHITE + shop.getType().name());
             player.sendMessage(ChatColor.YELLOW + "Mode: " + ChatColor.WHITE + shop.getMode().name());
 
@@ -134,6 +155,11 @@ public class ShopInfoDisplayHelper {
                                 location.getWorld().getName(),
                                 location.getBlockX(), location.getBlockY(), location.getBlockZ()));
             }
+        }
+
+        // Owner name (shown in limited view; full details shows it in the block above)
+        if (view == ShopInfoView.LIMITED_VIEW) {
+            player.sendMessage(ChatColor.YELLOW + "Owner: " + ChatColor.WHITE + ownerName);
         }
 
         // Offering (shown in both views)
@@ -177,7 +203,7 @@ public class ShopInfoDisplayHelper {
     /**
      * Sends shop info in actionbar format.
      */
-    private void sendActionBarInfo(Player player, ShopInfoView view, BarterSign shop, Location location) {
+    private void sendActionBarInfo(Player player, ShopInfoView view, BarterSign shop, Location location, String ownerName) {
         StringBuilder message = new StringBuilder();
 
         if (view == ShopInfoView.FULL_DETAILS) {
@@ -185,7 +211,7 @@ public class ShopInfoDisplayHelper {
             message.append(ChatColor.YELLOW).append("ID: ").append(ChatColor.WHITE).append(shop.getShopId())
                     .append(" | ")
                     .append(ChatColor.YELLOW).append("Owner: ").append(ChatColor.WHITE)
-                    .append(plugin.getPlayerLookup().getPlayerName(shop.getOwner()))
+                    .append(ownerName)
                     .append(" | ")
                     .append(ChatColor.YELLOW).append("Type: ").append(ChatColor.WHITE).append(shop.getType().name());
         } else {
