@@ -154,6 +154,15 @@ public interface ITradeRepository {
     // ========================================================
 
     /**
+     * Gets top shops by trade count (single aggregation query).
+     * Returns shop IDs paired with their trade counts, sorted descending.
+     *
+     * @param limit Maximum number of shops to return
+     * @return CompletableFuture containing int[][2] where [0]=shop_id, [1]=trade_count
+     */
+    CompletableFuture<List<int[]>> findTopShopsByTradeCount(int limit);
+
+    /**
      * Deletes trade records older than the specified timestamp.
      * Use with caution - typically for archival purposes only.
      *

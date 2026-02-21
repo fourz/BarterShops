@@ -155,7 +155,7 @@ public class StatsServiceImpl implements IStatsService {
             return CompletableFuture.completedFuture((StatsDataDTO) serverStatsCache.data);
         }
 
-        return shopService.getAllShops().thenApply(allShops -> {
+        return shopService.getAllShops().thenCompose(allShops -> {
             logger.debug("Calculating server stats");
 
             int totalShops = allShops.size();
@@ -171,22 +171,21 @@ public class StatsServiceImpl implements IStatsService {
             double avgTradesPerShop = totalShops > 0 ? (double) totalTrades / totalShops : 0.0;
             Map<String, Integer> mostTradedItems = getMostTradedItemsGlobal();
 
-            // Leaderboards stubbed — no N+1 queries fired
-            List<StatsDataDTO.TopShop> topShops = List.of();
+            return getTopShopsByTrades(5).thenApply(topShops -> {
+                StatsDataDTO.ServerStats serverStats = StatsDataDTO.ServerStats.create(
+                    totalShops, activeShops, totalPlayers, totalTrades,
+                    totalItemsTraded, avgTradesPerShop, mostTradedItems, topShops
+                );
 
-            StatsDataDTO.ServerStats serverStats = StatsDataDTO.ServerStats.create(
-                totalShops, activeShops, totalPlayers, totalTrades,
-                totalItemsTraded, avgTradesPerShop, mostTradedItems, topShops
-            );
+                StatsDataDTO stats = StatsDataDTO.serverStats(serverStats);
 
-            StatsDataDTO stats = StatsDataDTO.serverStats(serverStats);
+                if (cacheEnabled) {
+                    serverStatsCache = new CachedStats(stats, System.currentTimeMillis());
+                    logger.debug("Cached server stats");
+                }
 
-            if (cacheEnabled) {
-                serverStatsCache = new CachedStats(stats, System.currentTimeMillis());
-                logger.debug("Cached server stats");
-            }
-
-            return stats;
+                return stats;
+            });
         });
     }
 
@@ -328,15 +327,69 @@ public class StatsServiceImpl implements IStatsService {
 
     @Override
     public CompletableFuture<List<StatsDataDTO.TopShop>> getTopShopsByTrades(int limit) {
-        // TODO: Implement via stored procedure (Archon task: task-BS-leaderboard-sp)
-        // N+1 query pattern removed pending SQL-level aggregation implementation
-        return CompletableFuture.completedFuture(List.of());
+        TradeServiceImpl ts = getTradeService();
+        if (ts == null) return CompletableFuture.completedFuture(List.of());
+
+        return ts.getTradeRepository().findTopShopsByTradeCount(limit)
+            .thenCompose(rows -> {
+                if (rows.isEmpty()) return CompletableFuture.completedFuture(List.of());
+
+                List<CompletableFuture<Optional<StatsDataDTO.TopShop>>> futures = rows.stream()
+                    .map(row -> {
+                        int shopId = row[0];
+                        int tradeCount = row[1];
+                        return shopService.getShopById(String.valueOf(shopId)).thenCompose(shopOpt -> {
+                            if (shopOpt.isEmpty()) return CompletableFuture.completedFuture(Optional.<StatsDataDTO.TopShop>empty());
+                            ShopDataDTO shop = shopOpt.get();
+                            String ownerName = plugin.getPlayerLookup().getPlayerName(shop.ownerUuid());
+                            if (ratingService == null) {
+                                return CompletableFuture.completedFuture(Optional.of(new StatsDataDTO.TopShop(
+                                    shopId, shop.shopName(), shop.ownerUuid(), ownerName, tradeCount, 0.0, 0)));
+                            }
+                            return ratingService.getAverageRating(shopId)
+                                .thenCombine(ratingService.getRatingCount(shopId), (avg, cnt) ->
+                                    Optional.of(new StatsDataDTO.TopShop(
+                                        shopId, shop.shopName(), shop.ownerUuid(), ownerName, tradeCount, avg, cnt)));
+                        });
+                    }).toList();
+
+                return CompletableFuture.allOf(futures.toArray(new CompletableFuture[0]))
+                    .thenApply(v -> futures.stream()
+                        .map(CompletableFuture::join)
+                        .filter(Optional::isPresent)
+                        .map(Optional::get)
+                        .collect(Collectors.toList()));
+            });
     }
 
     @Override
     public CompletableFuture<List<StatsDataDTO.TopShop>> getTopShopsByRating(int limit) {
-        // TODO: Implement via stored procedure (Archon task: task-BS-leaderboard-sp)
-        return CompletableFuture.completedFuture(List.of());
+        if (ratingService == null) return CompletableFuture.completedFuture(List.of());
+
+        return ratingService.getTopRatedShops(limit)
+            .thenCompose(shopIds -> {
+                if (shopIds.isEmpty()) return CompletableFuture.completedFuture(List.of());
+
+                TradeServiceImpl ts = getTradeService();
+                List<CompletableFuture<Optional<StatsDataDTO.TopShop>>> futures = shopIds.stream()
+                    .map(shopId -> shopService.getShopById(String.valueOf(shopId)).thenCompose(shopOpt -> {
+                        if (shopOpt.isEmpty()) return CompletableFuture.completedFuture(Optional.<StatsDataDTO.TopShop>empty());
+                        ShopDataDTO shop = shopOpt.get();
+                        String ownerName = plugin.getPlayerLookup().getPlayerName(shop.ownerUuid());
+                        int tradeCount = (ts != null) ? ts.getShopTradeCount(String.valueOf(shopId)).join().intValue() : 0;
+                        return ratingService.getAverageRating(shopId)
+                            .thenCombine(ratingService.getRatingCount(shopId), (avg, cnt) ->
+                                Optional.of(new StatsDataDTO.TopShop(
+                                    shopId, shop.shopName(), shop.ownerUuid(), ownerName, tradeCount, avg, cnt)));
+                    })).toList();
+
+                return CompletableFuture.allOf(futures.toArray(new CompletableFuture[0]))
+                    .thenApply(v -> futures.stream()
+                        .map(CompletableFuture::join)
+                        .filter(Optional::isPresent)
+                        .map(Optional::get)
+                        .collect(Collectors.toList()));
+            });
     }
 
     @Override

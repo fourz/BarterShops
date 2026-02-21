@@ -710,6 +710,39 @@ public class TradeRepositoryImpl implements ITradeRepository {
         }, executor);
     }
 
+    @Override
+    public CompletableFuture<List<int[]>> findTopShopsByTradeCount(int limit) {
+        if (fallbackTracker.isInFallbackMode()) {
+            return CompletableFuture.completedFuture(List.of());
+        }
+
+        return CompletableFuture.supplyAsync(() -> {
+            String sql = "SELECT shop_id, COUNT(*) AS trade_count FROM " + t("trade_records") +
+                " WHERE status = 'COMPLETED' GROUP BY shop_id ORDER BY trade_count DESC LIMIT ?";
+            List<int[]> results = new ArrayList<>();
+
+            try (Connection conn = connectionProvider.getConnection();
+                 PreparedStatement stmt = conn.prepareStatement(sql)) {
+
+                stmt.setInt(1, limit);
+
+                try (ResultSet rs = stmt.executeQuery()) {
+                    while (rs.next()) {
+                        results.add(new int[]{rs.getInt("shop_id"), rs.getInt("trade_count")});
+                    }
+                }
+
+                fallbackTracker.recordSuccess();
+                return results;
+
+            } catch (SQLException e) {
+                fallbackTracker.recordFailure("Find top shops by trade count failed: " + e.getMessage());
+                logger.error("Failed to find top shops by trade count: " + e.getMessage());
+                return results;
+            }
+        }, executor);
+    }
+
     // ========================================================
     // Fallback Mode
     // ========================================================
