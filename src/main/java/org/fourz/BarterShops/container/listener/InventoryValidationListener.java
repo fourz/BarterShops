@@ -331,6 +331,19 @@ public class InventoryValidationListener implements Listener {
             return; // Not a payment item
         }
 
+        // Validate quantity is an exact multiple of the required payment amount
+        int requiredQty = barterSign.getPaymentAmount(depositedItem.getType());
+        if (requiredQty > 0) {
+            int depositedAmount = depositedItem.getAmount();
+            if (depositedAmount == 0 || depositedAmount % requiredQty != 0) {
+                event.setCancelled(true);
+                player.sendMessage(ChatColor.RED + "x Must deposit " + requiredQty + "x "
+                    + depositedItem.getType().name().toLowerCase().replace('_', ' ')
+                    + ChatColor.GRAY + " (or an exact multiple)");
+                return;
+            }
+        }
+
         // Check auto-exchange preference
         org.fourz.BarterShops.trade.AutoExchangeHandler autoExchange = plugin.getAutoExchangeHandler();
         if (autoExchange == null || !autoExchange.isAutoExchangeEnabled(player)) {
@@ -353,6 +366,7 @@ public class InventoryValidationListener implements Listener {
                                 barterSign.getItemOffering().getType().name());
                             logger.debug("Deposit auto-exchange completed: " + result.transactionId());
                         } else {
+                            player.sendMessage(ChatColor.RED + "x Trade failed: " + result.message());
                             logger.debug("Deposit auto-exchange failed: " + result.message());
                         }
                     });
