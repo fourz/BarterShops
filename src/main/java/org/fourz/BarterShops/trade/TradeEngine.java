@@ -282,14 +282,17 @@ public class TradeEngine {
             if (offered != null && offeredQty > 0) {
                 givenQty = giveItems(buyer.getInventory(), offered, offeredQty);
 
-                // Handle overflow: drop at buyer's feet if inventory full
+                // Handle overflow: World.dropItem() requires main thread — schedule it
                 if (givenQty < offeredQty) {
-                    int overflow = offeredQty - givenQty;
-                    dropItems(buyer.getLocation(), offered, overflow);
-                    buyer.sendMessage(ChatColor.YELLOW + "! " + overflow +
-                        " items dropped at your feet - inventory full");
-                    logger.debug("Dropped " + overflow + " items for " + buyer.getName() +
-                        " - inventory full");
+                    final int overflow = offeredQty - givenQty;
+                    final ItemStack dropItem = offered.clone();
+                    final org.bukkit.Location dropLoc = buyer.getLocation().clone();
+                    plugin.getServer().getScheduler().runTask(plugin, () -> {
+                        dropItems(dropLoc, dropItem, overflow);
+                        buyer.sendMessage(ChatColor.YELLOW + "! " + overflow +
+                            " items dropped at your feet - inventory full");
+                    });
+                    logger.debug("Scheduled drop of " + overflow + " overflow items for " + buyer.getName());
                 }
             }
 
@@ -419,7 +422,7 @@ public class TradeEngine {
         // Build trade record DTO
         TradeRecordDTO record = TradeRecordDTO.builder()
                 .transactionId(transactionId)
-                .shopId(Integer.parseInt(session.getShop().getId()))
+                .shopId(session.getShop().getShopId())
                 .buyerUuid(session.getBuyerUuid())
                 .sellerUuid(session.getSellerUuid())
                 .itemStackData(serializeItem(session.getOfferedItem()))

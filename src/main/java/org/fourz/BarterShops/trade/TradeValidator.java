@@ -80,8 +80,9 @@ public class TradeValidator {
         // Validate shop has stock (if container-based)
         errors.addAll(validateShopStock(shop, session));
 
-        // Validate buyer has space for received items
-        errors.addAll(validateBuyerSpace(buyer, session));
+        // Inventory space is NOT validated here: TradeEngine.executeItemExchange()
+        // already drops overflow items at the buyer's feet via dropItems(), so a
+        // full inventory should not block the trade.
 
         return new ValidationResult(errors.isEmpty(), errors);
     }

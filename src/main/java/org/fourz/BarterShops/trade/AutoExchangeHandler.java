@@ -86,6 +86,11 @@ public class AutoExchangeHandler {
 
         // Get offering and payment details
         ItemStack offering = shop.getItemOffering();
+        if (offering == null) {
+            return CompletableFuture.completedFuture(
+                TradeResultDTO.failure("Shop not fully configured")
+            );
+        }
         int baseOfferedQty = offering.getAmount();
         int basePaymentQty = shop.getPaymentAmount(depositedItem.getType());
 
@@ -112,22 +117,19 @@ public class AutoExchangeHandler {
         int totalOffering = baseOfferedQty * increments;
         int totalPayment = basePaymentQty * increments;
 
-        // Validate player has enough inventory space for offering
-        if (!hasInventorySpace(player.getInventory(), offering, totalOffering)) {
-            return CompletableFuture.completedFuture(
-                TradeResultDTO.failure("Inventory full")
-            );
-        }
+        // Inventory space is not pre-checked here: TradeEngine.executeItemExchange()
+        // drops any overflow items at the buyer's feet via dropItems(), so a full
+        // inventory should not block the trade.
 
-        // Execute direct trade
+        // Execute direct trade — payment already deposited in chest, skip Steps 2 & 4
         updateDebounce(player.getUniqueId(), shop.getShopId());
         return tradeEngine.executeDirectTrade(
             player,
             shop,
             offering,
             totalOffering,
-            depositedItem,
-            totalPayment,
+            null,   // Payment already in chest — skip remove-from-player and re-add-to-chest
+            0,
             TradeSource.DEPOSIT_EXCHANGE
         );
     }
