@@ -163,18 +163,6 @@ public class RatingServiceImpl implements IRatingService {
     }
 
     @Override
-    public CompletableFuture<Double> getAverageRatingForShop(int shopId) {
-        // Alias for getAverageRating
-        return getAverageRating(shopId);
-    }
-
-    @Override
-    public CompletableFuture<Integer> getRatingCountForShop(int shopId) {
-        // Alias for getRatingCount
-        return getRatingCount(shopId);
-    }
-
-    @Override
     public CompletableFuture<Map<Integer, Integer>> getRatingBreakdown(int shopId) {
         // Get counts for each star rating (1-5)
         List<CompletableFuture<Integer>> futures = new ArrayList<>();

@@ -93,24 +93,6 @@ public interface IRatingService {
     CompletableFuture<Integer> getRatingCountForOwner(UUID ownerUuid);
 
     /**
-     * Gets the average rating for a specific shop.
-     * Alias method for compatibility with StatsService.
-     *
-     * @param shopId The shop ID
-     * @return CompletableFuture containing the average rating (0.0 if no ratings)
-     */
-    CompletableFuture<Double> getAverageRatingForShop(int shopId);
-
-    /**
-     * Gets the total rating count for a specific shop.
-     * Alias method for compatibility with StatsService.
-     *
-     * @param shopId The shop ID
-     * @return CompletableFuture containing the rating count
-     */
-    CompletableFuture<Integer> getRatingCountForShop(int shopId);
-
-    /**
      * Gets a breakdown of ratings by star value for a shop.
      *
      * @param shopId The shop ID

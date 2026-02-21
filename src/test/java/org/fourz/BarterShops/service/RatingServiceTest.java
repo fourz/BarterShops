@@ -275,16 +275,6 @@ class RatingServiceTest {
             assertEquals(0.0, average);
         }
 
-        @Test
-        @DisplayName("getAverageRatingForShop returns average for shop (alias)")
-        void getAverageRatingForShopAliasReturnsAverage() throws ExecutionException, InterruptedException {
-            when(ratingRepository.getAverageRating(testShopId))
-                .thenReturn(CompletableFuture.completedFuture(4.5));
-
-            Double average = ratingService.getAverageRatingForShop(testShopId).get();
-
-            assertEquals(4.5, average);
-        }
     }
 
     // ====== Rating Count Tests ======
@@ -339,16 +329,6 @@ class RatingServiceTest {
             assertEquals(0, count);
         }
 
-        @Test
-        @DisplayName("getRatingCountForShop returns count for shop (alias)")
-        void getRatingCountForShopAliasReturnsCount() throws ExecutionException, InterruptedException {
-            when(ratingRepository.countByShop(testShopId))
-                .thenReturn(CompletableFuture.completedFuture(7));
-
-            Integer count = ratingService.getRatingCountForShop(testShopId).get();
-
-            assertEquals(7, count);
-        }
     }
 
     // ====== Rating Breakdown Tests ======
