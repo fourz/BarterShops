@@ -59,7 +59,7 @@ public class ShopFeeSubCommand implements SubCommand {
 
         // Show statistics if available
         economyManager.getTotalFeesCollected().thenAccept(totalFees -> {
-            if (totalFees > 0 && sender.hasPermission("bartershops.admin.economy")) {
+            if (totalFees > 0 && sender.hasPermission("bartershops.admin")) {
                 sender.sendMessage("");
                 sender.sendMessage(ChatColor.DARK_GRAY + "Total fees collected: " + economyManager.format(totalFees));
             }

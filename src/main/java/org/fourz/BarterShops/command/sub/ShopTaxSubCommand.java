@@ -85,7 +85,7 @@ public class ShopTaxSubCommand implements SubCommand {
 
         // Show statistics if available
         economyManager.getTotalTaxesCollected().thenAccept(totalTaxes -> {
-            if (totalTaxes > 0 && sender.hasPermission("bartershops.admin.economy")) {
+            if (totalTaxes > 0 && sender.hasPermission("bartershops.admin")) {
                 sender.sendMessage("");
                 sender.sendMessage(ChatColor.DARK_GRAY + "Total taxes collected: " + economyManager.format(totalTaxes));
             }
