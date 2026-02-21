@@ -39,6 +39,11 @@ public class ShopsTestDataGenerator extends TestDataGenerator {
     // Shop types
     private static final String[] SHOP_TYPES = {"BARTER", "SELL", "BUY", "ADMIN"};
 
+    // Known server player UUIDs for realistic test data (names resolve via Bukkit cache)
+    private static final UUID[] SEED_OWNER_UUIDS = {
+        UUID.fromString("94c37976-5134-40b0-9e03-722ae6664fea"), // wizardofire
+    };
+
     // Transaction statuses
     private static final String[] TRANSACTION_STATUSES = {
         "COMPLETED", "CANCELLED", "FAILED", "PENDING", "REFUNDED"
@@ -164,7 +169,7 @@ public class ShopsTestDataGenerator extends TestDataGenerator {
         int inserted = 0;
         try (PreparedStatement stmt = conn.prepareStatement(sql)) {
             for (int i = 0; i < count; i++) {
-                UUID ownerUuid = testUUID(i);
+                UUID ownerUuid = SEED_OWNER_UUIDS[i % SEED_OWNER_UUIDS.length];
                 String shopName = "TestShop" + (i + 1);
                 String shopType = SHOP_TYPES[i % SHOP_TYPES.length];
                 String world = testWorldName(i % 3);
@@ -271,8 +276,8 @@ public class ShopsTestDataGenerator extends TestDataGenerator {
                 for (int txNum = 0; txNum < 2; txNum++) {
                     int shopId = shopIds[i % count];
                     UUID transactionId = testUUID(10000 + i * 2 + txNum);
-                    UUID buyerUuid = testUUID(i);
-                    UUID sellerUuid = testUUID(i + 1);
+                    UUID buyerUuid = SEED_OWNER_UUIDS[i % SEED_OWNER_UUIDS.length];
+                    UUID sellerUuid = SEED_OWNER_UUIDS[(i + 1) % SEED_OWNER_UUIDS.length];
                     String material = MATERIALS[i % MATERIALS.length];
                     String itemData = "{\"type\":\"" + material + "\",\"amount\":1}";
                     int quantity = randomInt(1, 10);
