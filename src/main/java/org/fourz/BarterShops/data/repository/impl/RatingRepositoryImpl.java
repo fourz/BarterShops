@@ -73,16 +73,12 @@ public class RatingRepositoryImpl implements IRatingRepository {
             boolean isInsert = rating.ratingId() <= 0;
 
             if (isInsert) {
-                sql = """
-                    INSERT INTO " + t("shop_ratings") + " (shop_id, rater_uuid, rating, review, created_at)
-                    VALUES (?, ?, ?, ?, ?)
-                    """;
+                sql = "INSERT INTO " + t("shop_ratings") + " (shop_id, rater_uuid, rating, review, created_at)" +
+                    " VALUES (?, ?, ?, ?, ?)";
             } else {
-                sql = """
-                    UPDATE " + t("shop_ratings") + " SET shop_id = ?, rater_uuid = ?, rating = ?,
-                        review = ?, created_at = ?
-                    WHERE rating_id = ?
-                    """;
+                sql = "UPDATE " + t("shop_ratings") +
+                    " SET shop_id = ?, rater_uuid = ?, rating = ?, review = ?, created_at = ?" +
+                    " WHERE rating_id = ?";
             }
 
             try (Connection conn = connectionProvider.getConnection();
@@ -320,11 +316,9 @@ public class RatingRepositoryImpl implements IRatingRepository {
         }
 
         return CompletableFuture.supplyAsync(() -> {
-            String sql = """
-                SELECT * FROM " + t("shop_ratings") + "
-                WHERE shop_id = ? AND review IS NOT NULL AND review != ''
-                ORDER BY created_at DESC
-                """;
+            String sql = "SELECT * FROM " + t("shop_ratings") +
+                " WHERE shop_id = ? AND review IS NOT NULL AND review != ''" +
+                " ORDER BY created_at DESC";
             List<RatingDataDTO> ratings = new ArrayList<>();
 
             try (Connection conn = connectionProvider.getConnection();
@@ -453,13 +447,8 @@ public class RatingRepositoryImpl implements IRatingRepository {
         }
 
         return CompletableFuture.supplyAsync(() -> {
-            String sql = """
-                SELECT shop_id, AVG(rating) as avg_rating
-                FROM " + t("shop_ratings") + "
-                GROUP BY shop_id
-                ORDER BY avg_rating DESC
-                LIMIT ?
-                """;
+            String sql = "SELECT shop_id, AVG(rating) AS avg_rating FROM " + t("shop_ratings") +
+                " GROUP BY shop_id ORDER BY avg_rating DESC LIMIT ?";
             List<Integer> shopIds = new ArrayList<>();
 
             try (Connection conn = connectionProvider.getConnection();
