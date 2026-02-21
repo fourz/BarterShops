@@ -22,9 +22,12 @@ import org.fourz.BarterShops.trade.TradeConfirmationGUI;
 import org.fourz.rvnkcore.util.log.LogManager;
 
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.Set;
+import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
 
 
@@ -40,6 +43,7 @@ public class SignInteraction {
     private final Map<String, Long> pendingDeletions = new ConcurrentHashMap<>(); // signId -> timestamp
     private final Map<Location, Long> lastPreviewToggleTime = new ConcurrentHashMap<>(); // Debounce preview toggle
     private final Map<String, Integer> shiftClickPanelState = new ConcurrentHashMap<>(); // Track shift+click panel per player/sign
+    private final Set<UUID> customerInfoToggled = new HashSet<>(); // Per-session info toggle for customers
     private static final long PREVIEW_TOGGLE_DEBOUNCE_MS = 150; // Ignore toggles within 150ms
 
     public SignInteraction(BarterShops plugin) {
@@ -159,23 +163,24 @@ public class SignInteraction {
                             refreshSignState(sign, barterSign);
 
                             player.sendMessage(ChatColor.GREEN + "+ Currency set: " + itemInHand.getType().name());
-                            player.sendMessage(ChatColor.GRAY + "L-Click ±1, Shift+R +16");
+                            player.sendMessage(ChatColor.GRAY + "L-Click to adjust (step = held amount)");
 
                             // Save configuration to database
                             if (barterSign.getShopId() > 0) {
                                 plugin.getSignManager().saveSignConfiguration(barterSign);
                             }
                         } else if (currentPrice.getType() == itemInHand.getType()) {
-                            // Adjust price amount with same currency
+                            // Adjust price amount with same currency; step = held stack size
                             int currentAmount = barterSign.getPriceAmount();
-                            int newAmount = currentAmount;
+                            int step = itemInHand.getAmount();
+                            int newAmount;
 
                             if (player.isSneaking()) {
-                                // Shift+L-Click: -1
-                                newAmount = Math.max(0, currentAmount - 1);
+                                // Shift+L-Click: decrement by hand amount
+                                newAmount = Math.max(0, currentAmount - step);
                             } else {
-                                // L-Click: +1
-                                newAmount = currentAmount + 1;
+                                // L-Click: increment by hand amount
+                                newAmount = currentAmount + step;
                             }
 
                             barterSign.configurePrice(itemInHand, newAmount);
@@ -272,11 +277,15 @@ public class SignInteraction {
 
                 // Schedule auto-clear of confirmation display (but NOT the DELETE mode)
                 // After 5 seconds, revert to normal DELETE display if not confirmed
+                final UUID deletingPlayerUuid = player.getUniqueId();
                 plugin.getServer().getScheduler().runTaskLater(plugin, () -> {
                     if (pendingDeletions.containsKey(signId)) {
                         // Confirmation timed out - user didn't click twice in 5 seconds
                         pendingDeletions.remove(signId);
-                        player.sendMessage(ChatColor.GRAY + "Deletion confirmation expired");
+                        Player deletingPlayer = plugin.getServer().getPlayer(deletingPlayerUuid);
+                        if (deletingPlayer != null) {
+                            deletingPlayer.sendMessage(ChatColor.GRAY + "Deletion confirmation expired");
+                        }
                         // Revert sign display back to normal DELETE prompt, keep 10s timer running
                         if (barterSign.getMode() == ShopMode.DELETE) {
                             SignDisplay.updateSign(sign, barterSign, false);
@@ -378,21 +387,23 @@ public class SignInteraction {
         }
 
         int currentQty = offering.getAmount();
-        int newQty = currentQty;
+        int step = itemInHand.getAmount();
+        int newQty;
 
         if (player.isSneaking()) {
-            // Shift+L-Click: -1
-            newQty = Math.max(1, currentQty - 1);
+            // Shift+L-Click: decrement by hand amount
+            newQty = Math.max(1, currentQty - step);
         } else {
-            // L-Click: +1
-            newQty = currentQty + 1;
+            // L-Click: increment by hand amount
+            newQty = currentQty + step;
         }
 
         offering.setAmount(newQty);
         barterSign.configureStackableShop(offering, newQty);
         barterSign.updateValidationRules(); // CRITICAL: Update validation rules after quantity change
 
-        player.sendMessage(ChatColor.AQUA + "Quantity: " + newQty + "x " + offering.getType().name());
+        player.sendMessage(ChatColor.AQUA + "Quantity: " + newQty + "x " + offering.getType().name() +
+            ChatColor.GRAY + " (±" + step + ")");
 
         // Save configuration to database
         if (barterSign.getShopId() > 0) {
@@ -413,6 +424,19 @@ public class SignInteraction {
         if (player.isSneaking()) {
             handleOwnerShiftClick(player, sign, barterSign);
             return; // Don't cycle modes
+        }
+
+        // If in customer preview mode, simulate customer page cycling instead of mode changes
+        if (barterSign.isOwnerPreviewMode()) {
+            if (barterSign.getType() == SignType.BARTER) {
+                List<ItemStack> payments = barterSign.getAcceptedPayments();
+                if (payments.size() > 1) {
+                    barterSign.incrementPaymentPage();
+                    SignDisplay.updateSign(sign, barterSign, true); // isCustomerView = true
+                }
+            }
+            // Single-payment or non-BARTER: nothing to cycle — stay in preview
+            return;
         }
 
         // Right-click: Always cycle to next mode (consistent behavior)
@@ -448,6 +472,7 @@ public class SignInteraction {
             // Panel 1 → 2: Show customer preview mode
             nextPanel = 2;
             barterSign.setOwnerPreviewMode(true);
+            barterSign.setCurrentPaymentPage(0); // Always start from first customer page
             SignDisplay.updateSign(sign, barterSign, true);
             player.sendMessage("§7[Preview] §fViewing as customer. Sneak+R-click to exit.");
             logger.debug("Shifted to Panel 2: Customer preview for " + player.getName());
@@ -488,11 +513,32 @@ public class SignInteraction {
         shiftClickPanelState.put(stateKey, nextPanel);
     }
 
+    /**
+     * Handles customer shift+right-click: Toggles shop info display in chat.
+     * Toggle is per-session (reset on server restart).
+     */
+    private void handleCustomerShiftClick(Player player, Sign sign, BarterSign barterSign) {
+        UUID uuid = player.getUniqueId();
+        if (customerInfoToggled.remove(uuid)) {
+            player.sendMessage(ChatColor.GRAY + "[BarterShops] Shop info view off.");
+            return;
+        }
+        customerInfoToggled.add(uuid);
+        ShopInfoDisplayHelper helper = plugin.getShopInfoDisplayHelper();
+        helper.displayShopInfoForCustomer(player, barterSign, sign.getLocation());
+    }
+
     private void handleCustomerRightClick(Player player, Sign sign, BarterSign barterSign) {
         logger.debug("Processing customer interaction");
 
         if (barterSign.getMode() != ShopMode.BOARD) {
             logger.debug("Customer tried to interact with non-BOARD mode shop");
+            return;
+        }
+
+        // Shift+Right-click: Toggle shop info display
+        if (player.isSneaking()) {
+            handleCustomerShiftClick(player, sign, barterSign);
             return;
         }
 
@@ -512,6 +558,7 @@ public class SignInteraction {
                 // (Customer can see payment on sign, no chat spam needed)
 
                 SignDisplay.updateSign(sign, barterSign, true); // isCustomerView = true
+                scheduleCustomerPageRevert(sign, barterSign);   // auto-revert after 10s idle
                 return; // Don't process trade, just cycle payment
             }
         }
@@ -915,6 +962,30 @@ public class SignInteraction {
         activeRevertTasks.put(loc, task);
     }
 
+    /**
+     * Schedules revert of customer payment page back to page 0 after idle timeout.
+     * Each right-click resets the 10s idle timer via cancelRevert() + reschedule.
+     */
+    private void scheduleCustomerPageRevert(Sign sign, BarterSign barterSign) {
+        Location loc = sign.getLocation();
+        if (loc == null) return;
+        cancelRevert(loc); // Reset idle timer on each click
+
+        BukkitTask task = new BukkitRunnable() {
+            @Override
+            public void run() {
+                barterSign.setCurrentPaymentPage(0);
+                if (loc.getBlock().getState() instanceof Sign freshSign) {
+                    SignDisplay.updateSign(freshSign, barterSign, true); // customer view
+                    logger.debug("Customer page auto-revert: reset to page 0");
+                }
+                activeRevertTasks.remove(loc);
+            }
+        }.runTaskLater(plugin, REVERT_DELAY_TICKS);
+
+        activeRevertTasks.put(loc, task);
+    }
+
     private void cancelRevert(Location loc) {
         if (loc == null) return;
         BukkitTask existing = activeRevertTasks.remove(loc);
@@ -1002,5 +1073,6 @@ public class SignInteraction {
         activeRevertTasks.values().forEach(BukkitTask::cancel);
         activeRevertTasks.clear();
         pendingDeletions.clear();
+        customerInfoToggled.clear();
     }
 }
