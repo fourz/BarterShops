@@ -137,7 +137,8 @@ public class BarterShops extends JavaPlugin {
         this.commandManager = new CommandManager(this);
 
         // Initialize PlayerLookup (after RVNKCore registration so PlayerService is available)
-        this.playerLookup = new PlayerLookup(this);
+        this.playerLookup = new PlayerLookup(this).enableMojangAPI();
+        this.playerLookup.preloadFromDatabase(); // async, non-blocking
 
         logger.info("BarterShops has been loaded");
     }
