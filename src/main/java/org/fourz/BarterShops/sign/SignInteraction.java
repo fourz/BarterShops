@@ -359,7 +359,7 @@ public class SignInteraction {
             ItemStack expectedPayment = payments.get(currentPage);
 
             if (expectedPayment.getType() != itemInHand.getType()) {
-                showTemporaryStatus(sign, barterSign, "\u00A7cHold " + formatItemName(expectedPayment), "\u00A7cor right-click");
+                showTemporaryStatus(sign, barterSign, "\u00A7cHold " + formatItemName(expectedPayment), "\u00A7eR-click to cycle");
                 return;
             }
 
@@ -561,29 +561,19 @@ public class SignInteraction {
             return;
         }
 
-        // BARTER shops with multiple payments: Advance to next payment page
+        // BARTER shops with multiple payments: always cycle — purchase is left-click only
         SignType shopType = barterSign.getType();
         if (shopType == SignType.BARTER) {
             List<ItemStack> payments = barterSign.getAcceptedPayments();
             if (payments.size() > 1) {
-                // Advance to next payment page
                 barterSign.incrementPaymentPage();
-
-                // Note: currentPage can be 0 (summary) through N (individual payments)
-                // Page 0 = summary, pages 1+ = individual payments
-                // No need to access payments for logging since sign display handles all pagination
-
-                // Pagination feedback removed per user request
-                // (Customer can see payment on sign, no chat spam needed)
-
                 SignDisplay.updateSign(sign, barterSign, true); // isCustomerView = true
                 scheduleCustomerPageRevert(sign, barterSign);   // auto-revert after 10s idle
-                return; // Don't process trade, just cycle payment
+                return;
             }
         }
 
-        // Single payment or non-BARTER: Initiate trade
-        processTrade(player, sign, barterSign);
+        // Single-payment or non-BARTER: right-click does nothing — purchase is left-click only
     }
 
     private void processTrade(Player player, Sign sign, BarterSign barterSign) {
