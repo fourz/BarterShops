@@ -12,6 +12,7 @@ import org.fourz.BarterShops.service.IRatingService;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.UUID;
+import java.util.concurrent.CompletableFuture;
 
 /**
  * Subcommand for rating a shop.
@@ -111,33 +112,32 @@ public class ShopRateSubCommand implements SubCommand {
             .thenCompose(canRate -> {
                 if (!canRate) {
                     sender.sendMessage(ChatColor.RED + "✖ You cannot rate your own shop");
-                    return null;
+                    return CompletableFuture.<RatingDataDTO>failedFuture(
+                        new IllegalStateException("validation:cannot_rate_own_shop"));
                 }
 
                 sender.sendMessage(ChatColor.YELLOW + "⚙ Submitting rating...");
-
-                // Submit rating
                 return ratingService.rateShop(shopId, playerUuid, rating, finalReview);
             })
             .thenAccept(ratingDTO -> {
-                if (ratingDTO != null) {
-                    sender.sendMessage(ChatColor.GREEN + "✓ Rating submitted for shop #" + shopId);
-                    sender.sendMessage(ChatColor.YELLOW + "  Rating: " + ChatColor.WHITE + getStarDisplay(rating));
+                sender.sendMessage(ChatColor.GREEN + "✓ Rating submitted for shop #" + shopId);
+                sender.sendMessage(ChatColor.YELLOW + "  Rating: " + ChatColor.WHITE + getStarDisplay(rating));
 
-                    if (finalReview != null && !finalReview.isEmpty()) {
-                        sender.sendMessage(ChatColor.YELLOW + "  Review: " + ChatColor.WHITE + finalReview);
-                    }
-
-                    // Show updated average
-                    ratingService.getAverageRating(shopId).thenAccept(avg -> {
-                        if (avg > 0) {
-                            sender.sendMessage(ChatColor.GRAY + "  New average: " + String.format("%.1f", avg) + "/5.0");
-                        }
-                    });
+                if (finalReview != null && !finalReview.isEmpty()) {
+                    sender.sendMessage(ChatColor.YELLOW + "  Review: " + ChatColor.WHITE + finalReview);
                 }
+
+                ratingService.getAverageRating(shopId).thenAccept(avg -> {
+                    if (avg > 0) {
+                        sender.sendMessage(ChatColor.GRAY + "  New average: " + String.format("%.1f", avg) + "/5.0");
+                    }
+                });
             })
             .exceptionally(error -> {
-                sender.sendMessage(ChatColor.RED + "✖ Failed to submit rating: " + error.getMessage());
+                Throwable cause = error.getCause() != null ? error.getCause() : error;
+                if (!(cause instanceof IllegalStateException)) {
+                    sender.sendMessage(ChatColor.RED + "✖ Failed to submit rating: " + cause.getMessage());
+                }
                 return null;
             });
 
