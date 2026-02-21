@@ -675,7 +675,7 @@ public class ShopRepositoryImpl implements IShopRepository {
         }
 
         return CompletableFuture.supplyAsync(() -> {
-            String sql = connectionProvider.getDatabaseType().equals("mysql")
+            String sql = isMysql()
                     ? "INSERT INTO " + t("shop_metadata") + " (shop_id, meta_key, meta_value) VALUES (?, ?, ?) ON DUPLICATE KEY UPDATE meta_value = ?"
                     : "INSERT OR REPLACE INTO " + t("shop_metadata") + " (shop_id, meta_key, meta_value) VALUES (?, ?, ?)";
 
@@ -685,7 +685,7 @@ public class ShopRepositoryImpl implements IShopRepository {
                 stmt.setInt(1, shopId);
                 stmt.setString(2, key);
                 stmt.setString(3, value);
-                if (connectionProvider.getDatabaseType().equals("mysql")) {
+                if (isMysql()) {
                     stmt.setString(4, value);
                 }
 
@@ -746,6 +746,11 @@ public class ShopRepositoryImpl implements IShopRepository {
     // Private Helper Methods
     // ========================================================
 
+    private boolean isMysql() {
+        String type = connectionProvider.getDatabaseType();
+        return type != null && (type.equalsIgnoreCase("mysql") || type.equalsIgnoreCase("mariadb"));
+    }
+
     private ShopDataDTO mapRowToShop(ResultSet rs, Map<String, String> metadata) throws SQLException {
         return ShopDataDTO.builder()
                 .shopId(rs.getInt("shop_id"))
@@ -804,7 +809,7 @@ public class ShopRepositoryImpl implements IShopRepository {
             return;
         }
 
-        String sql = connectionProvider.getDatabaseType().equals("mysql")
+        String sql = isMysql()
                 ? "INSERT INTO " + t("shop_metadata") + " (shop_id, meta_key, meta_value) VALUES (?, ?, ?) ON DUPLICATE KEY UPDATE meta_value = ?"
                 : "INSERT OR REPLACE INTO " + t("shop_metadata") + " (shop_id, meta_key, meta_value) VALUES (?, ?, ?)";
 
@@ -813,7 +818,7 @@ public class ShopRepositoryImpl implements IShopRepository {
                 stmt.setInt(1, shopId);
                 stmt.setString(2, entry.getKey());
                 stmt.setString(3, entry.getValue());
-                if (connectionProvider.getDatabaseType().equals("mysql")) {
+                if (isMysql()) {
                     stmt.setString(4, entry.getValue());
                 }
                 stmt.addBatch();

@@ -662,19 +662,15 @@ public class TradeRepositoryImpl implements ITradeRepository {
             // For now, archive is a soft operation - we move to archive table
             // If archive table doesn't exist, we just return 0 (no archiving capability)
             String archiveTable = t("trade_records_archive");
-            String checkTable = "SELECT 1 FROM information_schema.tables WHERE table_name = '" + archiveTable + "'";
-            if (connectionProvider.getDatabaseType().equals("sqlite")) {
-                checkTable = "SELECT 1 FROM sqlite_master WHERE type='table' AND name='" + archiveTable + "'";
-            }
 
-            try (Connection conn = connectionProvider.getConnection();
-                 PreparedStatement checkStmt = conn.prepareStatement(checkTable);
-                 ResultSet checkRs = checkStmt.executeQuery()) {
-
-                if (!checkRs.next()) {
-                    // Archive table doesn't exist, just return 0
-                    logger.debug("Archive table does not exist, skipping archive operation");
-                    return 0;
+            try (Connection conn = connectionProvider.getConnection()) {
+                // Use DatabaseMetaData — safe, no SQL concatenation, works for MySQL and SQLite
+                try (ResultSet checkRs = conn.getMetaData().getTables(null, null, archiveTable, new String[]{"TABLE"})) {
+                    if (!checkRs.next()) {
+                        // Archive table doesn't exist, just return 0
+                        logger.debug("Archive table does not exist, skipping archive operation");
+                        return 0;
+                    }
                 }
 
                 // Archive the records
