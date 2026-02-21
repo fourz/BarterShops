@@ -512,7 +512,7 @@ public class TradeEngine {
         // Remove sessions
         for (String sessionId : sessionsToRemove) {
             activeSessions.remove(sessionId);
-            playerSessions.values().remove(sessionId);
+            playerSessions.entrySet().removeIf(e -> e.getValue().equals(sessionId));
             invalidated++;
         }
 
