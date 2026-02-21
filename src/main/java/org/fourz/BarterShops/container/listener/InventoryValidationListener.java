@@ -342,6 +342,24 @@ public class InventoryValidationListener implements Listener {
                     + ChatColor.GRAY + " (or an exact multiple)");
                 return;
             }
+
+            // Validate shop has stock for the full deposit quantity (pre-event, mirrors partial-payment logic)
+            ItemStack offering = barterSign.getItemOffering();
+            if (offering != null) {
+                int increments = depositedAmount / requiredQty;
+                int neededStock = offering.getAmount() * increments;
+                int availableStock = 0;
+                for (ItemStack item : shopContainer.getInventory().getContents()) {
+                    if (item != null && item.isSimilar(offering)) {
+                        availableStock += item.getAmount();
+                    }
+                }
+                if (availableStock < neededStock) {
+                    event.setCancelled(true);
+                    player.sendMessage(ChatColor.RED + "x Shop is out of stock");
+                    return;
+                }
+            }
         }
 
         // Check auto-exchange preference
