@@ -119,31 +119,50 @@ public class SignInteraction {
                     if (type == SignType.BARTER) {
                         // BARTER: Add/update payment option
                         if (player.isSneaking()) {
-                            // Shift+L-Click: Remove payment option
-                            if (barterSign.removePaymentOption(itemInHand.getType())) {
-                                // UNIFIED: Refresh sign state (updates rules + displays sign immediately)
-                                refreshSignState(sign, barterSign);
-
-                                player.sendMessage(ChatColor.RED + "- Removed: " + itemInHand.getType().name());
+                            // Shift+L-Click: Decrement payment amount, or remove if at/below 0
+                            int currentAmount = barterSign.getPaymentAmount(itemInHand.getType());
+                            if (currentAmount <= 0) {
+                                player.sendMessage(ChatColor.YELLOW + "Not in payment list");
+                            } else {
+                                int step = itemInHand.getAmount();
+                                int newAmount = currentAmount - step;
+                                if (newAmount <= 0) {
+                                    // Decrement to zero: remove entirely
+                                    barterSign.removePaymentOption(itemInHand.getType());
+                                    refreshSignState(sign, barterSign);
+                                    player.sendMessage(ChatColor.RED + "- Removed: " + itemInHand.getType().name());
+                                } else {
+                                    // Decrement: update with reduced amount
+                                    barterSign.addPaymentOption(itemInHand, newAmount);
+                                    refreshSignState(sign, barterSign);
+                                    player.sendMessage(ChatColor.AQUA + "Payment: " + newAmount + "x " + itemInHand.getType().name() +
+                                        ChatColor.GRAY + " (-" + step + ")");
+                                }
                                 barterSign.resetCustomerViewState(); // Reset pagination
                                 // Save configuration to database
                                 if (barterSign.getShopId() > 0) {
                                     plugin.getSignManager().saveSignConfiguration(barterSign);
                                 }
-                            } else {
-                                player.sendMessage(ChatColor.YELLOW + "Not in payment list");
                             }
                         } else {
-                            // L-Click: Add payment option
-                            logger.info("[PAYMENT] Adding option " + itemInHand.getType() + " (qty=" + itemInHand.getAmount() + ")");
-                            barterSign.addPaymentOption(itemInHand, itemInHand.getAmount());
+                            // L-Click: Increment payment option (add if new, accumulate if existing)
+                            int currentAmount = barterSign.getPaymentAmount(itemInHand.getType());
+                            int step = itemInHand.getAmount();
+                            int newAmount = currentAmount + step;
+                            logger.info("[PAYMENT] " + (currentAmount > 0 ? "Updating" : "Adding") + " option " + itemInHand.getType() + " (" + currentAmount + " -> " + newAmount + ", step=" + step + ")");
+                            barterSign.addPaymentOption(itemInHand, newAmount);
 
                             // UNIFIED: Refresh sign state (updates rules + displays sign immediately)
                             refreshSignState(sign, barterSign);
 
                             int ruleCount = barterSign.getShopContainerWrapper() != null ? barterSign.getShopContainerWrapper().getValidationRules().size() : 0;
                             logger.info("[VALIDATION] Sign state refreshed - Container has " + ruleCount + " RULES");
-                            player.sendMessage(ChatColor.GREEN + "+ Payment added: " + itemInHand.getAmount() + "x " + itemInHand.getType().name());
+                            if (currentAmount > 0) {
+                                player.sendMessage(ChatColor.AQUA + "Payment: " + newAmount + "x " + itemInHand.getType().name() +
+                                    ChatColor.GRAY + " (+" + step + ")");
+                            } else {
+                                player.sendMessage(ChatColor.GREEN + "+ Payment added: " + newAmount + "x " + itemInHand.getType().name());
+                            }
                             barterSign.resetCustomerViewState(); // Reset pagination
 
                             // Save configuration to database
