@@ -13,7 +13,7 @@ public class SignLayoutFactory {
     /**
      * Maximum characters per sign line.
      */
-    private static final int MAX_LINE_LENGTH = 15;
+    public static final int MAX_LINE_LENGTH = 15;
 
     /**
      * Truncates text to fit on a sign line with ellipsis if needed.

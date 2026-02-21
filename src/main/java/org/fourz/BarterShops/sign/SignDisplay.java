@@ -150,9 +150,10 @@ public class SignDisplay {
                 // Single payment: Show payment details (no pagination)
                 ItemStack payment = payments.get(0);
 
-                // Check if payment needs wrapping
+                // Check if payment needs wrapping: account for "for: Nx " prefix on the line
                 String paymentName = formatItemName(payment);
-                boolean paymentNeedsWrapping = paymentName != null && paymentName.length() > 15;
+                boolean paymentNeedsWrapping = paymentName != null &&
+                    ("for: " + payment.getAmount() + "x " + paymentName).length() > SignLayoutFactory.MAX_LINE_LENGTH;
 
                 if (offeringWrapped && paymentNeedsWrapping) {
                     // DUAL-WRAP MODE: Both offering and payment have long names
@@ -273,14 +274,17 @@ public class SignDisplay {
             if (payments.size() == 1) {
                 ItemStack payment = payments.get(0);
                 String paymentName = formatItemName(payment);
-                boolean paymentNeedsWrapping = paymentName != null && paymentName.length() > 15;
+                // Account for "for: Nx " prefix when deciding if payment needs wrapping
+                boolean paymentNeedsWrapping = paymentName != null &&
+                    ("for: " + payment.getAmount() + "x " + paymentName).length() > SignLayoutFactory.MAX_LINE_LENGTH;
 
                 if (offeringWrapped && paymentNeedsWrapping) {
                     // Both offering and payment wrapped: wrap payment across lines 2-3
-                    int paymentSplit = paymentName.lastIndexOf(' ', 15);
-                    if (paymentSplit == -1) paymentSplit = 15;
-                    side.setLine(2, "§efor: " + payment.getAmount() + "x " + paymentName.substring(0, paymentSplit).trim());
-                    side.setLine(3, "§e" + paymentName.substring(paymentSplit).trim());
+                    String paymentPrefix = "for: " + payment.getAmount() + "x ";
+                    int paymentSplit = computeNameSplit(paymentName, paymentPrefix.length());
+                    side.setLine(2, "§e" + paymentPrefix + paymentName.substring(0, paymentSplit).trim());
+                    side.setLine(3, "§e" + SignLayoutFactory.truncateForSign(
+                        paymentName.substring(paymentSplit).trim(), SignLayoutFactory.MAX_LINE_LENGTH));
                 } else if (offeringWrapped) {
                     // Offering wrapped, payment short: condensed on line 3
                     side.setLine(2, "");
@@ -328,23 +332,23 @@ public class SignDisplay {
 
         String itemName = formatItemName(offering);
         int amount = offering.getAmount();
+        String prefix = amount + "x ";
 
-        // Check if name needs wrapping
-        if (itemName.length() > 15) {
-            // Split at last space before 15 chars, or at 15 if no space
-            int splitIndex = itemName.lastIndexOf(' ', 15);
-            if (splitIndex == -1) splitIndex = 15;
+        // Wrap when the full line (prefix + name) overflows
+        if ((prefix + itemName).length() > SignLayoutFactory.MAX_LINE_LENGTH) {
+            int splitIndex = computeNameSplit(itemName, prefix.length());
 
             // First line: amount + first part of name
-            side.setLine(startLine, "§b" + amount + "x " + itemName.substring(0, splitIndex).trim());
+            side.setLine(startLine, "§b" + prefix + itemName.substring(0, splitIndex).trim());
 
-            // Second line: remainder of name
-            side.setLine(startLine + 1, "§b" + itemName.substring(splitIndex).trim());
+            // Second line: remainder (truncate only as last resort)
+            side.setLine(startLine + 1, "§b" + SignLayoutFactory.truncateForSign(
+                itemName.substring(splitIndex).trim(), SignLayoutFactory.MAX_LINE_LENGTH));
 
             return true; // Wrapped
         } else {
-            // Short name: single line
-            side.setLine(startLine, "§b" + amount + "x " + itemName);
+            // Full line fits: single line
+            side.setLine(startLine, "§b" + prefix + itemName);
             return false; // Not wrapped
         }
     }
@@ -372,23 +376,23 @@ public class SignDisplay {
 
         String itemName = formatItemName(payment);
         int amount = payment.getAmount();
+        String prefix = "for: " + amount + "x ";
 
-        // Check if name needs wrapping
-        if (itemName.length() > 15) {
-            // Split at last space before 15 chars, or at 15 if no space
-            int splitIndex = itemName.lastIndexOf(' ', 15);
-            if (splitIndex == -1) splitIndex = 15;
+        // Wrap when the full line (prefix + name) overflows
+        if ((prefix + itemName).length() > SignLayoutFactory.MAX_LINE_LENGTH) {
+            int splitIndex = computeNameSplit(itemName, prefix.length());
 
             // Line N: "for: Qx FirstPart"
-            side.setLine(startLine, "§efor: " + amount + "x " + itemName.substring(0, splitIndex).trim());
+            side.setLine(startLine, "§e" + prefix + itemName.substring(0, splitIndex).trim());
 
-            // Line N+1: "SecondPart"
-            side.setLine(startLine + 1, "§e" + itemName.substring(splitIndex).trim());
+            // Line N+1: remainder (truncate only as last resort)
+            side.setLine(startLine + 1, "§e" + SignLayoutFactory.truncateForSign(
+                itemName.substring(splitIndex).trim(), SignLayoutFactory.MAX_LINE_LENGTH));
 
             return true; // Wrapped
         } else {
-            // Short name: single line
-            side.setLine(startLine, "§efor: " + amount + "x " + itemName);
+            // Full line fits: single line
+            side.setLine(startLine, "§e" + prefix + itemName);
             return false; // Not wrapped
         }
     }
@@ -407,18 +411,20 @@ public class SignDisplay {
         String paymentName = formatItemName(payment);
 
         // Lines 0-1: Offering (wrapped, starting at line 0 - no header)
-        int offeringSplit = offeringName.lastIndexOf(' ', 15);
-        if (offeringSplit == -1) offeringSplit = 15;
+        String offeringPrefix = offering.getAmount() + "x ";
+        int offeringSplit = computeNameSplit(offeringName, offeringPrefix.length());
 
-        side.setLine(0, "§b" + offering.getAmount() + "x " + offeringName.substring(0, offeringSplit).trim());
-        side.setLine(1, "§b" + offeringName.substring(offeringSplit).trim());
+        side.setLine(0, "§b" + offeringPrefix + offeringName.substring(0, offeringSplit).trim());
+        side.setLine(1, "§b" + SignLayoutFactory.truncateForSign(
+            offeringName.substring(offeringSplit).trim(), SignLayoutFactory.MAX_LINE_LENGTH));
 
         // Lines 2-3: Payment (wrapped)
-        int paymentSplit = paymentName.lastIndexOf(' ', 15);
-        if (paymentSplit == -1) paymentSplit = 15;
+        String paymentPrefix = "for: " + payment.getAmount() + "x ";
+        int paymentSplit = computeNameSplit(paymentName, paymentPrefix.length());
 
-        side.setLine(2, "§efor: " + payment.getAmount() + "x " + paymentName.substring(0, paymentSplit).trim());
-        side.setLine(3, "§e" + paymentName.substring(paymentSplit).trim());
+        side.setLine(2, "§e" + paymentPrefix + paymentName.substring(0, paymentSplit).trim());
+        side.setLine(3, "§e" + SignLayoutFactory.truncateForSign(
+            paymentName.substring(paymentSplit).trim(), SignLayoutFactory.MAX_LINE_LENGTH));
     }
 
     private static void displayTypeMode(SignSide side, BarterSign barterSign) {
@@ -457,6 +463,22 @@ public class SignDisplay {
     }
 
     /**
+     * Computes the word-break split index for an item name that follows a prefix on a sign line.
+     * Finds the last space within the characters available after the prefix, falling back to a
+     * hard split only when no word boundary exists.
+     *
+     * @param name         Item name to split
+     * @param prefixLength Characters already consumed by the prefix (e.g. "70x " = 4)
+     * @return Index into name: [0..index) on line 1, [index..) on line 2
+     */
+    private static int computeNameSplit(String name, int prefixLength) {
+        int available = SignLayoutFactory.MAX_LINE_LENGTH - prefixLength;
+        if (available <= 0) return 0;
+        int splitIndex = name.lastIndexOf(' ', available);
+        return splitIndex <= 0 ? Math.min(available, name.length()) : splitIndex;
+    }
+
+    /**
      * Applies a 4-line layout array to a sign side.
      * Helper method for delegating to SignLayoutFactory layouts.
      *
@@ -476,7 +498,15 @@ public class SignDisplay {
         if (item.hasItemMeta() && item.getItemMeta().hasDisplayName()) {
             return item.getItemMeta().getDisplayName();
         }
-        String name = item.getType().name().toLowerCase().replace('_', ' ');
-        return name.substring(0, 1).toUpperCase() + name.substring(1);
+        String[] words = item.getType().name().toLowerCase().split("_");
+        StringBuilder sb = new StringBuilder();
+        for (String word : words) {
+            if (!word.isEmpty()) {
+                if (sb.length() > 0) sb.append(' ');
+                sb.append(Character.toUpperCase(word.charAt(0)));
+                sb.append(word.substring(1));
+            }
+        }
+        return sb.toString();
     }
 }
