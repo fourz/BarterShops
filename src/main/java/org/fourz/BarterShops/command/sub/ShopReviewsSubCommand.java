@@ -1,6 +1,5 @@
 package org.fourz.BarterShops.command.sub;
 
-import org.bukkit.Bukkit;
 import org.bukkit.ChatColor;
 import org.bukkit.command.CommandSender;
 import org.fourz.BarterShops.BarterShops;
@@ -11,6 +10,8 @@ import org.fourz.BarterShops.service.IRatingService;
 import java.text.SimpleDateFormat;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
+import java.util.concurrent.CompletableFuture;
 
 /**
  * Subcommand for viewing shop reviews and ratings.
@@ -47,66 +48,19 @@ public class ShopReviewsSubCommand implements SubCommand {
 
         sender.sendMessage(ChatColor.YELLOW + "⚙ Loading reviews for shop #" + shopId + "...");
 
-        // Get ratings and statistics
-        ratingService.getAverageRating(shopId)
-            .thenCombine(ratingService.getRatingCount(shopId), (avgRating, count) -> {
-                sender.sendMessage(ChatColor.GOLD + "===== Shop #" + shopId + " Reviews =====");
+        // Gather all futures up front, then join in a single handler
+        CompletableFuture<Double> avgFuture = ratingService.getAverageRating(shopId);
+        CompletableFuture<Integer> countFuture = ratingService.getRatingCount(shopId);
+        CompletableFuture<Map<Integer, Integer>> breakdownFuture = ratingService.getRatingBreakdown(shopId);
+        CompletableFuture<List<RatingDataDTO>> reviewsFuture = ratingService.getShopReviews(shopId);
 
-                if (count == 0) {
-                    sender.sendMessage(ChatColor.GRAY + "No ratings yet for this shop.");
-                    return null;
-                }
-
-                // Display average rating
-                sender.sendMessage(ChatColor.YELLOW + "Average Rating: " + ChatColor.WHITE +
-                    String.format("%.1f", avgRating) + "/5.0 " + ChatColor.GRAY + "(" + count + " ratings)");
-                sender.sendMessage(ChatColor.YELLOW + "Stars: " + ChatColor.WHITE + getStarDisplay(avgRating));
-
-                return shopId;
-            })
-            .thenCompose(id -> {
-                if (id == null) return null;
-                return ratingService.getRatingBreakdown(shopId);
-            })
-            .thenAccept(breakdown -> {
-                if (breakdown == null) return;
-
-                // Display rating breakdown
-                sender.sendMessage(ChatColor.GOLD + "----- Rating Breakdown -----");
-                for (int star = 5; star >= 1; star--) {
-                    int count = breakdown.getOrDefault(star, 0);
-                    String bar = getProgressBar(count, breakdown.values().stream().mapToInt(Integer::intValue).sum());
-                    sender.sendMessage(ChatColor.YELLOW + String.valueOf(star) + " ★ " + ChatColor.WHITE + bar +
-                        ChatColor.GRAY + " (" + count + ")");
-                }
-
-                // Get and display reviews
-                ratingService.getShopReviews(shopId).thenAccept(reviews -> {
-                    if (reviews.isEmpty()) {
-                        sender.sendMessage(ChatColor.GRAY + "No written reviews yet.");
-                        return;
-                    }
-
-                    sender.sendMessage(ChatColor.GOLD + "----- Reviews -----");
-                    int displayCount = Math.min(reviews.size(), 5);
-
-                    for (int i = 0; i < displayCount; i++) {
-                        RatingDataDTO review = reviews.get(i);
-                        String playerName = plugin.getPlayerLookup().getPlayerName(review.raterUuid());
-
-                        sender.sendMessage(ChatColor.YELLOW + getStarDisplay(review.rating()) +
-                            ChatColor.GRAY + " - " + playerName +
-                            ChatColor.DARK_GRAY + " (" + dateFormat.format(review.createdAt()) + ")");
-
-                        if (review.hasReview()) {
-                            sender.sendMessage(ChatColor.WHITE + "  \"" + review.review() + "\"");
-                        }
-                    }
-
-                    if (reviews.size() > 5) {
-                        sender.sendMessage(ChatColor.GRAY + "... and " + (reviews.size() - 5) + " more reviews");
-                    }
-                });
+        CompletableFuture.allOf(avgFuture, countFuture, breakdownFuture, reviewsFuture)
+            .thenRun(() -> {
+                double avg = avgFuture.join();       // safe: allOf guarantees completion
+                int count = countFuture.join();
+                Map<Integer, Integer> breakdown = breakdownFuture.join();
+                List<RatingDataDTO> reviews = reviewsFuture.join();
+                sendReviewDisplay(sender, shopId, avg, count, breakdown, reviews);
             })
             .exceptionally(error -> {
                 sender.sendMessage(ChatColor.RED + "✖ Failed to load reviews: " + error.getMessage());
@@ -116,12 +70,57 @@ public class ShopReviewsSubCommand implements SubCommand {
         return true;
     }
 
-    /**
-     * Converts a numeric rating to a star display.
-     *
-     * @param rating The numeric rating (can be decimal)
-     * @return Star display string
-     */
+    private void sendReviewDisplay(CommandSender sender, int shopId, double avgRating, int count,
+                                   Map<Integer, Integer> breakdown, List<RatingDataDTO> reviews) {
+        sender.sendMessage(ChatColor.GOLD + "===== Shop #" + shopId + " Reviews =====");
+
+        if (count == 0) {
+            sender.sendMessage(ChatColor.GRAY + "No ratings yet for this shop.");
+            return;
+        }
+
+        // Average rating header
+        sender.sendMessage(ChatColor.YELLOW + "Average Rating: " + ChatColor.WHITE +
+            String.format("%.1f", avgRating) + "/5.0 " + ChatColor.GRAY + "(" + count + " ratings)");
+        sender.sendMessage(ChatColor.YELLOW + "Stars: " + ChatColor.WHITE + getStarDisplay(avgRating));
+
+        // Rating breakdown
+        sender.sendMessage(ChatColor.GOLD + "----- Rating Breakdown -----");
+        int totalBreakdown = breakdown.values().stream().mapToInt(Integer::intValue).sum();
+        for (int star = 5; star >= 1; star--) {
+            int starCount = breakdown.getOrDefault(star, 0);
+            String bar = getProgressBar(starCount, totalBreakdown);
+            sender.sendMessage(ChatColor.YELLOW + String.valueOf(star) + " ★ " + ChatColor.WHITE + bar +
+                ChatColor.GRAY + " (" + starCount + ")");
+        }
+
+        // Written reviews
+        if (reviews.isEmpty()) {
+            sender.sendMessage(ChatColor.GRAY + "No written reviews yet.");
+            return;
+        }
+
+        sender.sendMessage(ChatColor.GOLD + "----- Reviews -----");
+        int displayCount = Math.min(reviews.size(), 5);
+
+        for (int i = 0; i < displayCount; i++) {
+            RatingDataDTO review = reviews.get(i);
+            String playerName = plugin.getPlayerLookup().getPlayerName(review.raterUuid());
+
+            sender.sendMessage(ChatColor.YELLOW + getStarDisplay(review.rating()) +
+                ChatColor.GRAY + " - " + playerName +
+                ChatColor.DARK_GRAY + " (" + dateFormat.format(review.createdAt()) + ")");
+
+            if (review.hasReview()) {
+                sender.sendMessage(ChatColor.WHITE + "  \"" + review.review() + "\"");
+            }
+        }
+
+        if (reviews.size() > 5) {
+            sender.sendMessage(ChatColor.GRAY + "... and " + (reviews.size() - 5) + " more reviews");
+        }
+    }
+
     private String getStarDisplay(double rating) {
         StringBuilder stars = new StringBuilder();
         int fullStars = (int) rating;
@@ -140,12 +139,6 @@ public class ShopReviewsSubCommand implements SubCommand {
         return stars.toString();
     }
 
-    /**
-     * Converts an integer rating to a star display.
-     *
-     * @param rating The integer rating (1-5)
-     * @return Star display string
-     */
     private String getStarDisplay(int rating) {
         StringBuilder stars = new StringBuilder();
         for (int i = 0; i < 5; i++) {
@@ -158,13 +151,6 @@ public class ShopReviewsSubCommand implements SubCommand {
         return stars.toString();
     }
 
-    /**
-     * Creates a progress bar visualization.
-     *
-     * @param value The current value
-     * @param total The total value
-     * @return Progress bar string
-     */
     private String getProgressBar(int value, int total) {
         if (total == 0) return "░░░░░░░░░░";
 
@@ -208,7 +194,6 @@ public class ShopReviewsSubCommand implements SubCommand {
         List<String> completions = new ArrayList<>();
 
         if (args.length == 1) {
-            // Suggest shop IDs (would need ShopService integration)
             completions.add("<shopId>");
         }
 
