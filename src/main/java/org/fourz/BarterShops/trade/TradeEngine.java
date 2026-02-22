@@ -525,6 +525,108 @@ public class TradeEngine {
     }
 
     /**
+     * Executes a withdrawal trade: takes payment from the buyer and deposits it into
+     * the shop chest. Does NOT deliver the offering to the buyer — the buyer has already
+     * received it by taking it directly from the chest (the Bukkit event handled delivery).
+     *
+     * <p>This is the correct execution path for {@link TradeSource#WITHDRAWAL_EXCHANGE}.
+     * Using {@link #executeDirectTrade} for withdrawal would double-deliver the offering
+     * (once via the event, once via Step 5 of {@link #executeItemExchange}).
+     *
+     * @param buyer       The buying player
+     * @param shop        The shop being traded with
+     * @param offering    The offering item (used for trade logging only)
+     * @param offeredQty  The quantity taken (used for logging only)
+     * @param payment     Payment item the buyer owes
+     * @param paymentQty  Total payment quantity
+     * @param source      Trade source
+     * @return CompletableFuture with the trade result
+     */
+    public CompletableFuture<TradeResultDTO> executeWithdrawalTrade(
+        Player buyer,
+        BarterSign shop,
+        ItemStack offering,
+        int offeredQty,
+        ItemStack payment,
+        int paymentQty,
+        TradeSource source
+    ) {
+        return CompletableFuture.supplyAsync(() -> {
+            if (buyer == null || shop == null) {
+                return TradeResultDTO.failure("Invalid trade parameters");
+            }
+            if (shop.getOwner().equals(buyer.getUniqueId())) {
+                return TradeResultDTO.failure("Cannot trade with own shop");
+            }
+
+            // Resolve shop inventory (wrapper-aware, same pattern as executeItemExchange)
+            Inventory shopInv = null;
+            org.fourz.BarterShops.container.ShopContainer wrapper = shop.getShopContainerWrapper();
+            if (wrapper != null) {
+                shopInv = wrapper.getInventory();
+            } else if (shop.getShopContainer() != null) {
+                shopInv = shop.getShopContainer().getInventory();
+            }
+
+            InventorySnapshot buyerSnapshot = new InventorySnapshot(buyer.getInventory());
+            InventorySnapshot shopSnapshot = shopInv != null ? new InventorySnapshot(shopInv) : null;
+
+            TradeSession tempSession = new TradeSession(buyer.getUniqueId(), shop);
+            tempSession.setOfferedItem(offering, offeredQty);
+            tempSession.setRequestedItem(payment, paymentQty);
+            tempSession.setState(TradeSession.TradeState.PROCESSING);
+
+            try {
+                // Step 1: Remove payment from buyer
+                if (payment != null && paymentQty > 0) {
+                    if (!removeItems(buyer.getInventory(), payment, paymentQty)) {
+                        throw new TradeException("Insufficient payment");
+                    }
+                }
+
+                // Step 2: Deposit payment into shop chest
+                if (shopInv != null && payment != null && paymentQty > 0) {
+                    int deposited = giveItems(shopInv, payment, paymentQty);
+                    if (deposited < paymentQty) {
+                        throw new TradeException("Shop inventory full - cannot accept payment");
+                    }
+                }
+
+                // Log and complete
+                tempSession.setState(TradeSession.TradeState.COMPLETED);
+                String transactionId = UUID.randomUUID().toString();
+                logTrade(tempSession, transactionId, source);
+                fallbackTracker.recordSuccess();
+                logger.info("Withdrawal trade completed (" + source + "): " + transactionId + " for " + buyer.getName());
+                return TradeResultDTO.success(transactionId);
+
+            } catch (TradeException e) {
+                logger.error("Withdrawal trade failed, rolling back: " + e.getMessage());
+                buyerSnapshot.restore(buyer.getInventory());
+                if (shopSnapshot != null && shopInv != null) {
+                    shopSnapshot.restore(shopInv);
+                }
+                tempSession.setState(TradeSession.TradeState.FAILED);
+                return TradeResultDTO.failure(e.getMessage());
+
+            } catch (Exception e) {
+                logger.error("Unexpected error in withdrawal trade: " + e.getMessage());
+                buyerSnapshot.restore(buyer.getInventory());
+                if (shopSnapshot != null && shopInv != null) {
+                    shopSnapshot.restore(shopInv);
+                }
+                tempSession.setState(TradeSession.TradeState.FAILED);
+                return TradeResultDTO.failure("Trade failed: " + e.getMessage());
+            }
+
+        }).exceptionally(ex -> {
+            logger.error("Withdrawal trade execution failed: " + ex.getMessage());
+            fallbackTracker.recordFailure("Withdrawal trade: " + ex.getMessage());
+            return TradeResultDTO.failure("Internal error: " + ex.getMessage());
+        });
+    }
+
+    /**
      * Gets the trade validator.
      */
     public TradeValidator getValidator() {

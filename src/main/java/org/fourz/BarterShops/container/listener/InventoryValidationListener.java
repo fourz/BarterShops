@@ -268,7 +268,7 @@ public class InventoryValidationListener implements Listener {
                 if (barterSign != null && player != null
                         && !barterSign.getOwner().equals(player.getUniqueId())
                         && barterSign.isPaymentAccepted(movingItem)
-                        && isOutOfStock(barterSign, shopContainer)) {
+                        && isOutOfStock(barterSign, event.getInventory())) {
                     event.setCancelled(true);
                     player.sendMessage(ChatColor.RED + "x Shop is out of stock");
                     return;
@@ -321,7 +321,7 @@ public class InventoryValidationListener implements Listener {
             if (barterSign != null && player != null
                     && !barterSign.getOwner().equals(player.getUniqueId())
                     && barterSign.isPaymentAccepted(cursor)
-                    && isOutOfStock(barterSign, shopContainer)) {
+                    && isOutOfStock(barterSign, event.getInventory())) {
                 event.setCancelled(true);
                 player.sendMessage(ChatColor.RED + "x Shop is out of stock");
             }
@@ -552,11 +552,13 @@ public class InventoryValidationListener implements Listener {
             return; // Click in player inventory, not shop
         }
 
-        // Get item being taken
-        ItemStack takenItem = event.getCurrentItem();
-        if (takenItem == null || takenItem.getType() == Material.AIR) {
+        // Get item being taken — clone immediately; the slot reference becomes AIR after
+        // the event resolves, which would corrupt the async success message otherwise.
+        ItemStack rawItem = event.getCurrentItem();
+        if (rawItem == null || rawItem.getType() == Material.AIR) {
             return;
         }
+        ItemStack takenItem = rawItem.clone();
 
         // Check if taken item matches offering
         ItemStack offering = barterSign.getItemOffering();
@@ -721,13 +723,13 @@ public class InventoryValidationListener implements Listener {
 
     /**
      * Returns true if the shop has insufficient stock to fulfil even one trade.
-     * Used at HIGH priority to block customer payment deposits before item placement.
+     * Accepts the live event inventory directly to avoid stale BlockState snapshot data.
      */
-    private boolean isOutOfStock(BarterSign barterSign, ShopContainer shopContainer) {
+    private boolean isOutOfStock(BarterSign barterSign, org.bukkit.inventory.Inventory chestInventory) {
         ItemStack offering = barterSign.getItemOffering();
         if (offering == null) return false;
         int availableStock = 0;
-        for (ItemStack item : shopContainer.getInventory().getContents()) {
+        for (ItemStack item : chestInventory.getContents()) {
             if (item != null && item.isSimilar(offering)) {
                 availableStock += item.getAmount();
             }

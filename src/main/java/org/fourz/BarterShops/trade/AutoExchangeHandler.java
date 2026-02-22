@@ -236,9 +236,11 @@ public class AutoExchangeHandler {
         // Scale payment quantity
         int totalPayment = basePaymentQty * increments;
 
-        // Execute direct trade
+        // Execute withdrawal trade: player already has the offering (taken from chest
+        // via the Bukkit event). Only deduct payment and deposit it into the shop chest.
+        // executeDirectTrade must NOT be used here — it would re-deliver the offering.
         updateDebounce(player.getUniqueId(), shop.getShopId());
-        return tradeEngine.executeDirectTrade(
+        return tradeEngine.executeWithdrawalTrade(
             player,
             shop,
             offering,
