@@ -44,7 +44,7 @@ public class SignInteraction {
     private final Set<UUID> customerInfoToggled = ConcurrentHashMap.newKeySet(); // Per-session info toggle for customers
     private static final long PREVIEW_TOGGLE_DEBOUNCE_MS = 150; // Ignore toggles within 150ms
     private final Map<String, Long> lastPurchaseTime = new ConcurrentHashMap<>(); // Debounce left-click purchases
-    private static final long PURCHASE_DEBOUNCE_MS = 1000;
+    private static final long PURCHASE_DEBOUNCE_MS = STATUS_DISPLAY_TICKS * 50L; // Match feedback window (3s)
 
     public SignInteraction(BarterShops plugin) {
         this.plugin = plugin;
@@ -341,6 +341,12 @@ public class SignInteraction {
 
         logger.debug("Customer left-click detected - mode: BOARD");
 
+        // Debounce check before any feedback: prevents "Hold payment item" from overwriting
+        // the "Purchased" message during the feedback window after payment is consumed.
+        if (isPurchaseDebounceActive(player.getUniqueId(), barterSign.getShopId())) {
+            return; // Silent — success message still visible
+        }
+
         ItemStack itemInHand = event.getItem();
         if (itemInHand == null || itemInHand.getType().isAir()) {
             showTemporaryStatus(sign, barterSign, "\u00A7eHold payment", "\u00A7eitem");
@@ -362,9 +368,6 @@ public class SignInteraction {
                 return;
             }
 
-            if (isPurchaseDebounceActive(player.getUniqueId(), barterSign.getShopId())) {
-                return; // Rapid re-click during async trade window — success message still visible
-            }
             recordPurchaseTime(player.getUniqueId(), barterSign.getShopId());
             processTrade(player, sign, barterSign);
         } else {
@@ -375,9 +378,6 @@ public class SignInteraction {
                 return;
             }
 
-            if (isPurchaseDebounceActive(player.getUniqueId(), barterSign.getShopId())) {
-                return; // Rapid re-click during async trade window
-            }
             recordPurchaseTime(player.getUniqueId(), barterSign.getShopId());
             processTrade(player, sign, barterSign);
         }
