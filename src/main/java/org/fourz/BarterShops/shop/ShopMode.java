@@ -25,14 +25,15 @@ public enum ShopMode {
     BOARD("Active Shop", "§2Ready"),
 
     /**
-     * Delete confirmation - owner can break sign
-     */
-    DELETE("Delete Mode", "§cDelete?"),
-
-    /**
      * Help/information display
      */
-    HELP("Help", "§bHelp");
+    HELP("Help", "§bHelp"),
+
+    /**
+     * Delete confirmation - owner can break sign.
+     * Always the last mode in the cycle before wrapping back to SETUP.
+     */
+    DELETE("Delete Mode", "§cDelete?");
 
     private final String displayName;
     private final String signText;
@@ -51,16 +52,17 @@ public enum ShopMode {
     }
 
     /**
-     * Get next mode in cycle for owner left-click.
-     * Cycle: SETUP -> TYPE -> BOARD -> DELETE -> SETUP
+     * Get next mode in cycle for owner right-click.
+     * Cycle: SETUP -> TYPE -> BOARD -> HELP -> DELETE -> SETUP
+     * DELETE is always last before wrapping back to SETUP.
      */
     public ShopMode getNextMode() {
         return switch (this) {
-            case SETUP -> TYPE;
-            case TYPE -> BOARD;
-            case BOARD -> DELETE;
-            case DELETE -> SETUP;
-            case HELP -> BOARD; // Help returns to active state
+            case SETUP   -> TYPE;
+            case TYPE    -> BOARD;
+            case BOARD   -> HELP;
+            case HELP    -> DELETE;
+            case DELETE  -> SETUP;
         };
     }
 }
