@@ -263,6 +263,16 @@ public class InventoryValidationListener implements Listener {
                 }
             } else {
                 logger.debug("Type lock validation PASSED for " + movingItem.getType());
+                // Stock guard: block customers from depositing payment when shop is out of stock.
+                // Must run at HIGH priority - setCancelled(true) at MONITOR is unreliable in Paper 1.21.
+                if (barterSign != null && player != null
+                        && !barterSign.getOwner().equals(player.getUniqueId())
+                        && barterSign.isPaymentAccepted(movingItem)
+                        && isOutOfStock(barterSign, shopContainer)) {
+                    event.setCancelled(true);
+                    player.sendMessage(ChatColor.RED + "x Shop is out of stock");
+                    return;
+                }
             }
             return; // Handled shift-click case
         }
@@ -306,6 +316,15 @@ public class InventoryValidationListener implements Listener {
             }
         } else {
             logger.debug("Type lock validation PASSED for " + cursor.getType());
+            // Stock guard: block customers from depositing payment when shop is out of stock.
+            // Must run at HIGH priority - setCancelled(true) at MONITOR is unreliable in Paper 1.21.
+            if (barterSign != null && player != null
+                    && !barterSign.getOwner().equals(player.getUniqueId())
+                    && barterSign.isPaymentAccepted(cursor)
+                    && isOutOfStock(barterSign, shopContainer)) {
+                event.setCancelled(true);
+                player.sendMessage(ChatColor.RED + "x Shop is out of stock");
+            }
         }
     }
 
@@ -698,6 +717,22 @@ public class InventoryValidationListener implements Listener {
                  MOVE_TO_OTHER_INVENTORY -> true;
             default -> false;
         };
+    }
+
+    /**
+     * Returns true if the shop has insufficient stock to fulfil even one trade.
+     * Used at HIGH priority to block customer payment deposits before item placement.
+     */
+    private boolean isOutOfStock(BarterSign barterSign, ShopContainer shopContainer) {
+        ItemStack offering = barterSign.getItemOffering();
+        if (offering == null) return false;
+        int availableStock = 0;
+        for (ItemStack item : shopContainer.getInventory().getContents()) {
+            if (item != null && item.isSimilar(offering)) {
+                availableStock += item.getAmount();
+            }
+        }
+        return availableStock < offering.getAmount();
     }
 
     /**
