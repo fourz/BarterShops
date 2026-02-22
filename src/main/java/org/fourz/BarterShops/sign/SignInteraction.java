@@ -1092,11 +1092,23 @@ public class SignInteraction {
         lastPurchaseTime.put(playerId + ":" + shopId, System.currentTimeMillis());
     }
 
+    /**
+     * Removes all per-player session state for a player who has disconnected.
+     * Called by SignManager.onPlayerQuit() to prevent unbounded map growth.
+     */
+    public void cleanupPlayer(UUID playerUuid) {
+        String prefix = playerUuid.toString();
+        customerInfoToggled.remove(playerUuid);
+        lastPurchaseTime.keySet().removeIf(key -> key.startsWith(prefix));
+        shiftClickPanelState.keySet().removeIf(key -> key.startsWith(prefix));
+    }
+
     public void cleanup() {
         activeRevertTasks.values().forEach(BukkitTask::cancel);
         activeRevertTasks.clear();
         pendingDeletions.clear();
         customerInfoToggled.clear();
         lastPurchaseTime.clear();
+        shiftClickPanelState.clear();
     }
 }
