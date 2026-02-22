@@ -60,7 +60,7 @@ org.fourz.BarterShops
 ├── ManagerCore.java           # Core manager registration
 ├── command/
 │   ├── CommandManager.java    # Command registration
-│   ├── ShopCommand.java       # Main /shop command dispatcher (19 subcommands)
+│   ├── ShopCommand.java       # Main /shop command dispatcher (20 subcommands)
 │   ├── SubCommand.java        # Abstract subcommand interface
 │   ├── BaseCommand.java       # Base command implementation
 │   ├── SeedSubCommand.java    # Test data seeding
@@ -86,7 +86,8 @@ org.fourz.BarterShops
 │       ├── ShopInspectSubCommand.java
 │       ├── ShopClearSubCommand.java
 │       ├── ShopReloadSubCommand.java
-│       └── ShopDebugSubCommand.java      # feat-01
+│       ├── ShopDebugSubCommand.java      # feat-01
+│       └── ShopTradeSubCommand.java      # Admin force-trade (console-capable)
 ├── config/
 │   └── ConfigManager.java     # Configuration (config.yml, messages)
 ├── data/
@@ -96,6 +97,7 @@ org.fourz.BarterShops
 │   ├── SQLiteDatabaseManager.java
 │   ├── IConnectionProvider.java
 │   ├── FallbackTracker.java   # Database fallback detection
+│   ├── RetentionManager.java  # 30-day trade archive scheduler (Bukkit async task)
 │   ├── ShopsTestDataGenerator.java  # Test data generation
 │   ├── dto/                   # Data Transfer Objects (Java records)
 │   │   ├── ShopDataDTO.java
@@ -258,7 +260,7 @@ Use consistent message prefixes in command handlers:
 
 ## Shop Commands
 
-### Always Registered (16 commands + help)
+### Always Registered (17 commands + help)
 
 | Command | Description | Permission |
 |---------|-------------|------------|
@@ -278,6 +280,7 @@ Use consistent message prefixes in command handlers:
 | `/shop clear <id>` | Clear shop inventory (admin) | `bartershops.admin.clear` |
 | `/shop reload` | Reload configuration | `bartershops.admin.reload` |
 | `/shop debug` | Debug information | `bartershops.admin.debug` |
+| `/shop trade <player> <shopId> [qty]` | Admin force-trade (console-capable) | `bartershops.admin.trade` |
 | `/shop help` | Show help (special case, not registered) | None |
 
 ### Conditional Commands (require service availability)
@@ -339,22 +342,22 @@ manage_task("update", task_id="...", status="done")
 
 ## Development Status
 
-**Current Version**: 1.0.1 (Feb 13, 2026)
+**Current Version**: 1.0.29 (Feb 21, 2026)
 
 See [ROADMAP.md](ROADMAP.md) for detailed phase history, development timeline, and planned features.
 
-**Latest Completion** (Feb 13):
-- Phase 14: Message suppression for customer interactions - reduced chat spam
-- Phase 13: Dual-wrap mode for single-payment BARTER shops - maximize sign space
-- Phase 9-12: Offering/payment name wrapping with intelligent layout
+**Latest Completions** (Feb 21):
+- v1.0.27: `trade_source` persisted across all TradeEngine paths — ALTER TABLE migration for existing installs; `TradeRecordDTO.tradeSource` field; TradeEngine.logTrade() wires source; `TradeServiceImpl.serializeItem()` marked `@Deprecated` (dead code)
+- v1.0.28: 30-day trade archive scheduler — `RetentionManager` Bukkit async repeating task; `retention:` config section; calls `ITradeRepository.archiveOlderThan()`
+- v1.0.28: `/shop trade <player> <shopId> [qty]` admin force-trade — console-capable, bypasses payment, `ADMIN_OVERRIDE` source, 20th subcommand
+- v1.0.29: Sign debounce fix — `PURCHASE_DEBOUNCE_MS = STATUS_DISPLAY_TICKS * 50L`; debounce check moved before null/air item check in `handleCustomerLeftClick()` to prevent "Hold payment item" overwriting "Purchased" feedback
 
 **In Development**:
-- bug-epic-01: Sign Reliability and Protection (automated regression testing pending)
-- doc-18: Sign UI/UX comprehensive guide
+- Review follow-ups: debounce on trade-failure path; config caching consistency in RetentionManager; redundant null check in TradeRepositoryImpl.save()
 
 **Planned Next**:
+- feat: economic history aggregate tables (daily/monthly summaries, archive pruning, item_type column)
 - feat-23: Shop config persistence across server restarts
-- feat-24: Service runtime initialization
 - refactor-01: Mode enum unification (SignMode vs ShopMode)
 
 ## Development Checklist

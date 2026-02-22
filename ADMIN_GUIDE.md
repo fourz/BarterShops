@@ -105,6 +105,14 @@ storage:
     # Relative to plugin data folder
     database: data.db
 
+retention:
+  # Automatically move old trade records out of the active table
+  enabled: true
+  # Records older than this many days are moved to the archive table
+  active-days: 30
+  # "archive" = move to barter_trade_records_archive before removing
+  action: archive
+
 messages:
   generic:
     error:
@@ -207,6 +215,22 @@ GRANT SELECT, INSERT, UPDATE, DELETE, CREATE, ALTER ON bartershops.* TO 'barters
 FLUSH PRIVILEGES;
 ```
 
+#### Retention Settings
+
+Controls automatic archiving of old trade history records. Runs once every 24 hours (5-minute startup delay to avoid server load spikes).
+
+| Option | Values | Default | Description |
+|--------|--------|---------|-------------|
+| `retention.enabled` | true/false | true | Enable automatic archiving |
+| `retention.active-days` | integer | 30 | Records older than N days are archived |
+| `retention.action` | archive | archive | Move records to archive table before removing from active |
+
+**Archive behavior**: Records are INSERT-SELECTed from `barter_trade_records` into `barter_trade_records_archive`, then deleted from the active table. The archive table is retained indefinitely (no pruning currently). Set `active-days: 0` to archive all records immediately on next cycle.
+
+**When to adjust**:
+- High-traffic servers: reduce `active-days` (e.g., 14) to keep queries fast
+- Low-traffic or audit-heavy servers: increase (e.g., 90) or disable archiving
+
 #### Message Customization
 
 Messages support Minecraft color codes (`&a`, `&c`, etc.) and placeholders:
@@ -249,6 +273,7 @@ messages:
 | `bartershops.admin.clear` | op | Clear shop inventories |
 | `bartershops.admin.reload` | op | Reload plugin configuration |
 | `bartershops.admin.remove` | op | Remove any shop (bypass ownership) |
+| `bartershops.admin.trade` | op | Force-execute a trade via `/shop trade` (console-capable) |
 | `bartershops.reload` | op | Alternative reload permission |
 
 ### Permission Examples
@@ -314,6 +339,7 @@ groups:
 | `/shop admin inspect <id>` | `bartershops.admin.inspect` | Inspect any shop | `/shop admin inspect 10` |
 | `/shop admin clear <id>` | `bartershops.admin.clear` | Clear shop inventory | `/shop admin clear 10` |
 | `/shop admin reload` | `bartershops.admin.reload` | Reload configuration | `/shop admin reload` |
+| `/shop trade <player> <shopId> [qty]` | `bartershops.admin.trade` | Force a trade from a shop to a player, bypassing payment | `/shop trade Alice 5 2` |
 | `/shop reload` | `bartershops.reload` | Reload configuration | `/shop reload` |
 
 ---
@@ -466,6 +492,71 @@ or
 **What does NOT reload**:
 - Database connection settings (requires restart)
 - Permission configurations (managed by permission plugin)
+- Retention scheduler (requires restart to apply new `active-days` or `enabled` changes)
+
+### Force-Executing a Trade (`/shop trade`)
+
+Execute a trade from a specific shop to a player without requiring the player to interact with the sign. Payment is bypassed entirely. Recorded as `ADMIN_OVERRIDE` in trade history.
+
+**Usage** (in-game or console):
+```
+/shop trade <player> <shopId> [qty]
+```
+
+| Argument | Required | Description |
+|----------|----------|-------------|
+| `<player>` | Yes | Online player name. Player must be online. |
+| `<shopId>` | Yes | Numeric shop ID (from `/shop info` or `/shop list`). |
+| `[qty]` | No | Item quantity. Must be a positive multiple of the shop's base offering amount. Defaults to base amount. |
+
+**Examples**:
+```
+/shop trade Alice 5
+/shop trade Bob 12 4
+```
+
+**Console example**:
+```
+> shop trade Alice 5 2
+[OK] Traded 2x EMERALD from shop #5 to Alice (txId: abc123)
+```
+
+**Failure conditions** (clear error returned to sender):
+- Player is offline
+- Shop ID does not exist or shop is inactive
+- Qty is not a positive multiple of base offering amount
+- Shop is out of stock (non-admin shops only)
+
+**Use cases**:
+- Reimbursing players after a failed trade
+- Automated test flows from console
+- Event rewards distribution
+
+### Trade Archival & Retention
+
+BarterShops automatically archives trade records older than `retention.active-days` (default: 30 days). This keeps the active `barter_trade_records` table small and queries fast.
+
+**How it works**:
+1. On server startup, RetentionManager starts (5-minute delay to avoid load spikes)
+2. Every 24 hours, records with `completed_at < NOW() - active-days` are archived
+3. Records are moved (INSERT-SELECT + DELETE) from `barter_trade_records` to `barter_trade_records_archive`
+4. The archive table is retained indefinitely
+
+**Trade history fields** (both active and archive tables):
+
+| Column | Description |
+|--------|-------------|
+| `transaction_id` | UUID of the transaction |
+| `shop_id` | Shop that executed the trade |
+| `buyer_uuid` / `seller_uuid` | Player UUIDs involved |
+| `item_stack_data` | Serialized item (TYPE:amount format) |
+| `quantity` | Item count traded |
+| `currency_material` / `price_paid` | Currency info (SELL/BUY shops) |
+| `status` | COMPLETED, CANCELLED, FAILED, PENDING, REFUNDED |
+| `trade_source` | How trade was initiated: `INSTANT_PURCHASE`, `GUI_CONFIRMATION`, `DEPOSIT_EXCHANGE`, `WITHDRAWAL_EXCHANGE`, `ADMIN_OVERRIDE` |
+| `completed_at` | Timestamp of transaction |
+
+**Archive backfill note**: Records created before v1.0.27 have `trade_source = 'UNKNOWN'` (migration default).
 
 ---
 
