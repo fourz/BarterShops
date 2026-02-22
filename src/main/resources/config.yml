@@ -1,0 +1,200 @@
+general:
+  # Valid log levels: DEBUG, INFO, WARNING, SEVERE
+  # Default: WARNING (quiet mode - set INFO for verbose operational logs)
+  # DEBUG: Shows detailed debug information including sign interactions, trades, and state changes
+  logLevel: DEBUG
+
+storage:
+  # types: mysql, sqlite
+  type: mysql
+  mysql:
+    host: 64.20.41.122
+    port: 3306
+    username: fourzorg_rvnkuser
+    password: ''
+    useSSL: true
+    database: fourzorg_rvnkcore_dev
+    # Table prefix for shared database hosting (e.g., "barter_" creates "barter_shops")
+    tablePrefix: "barter_"
+  sqlite:
+    database: data.db
+    # Table prefix for shared database hosting (e.g., "barter_" creates "barter_shops")
+    tablePrefix: "barter_"
+
+retention:
+  # Enable automatic archiving of old trade records
+  enabled: true
+  # Records older than this many days are moved out of the active table
+  active-days: 30
+  # "archive" = move to trade_records_archive table before removing from active table
+  # Future stub: "delete" = direct delete without archiving
+  action: archive
+  # Future stub: aggregate daily/monthly summaries before archiving
+  # Future stub: prune archive table after N months (archive-days: 365)
+  # Future stub: separate retention periods by trade status (FAILED/REFUNDED: keep longer)
+
+# REST API Configuration (feat-03)
+api:
+  # Enable REST API server for web integration
+  enabled: false
+
+  # HTTP server port
+  port: 8080
+
+  # CORS (Cross-Origin Resource Sharing) configuration
+  cors:
+    enabled: true
+    allowedOrigins:
+      - "http://localhost:3000"
+      - "https://fourz.org"
+
+  # API authentication
+  authentication:
+    # Require API key for requests
+    required: false
+
+    # Valid API keys (use environment variables in production)
+    keys:
+      - "dev-key-12345"
+
+economy:
+  # Shop listing fees (requires Vault)
+  fees:
+    enabled: true
+    base: 100.0              # Base fee for standard barter shops
+    currency_shop: 500.0     # Fee for currency-based shops
+
+  # Trade taxes (percentage-based)
+  taxes:
+    enabled: true
+    rate: 0.05               # 5% tax on trades (0.05 = 5%)
+
+  # Mixed trades (items + currency)
+  mixed_trades:
+    enabled: true
+    min_currency: 1.0        # Minimum currency amount for mixed trades
+
+protection:
+  # Enable shop region protection system
+  enabled: true
+
+  # Protection provider: auto, worldguard, griefprevention, none
+  # auto = auto-detect available protection plugin
+  provider: auto
+
+  # Auto-protect radius around shops (in blocks)
+  auto-protect-radius: 3
+
+  # Maximum shops per player (bypass with bartershops.admin.unlimited)
+  max-shops-per-player: 5
+
+notifications:
+  # Master notification toggle (can be overridden per-player)
+  enabled: true
+
+  # Default channel settings for new players
+  defaults:
+    chat: true
+    actionBar: true
+    title: false
+    sound: true
+
+  # Per-type notification settings
+  types:
+    trade_request:
+      enabled: true
+      sound: BLOCK_NOTE_BLOCK_PLING
+    trade_complete:
+      enabled: true
+      sound: ENTITY_PLAYER_LEVELUP
+    trade_cancelled:
+      enabled: true
+      sound: BLOCK_NOTE_BLOCK_BASS
+    shop_stock_low:
+      enabled: true
+      threshold: 5  # Items remaining
+      sound: BLOCK_NOTE_BLOCK_BELL
+    shop_sale:
+      enabled: true
+      sound: ENTITY_EXPERIENCE_ORB_PICKUP
+    review_received:
+      enabled: true
+      sound: BLOCK_NOTE_BLOCK_CHIME
+    price_change:
+      enabled: false  # Disabled by default
+      sound: BLOCK_NOTE_BLOCK_HARP
+    system:
+      enabled: true
+      sound: BLOCK_NOTE_BLOCK_FLUTE
+
+messages:
+  generic:
+    error:
+    - '[Error]'
+    success:
+    - '[Success]'
+    info:
+    - '[Info]'
+    help:
+    - '[Help]'
+    no_held_item:
+    - 'You must be holding an item!'
+  sign:
+    create:
+      denied:
+      - 'You do not have permission to create this sign!'
+    use:
+      denied:
+      - 'You do not have permission to use this sign!'
+    setup:
+    - 'Hold the item you wish to sell and left-click the sign.'
+  notifications:
+    trade_request:
+    - '&e{player} wants to trade with you!'
+    trade_complete:
+    - '&aTrade completed successfully!'
+    trade_cancelled:
+    - '&cTrade was cancelled'
+    shop_stock_low:
+    - '&6Your shop stock is running low!'
+    shop_sale:
+    - '&2New sale in your shop: {amount}x {item}'
+    review_received:
+    - '&bYou received a new review!'
+    price_change:
+    - '&dPrice changed: {item} now {price}'
+  economy:
+    insufficient_funds:
+    - '&cInsufficient funds! You need {amount}'
+    fee_charged:
+    - '&aListing fee of {amount} charged'
+    tax_applied:
+    - '&7Trade tax: {amount}'
+    economy_disabled:
+    - '&eEconomy features are disabled (Vault not found)'
+
+# Shop type configuration
+shop-types:
+  enabled:
+    barter: true      # Item-for-item exchange (core functionality)
+    sell: true        # Players buy items with currency (requires Vault)
+    buy: true         # Shop owner buys items from players (requires Vault)
+
+# Sign type configuration (shop variants cycled via TYPE mode)
+sign-types:
+  enabled:
+    barter: true      # Standard barter shop
+    sell: true        # Sell shop variant
+    buy: true         # Buy shop variant
+
+sign:
+  setup:
+  - '&5%1'
+  - 'L-Click with'
+  - 'item you want'
+  - 'to sell'
+  main_menu:
+  - '&2Barter Shop'
+  - '(right-click)'
+  - '&9%1'
+  - '&9%2'

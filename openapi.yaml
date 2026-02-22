@@ -1,0 +1,166 @@
+openapi: 3.0.3
+info:
+  title: BarterShops REST API
+  description: |
+    REST API for BarterShops Minecraft plugin web integration.
+    Provides access to shop listings, trade activity, and server statistics.
+
+    **Base URL**: `http://localhost:8080/api`
+
+    **Authentication**: Optional API key via `X-API-Key` header
+  version: 1.0.0
+  contact:
+    name: Ravenkraft Network
+    url: https://fourz.org
+
+servers:
+  - url: http://localhost:8080/api
+    description: Local development server
+
+tags:
+  - name: Shops
+    description: Shop listing and details
+  - name: Trades
+    description: Trade activity and history
+  - name: Statistics
+    description: Server-wide and shop-specific statistics
+  - name: Health
+    description: API health check
+
+paths:
+  /shops:
+    get:
+      tags: [Shops]
+      summary: List all shops
+      description: Get a paginated list of all active shops with optional filtering and sorting
+      parameters:
+        - name: owner
+          in: query
+          description: Filter by owner UUID
+          schema:
+            type: string
+        - name: type
+          in: query
+          description: Filter by shop type
+          schema:
+            type: string
+            enum: [BARTER, SELL, BUY, ADMIN]
+        - name: page
+          in: query
+          schema:
+            type: integer
+            default: 1
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            default: 20
+            maximum: 100
+      responses:
+        '200':
+          description: Success
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                  data:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/Shop'
+
+  /shops/{id}:
+    get:
+      tags: [Shops]
+      summary: Get shop by ID
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        '200':
+          description: Success
+
+  /shops/nearby:
+    get:
+      tags: [Shops]
+      summary: Get nearby shops
+      parameters:
+        - name: world
+          in: query
+          required: true
+          schema:
+            type: string
+        - name: x
+          in: query
+          required: true
+          schema:
+            type: number
+        - name: y
+          in: query
+          required: true
+          schema:
+            type: number
+        - name: z
+          in: query
+          required: true
+          schema:
+            type: number
+        - name: radius
+          in: query
+          schema:
+            type: number
+            default: 50
+      responses:
+        '200':
+          description: Success
+
+  /trades/recent:
+    get:
+      tags: [Trades]
+      summary: Get recent trades
+      parameters:
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            default: 20
+      responses:
+        '200':
+          description: Success
+
+  /stats:
+    get:
+      tags: [Statistics]
+      summary: Get server statistics
+      responses:
+        '200':
+          description: Success
+
+  /health:
+    get:
+      tags: [Health]
+      summary: Health check
+      responses:
+        '200':
+          description: Success
+
+components:
+  schemas:
+    Shop:
+      type: object
+      properties:
+        shopId:
+          type: integer
+        ownerUuid:
+          type: string
+        shopName:
+          type: string
+        shopType:
+          type: string
+        isActive:
+          type: boolean
