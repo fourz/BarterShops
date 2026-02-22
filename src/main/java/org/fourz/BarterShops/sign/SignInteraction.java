@@ -51,21 +51,11 @@ public class SignInteraction {
         this.logger = LogManager.getInstance(plugin, CLASS_NAME);
     }
 
-    /**
-     * Detects if a player is a customer (not the owner and in survival mode).
-     */
-    private boolean isCustomer(Player player, BarterSign barterSign) {
-        if (barterSign.getOwner().equals(player.getUniqueId())) {
-            return false; // Owner is never a customer
-        }
-        return player.getGameMode() == org.bukkit.GameMode.SURVIVAL;
-    }
-
     public void handleLeftClick(Player player, Sign sign, BarterSign barterSign, PlayerInteractEvent event) {
         if (barterSign == null) return;
 
         // CUSTOMER LEFT-CLICK: Direct trade initiation
-        if (isCustomer(player, barterSign)) {
+        if (barterSign.isCustomer(player)) {
             handleCustomerLeftClick(player, sign, barterSign, event);
             return;
         }

@@ -1,14 +1,17 @@
 package org.fourz.BarterShops.sign;
 
+import org.bukkit.GameMode;
 import org.bukkit.Location;
 import org.bukkit.Material;
 import org.bukkit.block.Container;
 import org.bukkit.block.sign.SignSide;
+import org.bukkit.entity.Player;
 import org.bukkit.inventory.ItemStack;
 import org.fourz.BarterShops.shop.ShopMode;
 import org.fourz.BarterShops.container.ShopContainer;
 import org.fourz.BarterShops.container.validation.MultiTypeItemRule;
 import org.fourz.BarterShops.container.validation.UnstackableItemOnlyRule;
+import org.fourz.BarterShops.sign.api.ISignData;
 
 import java.util.ArrayList;
 import java.util.HashSet;
@@ -16,7 +19,7 @@ import java.util.List;
 import java.util.Set;
 import java.util.UUID;
 
-public class BarterSign {
+public class BarterSign implements ISignData {
     private final String id;
     private final UUID owner;
     private final Location signLocation;
@@ -82,6 +85,15 @@ public class BarterSign {
     // Shop container wrapper (Phase 2 Integration)
     public ShopContainer getShopContainerWrapper() { return shopContainerWrapper; }
     public void setShopContainerWrapper(ShopContainer wrapper) { this.shopContainerWrapper = wrapper; }
+
+    /**
+     * Returns true if the player is a customer of this shop (not the owner, and in survival mode).
+     * Consolidated access-control check — use this instead of inline owner+gamemode checks.
+     */
+    public boolean isCustomer(Player player) {
+        return !owner.equals(player.getUniqueId())
+            && player.getGameMode() == GameMode.SURVIVAL;
+    }
 
 
     // NEW: Item offering configuration
