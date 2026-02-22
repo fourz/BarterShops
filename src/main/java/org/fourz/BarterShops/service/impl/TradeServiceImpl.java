@@ -183,6 +183,12 @@ public class TradeServiceImpl implements ITradeService {
     // Item Utilities
     // ========================================================
 
+    /**
+     * @deprecated Dead code. TradeEngine.serializeItem() (TYPE:amount format) writes all saved
+     * records. This YAML variant is never called by the trade flow. Retained for reference only.
+     * Future: replace with indexed item_type VARCHAR(64) column. See Archon: BS-economic-history.
+     */
+    @Deprecated
     @Override
     public String serializeItem(ItemStack item) {
         if (item == null) return null;

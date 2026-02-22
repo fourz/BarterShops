@@ -67,6 +67,7 @@ CREATE TABLE IF NOT EXISTS bs_trade_history (
     currency_material VARCHAR(64),
     price_paid INT NOT NULL DEFAULT 0,
     status ENUM('COMPLETED', 'CANCELLED', 'FAILED', 'PENDING', 'REFUNDED') NOT NULL DEFAULT 'COMPLETED',
+    trade_source VARCHAR(32) NOT NULL DEFAULT 'UNKNOWN',
     completed_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
 
     -- Foreign key
@@ -132,6 +133,7 @@ CREATE TABLE IF NOT EXISTS bs_trade_history_archive (
     currency_material VARCHAR(64),
     price_paid INT NOT NULL DEFAULT 0,
     status ENUM('COMPLETED', 'CANCELLED', 'FAILED', 'PENDING', 'REFUNDED') NOT NULL,
+    trade_source VARCHAR(32) NOT NULL DEFAULT 'UNKNOWN',
     completed_at TIMESTAMP NOT NULL,
     archived_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
 

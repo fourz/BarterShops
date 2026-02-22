@@ -70,8 +70,8 @@ public class TradeRepositoryImpl implements ITradeRepository {
 
         return CompletableFuture.supplyAsync(() -> {
             String sql = "INSERT INTO " + t("trade_records") + " (transaction_id, shop_id, buyer_uuid, seller_uuid, " +
-                "item_stack_data, quantity, currency_material, price_paid, status, completed_at) " +
-                "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)";
+                "item_stack_data, quantity, currency_material, price_paid, status, trade_source, completed_at) " +
+                "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)";
 
             try (Connection conn = connectionProvider.getConnection();
                  PreparedStatement stmt = conn.prepareStatement(sql)) {
@@ -85,7 +85,8 @@ public class TradeRepositoryImpl implements ITradeRepository {
                 stmt.setString(7, trade.currencyMaterial());
                 stmt.setInt(8, trade.pricePaid());
                 stmt.setString(9, trade.status().name());
-                stmt.setTimestamp(10, trade.completedAt());
+                stmt.setString(10, trade.tradeSource() != null ? trade.tradeSource() : "UNKNOWN");
+                stmt.setTimestamp(11, trade.completedAt());
 
                 stmt.executeUpdate();
                 fallbackTracker.recordSuccess();
@@ -673,9 +674,11 @@ public class TradeRepositoryImpl implements ITradeRepository {
                     }
                 }
 
-                // Archive the records
-                String archiveSql = "INSERT INTO " + archiveTable +
-                    " SELECT * FROM " + t("trade_records") + " WHERE completed_at < ?";
+                // Archive the records — explicit column list excludes archived_at (auto-defaulted)
+                String cols = "transaction_id, shop_id, buyer_uuid, seller_uuid, item_stack_data," +
+                    " quantity, currency_material, price_paid, status, trade_source, completed_at";
+                String archiveSql = "INSERT INTO " + archiveTable + " (" + cols + ")" +
+                    " SELECT " + cols + " FROM " + t("trade_records") + " WHERE completed_at < ?";
                 String deleteSql = "DELETE FROM " + t("trade_records") + " WHERE completed_at < ?";
 
                 conn.setAutoCommit(false);
@@ -762,6 +765,14 @@ public class TradeRepositoryImpl implements ITradeRepository {
     // ========================================================
 
     private TradeRecordDTO mapRowToTrade(ResultSet rs) throws SQLException {
+        String tradeSource;
+        try {
+            tradeSource = rs.getString("trade_source");
+            if (tradeSource == null) tradeSource = "UNKNOWN";
+        } catch (SQLException e) {
+            // Column absent on very old installs before migration ran
+            tradeSource = "UNKNOWN";
+        }
         return TradeRecordDTO.builder()
                 .transactionId(rs.getString("transaction_id"))
                 .shopId(rs.getInt("shop_id"))
@@ -772,6 +783,7 @@ public class TradeRepositoryImpl implements ITradeRepository {
                 .currencyMaterial(rs.getString("currency_material"))
                 .pricePaid(rs.getInt("price_paid"))
                 .status(TradeRecordDTO.TradeStatus.valueOf(rs.getString("status")))
+                .tradeSource(tradeSource)
                 .completedAt(rs.getTimestamp("completed_at"))
                 .build();
     }

@@ -44,7 +44,7 @@ class TradeRecordDTOTest {
             TradeRecordDTO dto = new TradeRecordDTO(
                 txId, 1, testBuyer, testSeller,
                 "DIAMOND:64", 64, "EMERALD", 10,
-                TradeRecordDTO.TradeStatus.COMPLETED, testTimestamp
+                TradeRecordDTO.TradeStatus.COMPLETED, "UNKNOWN", testTimestamp
             );
 
             assertEquals(txId, dto.transactionId());
@@ -65,7 +65,7 @@ class TradeRecordDTOTest {
                 new TradeRecordDTO(
                     null, 1, testBuyer, testSeller,
                     "DIAMOND:1", 1, "EMERALD", 1,
-                    TradeRecordDTO.TradeStatus.COMPLETED, testTimestamp
+                    TradeRecordDTO.TradeStatus.COMPLETED, "UNKNOWN", testTimestamp
                 )
             );
         }
@@ -77,7 +77,7 @@ class TradeRecordDTOTest {
                 new TradeRecordDTO(
                     UUID.randomUUID().toString(), 1, null, testSeller,
                     "DIAMOND:1", 1, "EMERALD", 1,
-                    TradeRecordDTO.TradeStatus.COMPLETED, testTimestamp
+                    TradeRecordDTO.TradeStatus.COMPLETED, "UNKNOWN", testTimestamp
                 )
             );
         }
@@ -89,7 +89,7 @@ class TradeRecordDTOTest {
                 new TradeRecordDTO(
                     UUID.randomUUID().toString(), 1, testBuyer, null,
                     "DIAMOND:1", 1, "EMERALD", 1,
-                    TradeRecordDTO.TradeStatus.COMPLETED, testTimestamp
+                    TradeRecordDTO.TradeStatus.COMPLETED, "UNKNOWN", testTimestamp
                 )
             );
         }
@@ -101,7 +101,7 @@ class TradeRecordDTOTest {
                 new TradeRecordDTO(
                     UUID.randomUUID().toString(), 1, testBuyer, testSeller,
                     "DIAMOND:0", 0, "EMERALD", 1,
-                    TradeRecordDTO.TradeStatus.COMPLETED, testTimestamp
+                    TradeRecordDTO.TradeStatus.COMPLETED, "UNKNOWN", testTimestamp
                 )
             );
         }
@@ -113,7 +113,7 @@ class TradeRecordDTOTest {
                 new TradeRecordDTO(
                     UUID.randomUUID().toString(), 1, testBuyer, testSeller,
                     "DIAMOND:-1", -1, "EMERALD", 1,
-                    TradeRecordDTO.TradeStatus.COMPLETED, testTimestamp
+                    TradeRecordDTO.TradeStatus.COMPLETED, "UNKNOWN", testTimestamp
                 )
             );
         }
@@ -124,7 +124,7 @@ class TradeRecordDTOTest {
             TradeRecordDTO dto = new TradeRecordDTO(
                 UUID.randomUUID().toString(), 1, testBuyer, testSeller,
                 "DIAMOND:1", 1, "EMERALD", 1,
-                null, testTimestamp
+                null, "UNKNOWN", testTimestamp
             );
 
             assertEquals(TradeRecordDTO.TradeStatus.COMPLETED, dto.status());
@@ -366,13 +366,13 @@ class TradeRecordDTOTest {
             TradeRecordDTO dto1 = new TradeRecordDTO(
                 txId, 1, testBuyer, testSeller,
                 "DIAMOND:1", 1, "EMERALD", 1,
-                TradeRecordDTO.TradeStatus.COMPLETED, testTimestamp
+                TradeRecordDTO.TradeStatus.COMPLETED, "UNKNOWN", testTimestamp
             );
 
             TradeRecordDTO dto2 = new TradeRecordDTO(
                 txId, 1, testBuyer, testSeller,
                 "DIAMOND:1", 1, "EMERALD", 1,
-                TradeRecordDTO.TradeStatus.COMPLETED, testTimestamp
+                TradeRecordDTO.TradeStatus.COMPLETED, "UNKNOWN", testTimestamp
             );
 
             assertEquals(dto1, dto2);

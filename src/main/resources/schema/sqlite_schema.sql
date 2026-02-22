@@ -65,6 +65,7 @@ CREATE TABLE IF NOT EXISTS bs_trade_history (
     currency_material TEXT,
     price_paid INTEGER NOT NULL DEFAULT 0,
     status TEXT NOT NULL DEFAULT 'COMPLETED' CHECK(status IN ('COMPLETED', 'CANCELLED', 'FAILED', 'PENDING', 'REFUNDED')),
+    trade_source TEXT NOT NULL DEFAULT 'UNKNOWN',
     completed_at TEXT NOT NULL DEFAULT (datetime('now')),
 
     FOREIGN KEY (shop_id) REFERENCES bs_shops(shop_id) ON DELETE SET NULL
@@ -120,6 +121,7 @@ CREATE TABLE IF NOT EXISTS bs_trade_history_archive (
     currency_material TEXT,
     price_paid INTEGER NOT NULL DEFAULT 0,
     status TEXT NOT NULL CHECK(status IN ('COMPLETED', 'CANCELLED', 'FAILED', 'PENDING', 'REFUNDED')),
+    trade_source TEXT NOT NULL DEFAULT 'UNKNOWN',
     completed_at TEXT NOT NULL,
     archived_at TEXT NOT NULL DEFAULT (datetime('now'))
 );

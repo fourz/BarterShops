@@ -430,6 +430,7 @@ public class TradeEngine {
                 .currencyMaterial(session.getRequestedItem() != null ?
                         session.getRequestedItem().getType().name() : null)
                 .pricePaid(session.getRequestedQuantity())
+                .tradeSource(source != null ? source.name() : "UNKNOWN")
                 .build();
 
         // Persist via TradeServiceImpl if available

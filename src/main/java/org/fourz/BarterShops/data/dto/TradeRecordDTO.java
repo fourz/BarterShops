@@ -20,6 +20,7 @@ public record TradeRecordDTO(
     String currencyMaterial,
     int pricePaid,
     TradeStatus status,
+    String tradeSource,
     Timestamp completedAt
 ) {
     /**
@@ -36,6 +37,10 @@ public record TradeRecordDTO(
 
         if (status == null) {
             status = TradeStatus.COMPLETED;
+        }
+
+        if (tradeSource == null) {
+            tradeSource = "UNKNOWN";
         }
     }
 
@@ -56,7 +61,7 @@ public record TradeRecordDTO(
         return new TradeRecordDTO(
             UUID.randomUUID().toString(),
             shopId, buyerUuid, sellerUuid, itemStackData, quantity,
-            currencyMaterial, pricePaid, TradeStatus.COMPLETED,
+            currencyMaterial, pricePaid, TradeStatus.COMPLETED, "UNKNOWN",
             new Timestamp(System.currentTimeMillis())
         );
     }
@@ -106,6 +111,7 @@ public record TradeRecordDTO(
         private String currencyMaterial;
         private int pricePaid;
         private TradeStatus status = TradeStatus.COMPLETED;
+        private String tradeSource = "UNKNOWN";
         private Timestamp completedAt = new Timestamp(System.currentTimeMillis());
 
         public Builder transactionId(String transactionId) {
@@ -153,6 +159,11 @@ public record TradeRecordDTO(
             return this;
         }
 
+        public Builder tradeSource(String tradeSource) {
+            this.tradeSource = tradeSource;
+            return this;
+        }
+
         public Builder completedAt(Timestamp completedAt) {
             this.completedAt = completedAt;
             return this;
@@ -162,7 +173,7 @@ public record TradeRecordDTO(
             return new TradeRecordDTO(
                 transactionId, shopId, buyerUuid, sellerUuid,
                 itemStackData, quantity, currencyMaterial, pricePaid,
-                status, completedAt
+                status, tradeSource, completedAt
             );
         }
     }

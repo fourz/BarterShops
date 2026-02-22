@@ -10,6 +10,7 @@ import org.fourz.BarterShops.data.IConnectionProvider;
 import org.fourz.rvnkcore.util.log.LogManager;
 
 import java.sql.Connection;
+import java.sql.PreparedStatement;
 import java.sql.SQLException;
 import java.sql.Statement;
 import java.util.concurrent.CompletableFuture;
@@ -38,6 +39,7 @@ public class ConnectionProviderImpl implements IConnectionProvider {
     private static final String TABLE_SHOPS = "shops";
     private static final String TABLE_TRADE_ITEMS = "trade_items";
     private static final String TABLE_TRADE_RECORDS = "trade_records";
+    private static final String TABLE_TRADE_RECORDS_ARCHIVE = "trade_records_archive";
     private static final String TABLE_SHOP_METADATA = "shop_metadata";
     private static final String TABLE_SHOP_RATINGS = "shop_ratings";
 
@@ -143,15 +145,38 @@ public class ConnectionProviderImpl implements IConnectionProvider {
             } else {
                 createSQLiteSchema(stmt);
             }
+
+            runMigrations(conn);
         }
 
         logger.info("Database schema validated/created successfully");
+    }
+
+    /**
+     * Runs incremental schema migrations for existing installs.
+     * Each migration is idempotent — errors from already-applied changes are silently skipped.
+     */
+    private void runMigrations(Connection conn) {
+        // v1.0.27: add trade_source column to active and archive tables
+        for (String tableName : new String[]{ table(TABLE_TRADE_RECORDS), table(TABLE_TRADE_RECORDS_ARCHIVE) }) {
+            String alterSql = "mysql".equals(databaseType)
+                ? "ALTER TABLE " + tableName + " ADD COLUMN trade_source VARCHAR(32) NOT NULL DEFAULT 'UNKNOWN'"
+                : "ALTER TABLE " + tableName + " ADD COLUMN trade_source TEXT NOT NULL DEFAULT 'UNKNOWN'";
+            try (PreparedStatement s = conn.prepareStatement(alterSql)) {
+                s.execute();
+                logger.info("Migration applied: added trade_source to " + tableName);
+            } catch (SQLException e) {
+                // Expected on repeat runs (column already exists) — silently skip
+                logger.debug("Migration skip (already applied or table absent): " + tableName + " — " + e.getMessage());
+            }
+        }
     }
 
     private void createMySQLSchema(Statement stmt) throws SQLException {
         String shops = table(TABLE_SHOPS);
         String tradeItems = table(TABLE_TRADE_ITEMS);
         String tradeRecords = table(TABLE_TRADE_RECORDS);
+        String tradeRecordsArchive = table(TABLE_TRADE_RECORDS_ARCHIVE);
         String shopMetadata = table(TABLE_SHOP_METADATA);
         String shopRatings = table(TABLE_SHOP_RATINGS);
         String p = getTablePrefix();
@@ -200,12 +225,30 @@ public class ConnectionProviderImpl implements IConnectionProvider {
                 "currency_material VARCHAR(64), " +
                 "price_paid INT NOT NULL DEFAULT 0, " +
                 "status VARCHAR(16) NOT NULL DEFAULT 'COMPLETED', " +
+                "trade_source VARCHAR(32) NOT NULL DEFAULT 'UNKNOWN', " +
                 "completed_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP, " +
                 "INDEX idx_" + p + "buyer (buyer_uuid), " +
                 "INDEX idx_" + p + "seller (seller_uuid), " +
                 "INDEX idx_" + p + "shop_trade (shop_id), " +
                 "INDEX idx_" + p + "status (status), " +
                 "INDEX idx_" + p + "completed (completed_at)" +
+                ") ENGINE=InnoDB DEFAULT CHARSET=utf8mb4");
+
+        stmt.execute("CREATE TABLE IF NOT EXISTS " + tradeRecordsArchive + " (" +
+                "transaction_id VARCHAR(36) PRIMARY KEY, " +
+                "shop_id INT NOT NULL, " +
+                "buyer_uuid VARCHAR(36) NOT NULL, " +
+                "seller_uuid VARCHAR(36) NOT NULL, " +
+                "item_stack_data TEXT NOT NULL, " +
+                "quantity INT NOT NULL, " +
+                "currency_material VARCHAR(64), " +
+                "price_paid INT NOT NULL DEFAULT 0, " +
+                "status VARCHAR(16) NOT NULL DEFAULT 'COMPLETED', " +
+                "trade_source VARCHAR(32) NOT NULL DEFAULT 'UNKNOWN', " +
+                "completed_at TIMESTAMP NOT NULL, " +
+                "archived_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP, " +
+                "INDEX idx_" + p + "archive_completed (completed_at), " +
+                "INDEX idx_" + p + "archive_archived (archived_at)" +
                 ") ENGINE=InnoDB DEFAULT CHARSET=utf8mb4");
 
         stmt.execute("CREATE TABLE IF NOT EXISTS " + shopMetadata + " (" +
@@ -233,6 +276,7 @@ public class ConnectionProviderImpl implements IConnectionProvider {
         String shops = table(TABLE_SHOPS);
         String tradeItems = table(TABLE_TRADE_ITEMS);
         String tradeRecords = table(TABLE_TRADE_RECORDS);
+        String tradeRecordsArchive = table(TABLE_TRADE_RECORDS_ARCHIVE);
         String shopMetadata = table(TABLE_SHOP_METADATA);
         String shopRatings = table(TABLE_SHOP_RATINGS);
         String p = getTablePrefix();
@@ -283,6 +327,7 @@ public class ConnectionProviderImpl implements IConnectionProvider {
                 "currency_material TEXT, " +
                 "price_paid INTEGER NOT NULL DEFAULT 0, " +
                 "status TEXT NOT NULL DEFAULT 'COMPLETED', " +
+                "trade_source TEXT NOT NULL DEFAULT 'UNKNOWN', " +
                 "completed_at TEXT DEFAULT CURRENT_TIMESTAMP, " +
                 "FOREIGN KEY (shop_id) REFERENCES " + shops + "(shop_id) ON DELETE CASCADE" +
                 ")");
@@ -290,6 +335,24 @@ public class ConnectionProviderImpl implements IConnectionProvider {
         stmt.execute("CREATE INDEX IF NOT EXISTS idx_" + p + "trade_records_buyer ON " + tradeRecords + "(buyer_uuid)");
         stmt.execute("CREATE INDEX IF NOT EXISTS idx_" + p + "trade_records_seller ON " + tradeRecords + "(seller_uuid)");
         stmt.execute("CREATE INDEX IF NOT EXISTS idx_" + p + "trade_records_shop ON " + tradeRecords + "(shop_id)");
+
+        stmt.execute("CREATE TABLE IF NOT EXISTS " + tradeRecordsArchive + " (" +
+                "transaction_id TEXT PRIMARY KEY, " +
+                "shop_id INTEGER NOT NULL, " +
+                "buyer_uuid TEXT NOT NULL, " +
+                "seller_uuid TEXT NOT NULL, " +
+                "item_stack_data TEXT NOT NULL, " +
+                "quantity INTEGER NOT NULL, " +
+                "currency_material TEXT, " +
+                "price_paid INTEGER NOT NULL DEFAULT 0, " +
+                "status TEXT NOT NULL DEFAULT 'COMPLETED', " +
+                "trade_source TEXT NOT NULL DEFAULT 'UNKNOWN', " +
+                "completed_at TEXT NOT NULL, " +
+                "archived_at TEXT DEFAULT CURRENT_TIMESTAMP" +
+                ")");
+
+        stmt.execute("CREATE INDEX IF NOT EXISTS idx_" + p + "trade_records_archive_completed ON " + tradeRecordsArchive + "(completed_at)");
+        stmt.execute("CREATE INDEX IF NOT EXISTS idx_" + p + "trade_records_archive_archived ON " + tradeRecordsArchive + "(archived_at)");
 
         stmt.execute("CREATE TABLE IF NOT EXISTS " + shopMetadata + " (" +
                 "shop_id INTEGER NOT NULL, " +
