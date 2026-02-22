@@ -21,6 +21,18 @@ storage:
     # Table prefix for shared database hosting (e.g., "barter_" creates "barter_shops")
     tablePrefix: "barter_"
 
+retention:
+  # Enable automatic archiving of old trade records
+  enabled: true
+  # Records older than this many days are moved out of the active table
+  active-days: 30
+  # "archive" = move to trade_records_archive table before removing from active table
+  # Future stub: "delete" = direct delete without archiving
+  action: archive
+  # Future stub: aggregate daily/monthly summaries before archiving
+  # Future stub: prune archive table after N months (archive-days: 365)
+  # Future stub: separate retention periods by trade status (FAILED/REFUNDED: keep longer)
+
 # REST API Configuration (feat-03)
 api:
   # Enable REST API server for web integration

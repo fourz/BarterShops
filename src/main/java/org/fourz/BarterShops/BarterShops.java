@@ -34,6 +34,7 @@ import org.fourz.BarterShops.trade.TradeConfirmationGUI;
 import org.fourz.BarterShops.template.TemplateManager;
 import org.fourz.BarterShops.preferences.ShopPreferenceManager;
 import org.fourz.BarterShops.inspection.ShopInfoDisplayHelper;
+import org.fourz.BarterShops.data.RetentionManager;
 import org.fourz.rvnkcore.util.PlayerLookup;
 import org.fourz.rvnkcore.util.log.LogManager;
 
@@ -66,6 +67,7 @@ public class BarterShops extends JavaPlugin {
     private IShopRepository shopRepository;
     private ITradeRepository tradeRepository;
     private TradeServiceImpl tradeService;
+    private RetentionManager retentionManager;
 
     // Plugin lifecycle tracking
     private long startTime;
@@ -94,6 +96,12 @@ public class BarterShops extends JavaPlugin {
 
         // Initialize database layer BEFORE SignManager (bug-35: SignManager needs shopRepository in constructor)
         initializeDatabaseLayer();
+
+        // Start retention scheduler after DB init (requires tradeRepository)
+        if (tradeRepository != null && configManager.isRetentionEnabled()) {
+            this.retentionManager = new RetentionManager(this, tradeRepository);
+            this.retentionManager.start();
+        }
 
         this.signManager = new SignManager(this);
         this.containerManager = new ContainerManager(this);
@@ -520,6 +528,13 @@ public class BarterShops extends JavaPlugin {
             if (templateManager != null) {
                 templateManager.cleanup();
                 templateManager = null;
+            }
+        });
+
+        cleanupManager("retention", () -> {
+            if (retentionManager != null) {
+                retentionManager.stop();
+                retentionManager = null;
             }
         });
 

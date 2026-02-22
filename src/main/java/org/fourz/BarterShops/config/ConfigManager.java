@@ -139,6 +139,22 @@ public class ConfigManager {
         return getConfig().getBoolean(path, defaultValue);
     }
 
+    // ========================================================
+    // Retention configuration
+    // ========================================================
+
+    public boolean isRetentionEnabled() {
+        return getConfig().getBoolean("retention.enabled", true);
+    }
+
+    public int getRetentionActiveDays() {
+        return getConfig().getInt("retention.active-days", 30);
+    }
+
+    public String getRetentionAction() {
+        return getConfig().getString("retention.action", "archive");
+    }
+
     /**
      * Checks if a specific ShopType is enabled in configuration.
      * @param shopType The ShopType to check
