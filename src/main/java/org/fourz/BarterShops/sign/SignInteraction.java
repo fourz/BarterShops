@@ -38,6 +38,7 @@ public class SignInteraction {
     private final LogManager logger;
     private final Map<Location, BukkitTask> activeRevertTasks = new ConcurrentHashMap<>();
     private final Map<String, Long> pendingDeletions = new ConcurrentHashMap<>(); // signId -> timestamp
+    private final Map<String, Long> pendingTypeChanges = new ConcurrentHashMap<>(); // signId -> timestamp
     private final Map<Location, Long> lastPreviewToggleTime = new ConcurrentHashMap<>(); // Debounce preview toggle
     private final SignSessionManager sessionManager = new SignSessionManager();
     private static final long PREVIEW_TOGGLE_DEBOUNCE_MS = 150; // Ignore toggles within 150ms
@@ -68,9 +69,9 @@ public class SignInteraction {
         }
 
         logger.debug("Owner left-click detected - mode: " + barterSign.getMode());
-        // Don't cancel revert in DELETE mode - let 10s countdown from right-click continue
+        // Don't cancel revert in DELETE or TYPE mode - let 10s countdown from right-click continue
         // Confirmation display is temporary (5s auto-clear), not a configuration interaction
-        if (barterSign.getMode() != ShopMode.DELETE) {
+        if (barterSign.getMode() != ShopMode.DELETE && barterSign.getMode() != ShopMode.TYPE) {
             cancelRevert(sign.getLocation());
         }
 
@@ -223,30 +224,63 @@ public class SignInteraction {
             }
 
             case TYPE -> {
-                // Left-click in TYPE: Cycle through shop types (BARTER, BUY, SELL)
-                // Inventory type (stackable/unstackable) is auto-detected separately
+                // Left-click in TYPE: Two-step confirmation before cycling shop type (BARTER, BUY, SELL)
+                // First click shows confirmation prompt; second click applies the change.
+                // Mirrors the DELETE two-step pattern - 10s revert timer from right-click continues.
                 SignType currentType = barterSign.getType();
                 SignType nextType = plugin.getTypeAvailabilityManager().getNextSignType(currentType);
 
-                // Clear payment configuration when changing type
                 if (currentType != nextType) {
-                    barterSign.clearPaymentOptions();
-                    barterSign.configurePrice(null, 0);
-                    barterSign.resetCustomerViewState(); // Reset pagination
-                    player.sendMessage(ChatColor.YELLOW + "! Type changed: " + currentType + " → " + nextType);
-                    player.sendMessage(ChatColor.GRAY + "Payment configuration cleared");
+                    String signId = barterSign.getId();
 
-                    // Save configuration to database
-                    if (barterSign.getShopId() > 0) {
-                        plugin.getSignManager().saveSignConfiguration(barterSign);
+                    if (pendingTypeChanges.containsKey(signId)) {
+                        // Second click - TYPE change confirmed
+                        pendingTypeChanges.remove(signId);
+
+                        barterSign.clearPaymentOptions();
+                        barterSign.configurePrice(null, 0);
+                        barterSign.resetCustomerViewState();
+                        barterSign.setType(nextType);
+                        player.sendMessage(ChatColor.YELLOW + "! Type changed: " + currentType + " → " + nextType);
+                        player.sendMessage(ChatColor.GRAY + "Payment configuration cleared");
+
+                        if (barterSign.getShopId() > 0) {
+                            plugin.getSignManager().saveSignConfiguration(barterSign);
+                        }
+                        logger.debug("Owner: TYPE confirmed - " + currentType + " -> " + nextType);
+
+                        SignDisplay.updateSign(sign, barterSign, false);
+                        event.setCancelled(true);
+                        return;
+                    } else {
+                        // First click - initiate confirmation prompt
+                        pendingTypeChanges.put(signId, System.currentTimeMillis());
+                        player.sendMessage(ChatColor.YELLOW + "⚠ Click AGAIN to confirm type change: " + currentType + " → " + nextType);
+                        player.sendMessage(ChatColor.GRAY + "This will reset payment configuration");
+
+                        SignDisplay.displayTypeConfirmation(sign, nextType);
+
+                        // Schedule auto-clear of confirmation display (5s timeout)
+                        final UUID confirmingPlayerUuid = player.getUniqueId();
+                        plugin.getServer().getScheduler().runTaskLater(plugin, () -> {
+                            if (pendingTypeChanges.containsKey(signId)) {
+                                pendingTypeChanges.remove(signId);
+                                Player confirmingPlayer = plugin.getServer().getPlayer(confirmingPlayerUuid);
+                                if (confirmingPlayer != null) {
+                                    confirmingPlayer.sendMessage(ChatColor.GRAY + "Type change confirmation expired");
+                                }
+                                // Revert sign display back to normal TYPE prompt, keep 10s timer running
+                                if (barterSign.getMode() == ShopMode.TYPE) {
+                                    SignDisplay.updateSign(sign, barterSign, false);
+                                }
+                            }
+                        }, DELETE_CONFIRMATION_TIMEOUT_TICKS);
+                        // NOTE: Do NOT reschedule the 10s auto-revert - original timer from right-click continues
+                        event.setCancelled(true);
+                        return;
                     }
                 }
-
-                barterSign.setType(nextType);
-                logger.debug("Owner: TYPE cycling - " + currentType + " -> " + nextType);
-
-                // Reschedule auto-revert after interaction completes
-                scheduleRevert(sign, barterSign);
+                // No-op if only one type available
             }
 
             case BOARD -> {
@@ -937,12 +971,15 @@ public class SignInteraction {
             public void run() {
                 // Auto-revert: Transitioning from non-BOARD mode (SETUP/TYPE/DELETE/HELP) back to BOARD
 
-                // Clean up DELETE-specific state if reverting from DELETE mode
+                // Clean up pending confirmation state if reverting from DELETE or TYPE mode
                 String signId = barterSign.getId();
                 if (barterSign.getMode() == ShopMode.DELETE && pendingDeletions.containsKey(signId)) {
-                    // Clear pending confirmation if timer fires while in DELETE mode
                     pendingDeletions.remove(signId);
                     logger.debug("Auto-revert from DELETE: Cleared pending confirmation");
+                }
+                if (barterSign.getMode() == ShopMode.TYPE && pendingTypeChanges.containsKey(signId)) {
+                    pendingTypeChanges.remove(signId);
+                    logger.debug("Auto-revert from TYPE: Cleared pending type change");
                 }
 
                 // Reset mode and UI state
@@ -1095,6 +1132,7 @@ public class SignInteraction {
         activeRevertTasks.values().forEach(BukkitTask::cancel);
         activeRevertTasks.clear();
         pendingDeletions.clear();
+        pendingTypeChanges.clear();
         sessionManager.cleanup();
     }
 }

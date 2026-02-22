@@ -97,6 +97,15 @@ public class SignDisplay {
         sign.update();
     }
 
+    public static void displayTypeConfirmation(Sign sign, SignType nextType) {
+        SignSide frontSide = sign.getSide(Side.FRONT);
+        frontSide.setLine(0, "§e[CONFIRM?]");
+        frontSide.setLine(1, "§eL-Click AGAIN");
+        frontSide.setLine(2, "§eto " + nextType.name());
+        frontSide.setLine(3, "§e(5s timeout)");
+        sign.update();
+    }
+
     /**
      * Formats an ItemStack display name for use on a sign.
      * Delegates to {@link SignRenderUtil}; kept here for backward compatibility
