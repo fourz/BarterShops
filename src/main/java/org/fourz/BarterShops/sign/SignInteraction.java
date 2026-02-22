@@ -24,7 +24,6 @@ import org.fourz.rvnkcore.util.log.LogManager;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
-import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
 
@@ -40,10 +39,8 @@ public class SignInteraction {
     private final Map<Location, BukkitTask> activeRevertTasks = new ConcurrentHashMap<>();
     private final Map<String, Long> pendingDeletions = new ConcurrentHashMap<>(); // signId -> timestamp
     private final Map<Location, Long> lastPreviewToggleTime = new ConcurrentHashMap<>(); // Debounce preview toggle
-    private final Map<String, Integer> shiftClickPanelState = new ConcurrentHashMap<>(); // Track shift+click panel per player/sign
-    private final Set<UUID> customerInfoToggled = ConcurrentHashMap.newKeySet(); // Per-session info toggle for customers
+    private final SignSessionManager sessionManager = new SignSessionManager();
     private static final long PREVIEW_TOGGLE_DEBOUNCE_MS = 150; // Ignore toggles within 150ms
-    private final Map<String, Long> lastPurchaseTime = new ConcurrentHashMap<>(); // Debounce left-click purchases
     private static final long PURCHASE_DEBOUNCE_MS = STATUS_DISPLAY_TICKS * 50L; // Match feedback window (3s)
 
     public SignInteraction(BarterShops plugin) {
@@ -333,7 +330,7 @@ public class SignInteraction {
 
         // Debounce check before any feedback: prevents "Hold payment item" from overwriting
         // the "Purchased" message during the feedback window after payment is consumed.
-        if (isPurchaseDebounceActive(player.getUniqueId(), barterSign.getShopId())) {
+        if (isPurchaseDebounceActive(player.getUniqueId(), barterSign)) {
             return; // Silent — success message still visible
         }
 
@@ -358,7 +355,7 @@ public class SignInteraction {
                 return;
             }
 
-            recordPurchaseTime(player.getUniqueId(), barterSign.getShopId());
+            recordPurchaseTime(player.getUniqueId(), barterSign);
             processTrade(player, sign, barterSign);
         } else {
             // BUY/SELL: Validate held item matches price item
@@ -368,7 +365,7 @@ public class SignInteraction {
                 return;
             }
 
-            recordPurchaseTime(player.getUniqueId(), barterSign.getShopId());
+            recordPurchaseTime(player.getUniqueId(), barterSign);
             processTrade(player, sign, barterSign);
         }
 
@@ -477,9 +474,9 @@ public class SignInteraction {
      */
     private void handleOwnerShiftClick(Player player, Sign sign, BarterSign barterSign) {
         ShopPreferenceManager prefs = plugin.getPreferenceManager();
-        String stateKey = player.getUniqueId() + ":" + sign.getLocation().toString();
+        SignSession session = sessionManager.getOrCreate(player.getUniqueId(), sign.getLocation().toString());
 
-        int currentPanel = shiftClickPanelState.getOrDefault(stateKey, 1);
+        int currentPanel = session.getShiftClickPanel();
         int nextPanel = currentPanel;
 
         if (currentPanel == 1) {
@@ -524,7 +521,7 @@ public class SignInteraction {
         }
 
         // Store next panel state
-        shiftClickPanelState.put(stateKey, nextPanel);
+        session.setShiftClickPanel(nextPanel);
     }
 
     /**
@@ -532,12 +529,13 @@ public class SignInteraction {
      * Toggle is per-session (reset on server restart).
      */
     private void handleCustomerShiftClick(Player player, Sign sign, BarterSign barterSign) {
-        UUID uuid = player.getUniqueId();
-        if (customerInfoToggled.remove(uuid)) {
+        SignSession session = sessionManager.getOrCreate(player.getUniqueId(), sign.getLocation().toString());
+        if (session.isCustomerInfoToggled()) {
+            session.setCustomerInfoToggled(false);
             player.sendMessage(ChatColor.GRAY + "[BarterShops] Shop info view off.");
             return;
         }
-        customerInfoToggled.add(uuid);
+        session.setCustomerInfoToggled(true);
         ShopInfoDisplayHelper helper = plugin.getShopInfoDisplayHelper();
         helper.displayShopInfoForCustomer(player, barterSign, sign.getLocation());
     }
@@ -1073,13 +1071,16 @@ public class SignInteraction {
         return SignDisplay.formatItemName(item);
     }
 
-    private boolean isPurchaseDebounceActive(UUID playerId, int shopId) {
-        Long last = lastPurchaseTime.get(playerId + ":" + shopId);
-        return last != null && (System.currentTimeMillis() - last) < PURCHASE_DEBOUNCE_MS;
+    private boolean isPurchaseDebounceActive(UUID playerId, BarterSign barterSign) {
+        SignSession session = sessionManager.get(playerId, barterSign.getSignLocation().toString());
+        if (session == null) return false;
+        long last = session.getLastPurchaseTime();
+        return last > 0 && (System.currentTimeMillis() - last) < PURCHASE_DEBOUNCE_MS;
     }
 
-    private void recordPurchaseTime(UUID playerId, int shopId) {
-        lastPurchaseTime.put(playerId + ":" + shopId, System.currentTimeMillis());
+    private void recordPurchaseTime(UUID playerId, BarterSign barterSign) {
+        sessionManager.getOrCreate(playerId, barterSign.getSignLocation().toString())
+            .setLastPurchaseTime(System.currentTimeMillis());
     }
 
     /**
@@ -1087,18 +1088,13 @@ public class SignInteraction {
      * Called by SignManager.onPlayerQuit() to prevent unbounded map growth.
      */
     public void cleanupPlayer(UUID playerUuid) {
-        String prefix = playerUuid.toString();
-        customerInfoToggled.remove(playerUuid);
-        lastPurchaseTime.keySet().removeIf(key -> key.startsWith(prefix));
-        shiftClickPanelState.keySet().removeIf(key -> key.startsWith(prefix));
+        sessionManager.cleanupPlayer(playerUuid);
     }
 
     public void cleanup() {
         activeRevertTasks.values().forEach(BukkitTask::cancel);
         activeRevertTasks.clear();
         pendingDeletions.clear();
-        customerInfoToggled.clear();
-        lastPurchaseTime.clear();
-        shiftClickPanelState.clear();
+        sessionManager.cleanup();
     }
 }
