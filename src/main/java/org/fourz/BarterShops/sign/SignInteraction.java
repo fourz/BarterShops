@@ -59,7 +59,7 @@ public class SignInteraction {
         }
 
         // OWNER LEFT-CLICK: Configuration (requires permission)
-        if (!player.hasPermission("bartershops.configure")) {
+        if (!player.hasPermission("bartershops.create")) {
             logger.debug("Left-click ignored - player lacks configure permission");
             return;
         }
@@ -355,6 +355,11 @@ public class SignInteraction {
      * Only works in BOARD mode. Validates held item matches current payment option.
      */
     private void handleCustomerLeftClick(Player player, Sign sign, BarterSign barterSign, PlayerInteractEvent event) {
+        if (!player.hasPermission("bartershops.use") && !player.hasPermission("bartershops.create") && !player.hasPermission("bartershops.admin")) {
+            player.sendMessage(ChatColor.RED + "Permission needed for access to BarterShops");
+            return; // NO sign update
+        }
+
         if (barterSign.getMode() != ShopMode.BOARD) {
             logger.debug("Customer tried to interact with non-BOARD mode shop");
             return;
@@ -527,7 +532,7 @@ public class SignInteraction {
             boolean canViewInfo = prefs.isInfoDisplayEnabled(player.getUniqueId()) &&
                 (barterSign.getOwner().equals(player.getUniqueId()) ||
                  player.hasPermission("bartershops.admin") ||
-                 player.hasPermission("bartershops.command.info"));
+                 player.hasPermission("bartershops.use"));
 
             if (canViewInfo) {
                 // Show shop info and advance to Panel 3 (info display shows messages)
@@ -575,6 +580,11 @@ public class SignInteraction {
     }
 
     private void handleCustomerRightClick(Player player, Sign sign, BarterSign barterSign) {
+        if (!player.hasPermission("bartershops.use") && !player.hasPermission("bartershops.create") && !player.hasPermission("bartershops.admin")) {
+            player.sendMessage(ChatColor.RED + "Permission needed for access to BarterShops");
+            return; // NO sign update
+        }
+
         logger.debug("Processing customer interaction");
 
         if (barterSign.getMode() != ShopMode.BOARD) {
