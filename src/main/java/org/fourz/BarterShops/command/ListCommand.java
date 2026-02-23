@@ -57,7 +57,7 @@ public class ListCommand implements BaseCommand {
 
     @Override
     public String getPermission() {
-        return "bartershops.command.list";
+        return "bartershops.use";
     }
 
     @Override

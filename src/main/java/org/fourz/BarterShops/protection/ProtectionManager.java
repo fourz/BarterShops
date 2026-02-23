@@ -187,7 +187,7 @@ public class ProtectionManager {
         }
 
         // Admins bypass limit
-        if (player.hasPermission("bartershops.admin.unlimited") || player.isOp()) {
+        if (player.hasPermission("bartershops.admin") || player.isOp()) {
             return CompletableFuture.completedFuture(true);
         }
 

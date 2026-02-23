@@ -113,7 +113,7 @@ public class ShopNearbySubCommand implements SubCommand {
 
     @Override
     public String getPermission() {
-        return "bartershops.command.nearby";
+        return "bartershops.use";
     }
 
     @Override

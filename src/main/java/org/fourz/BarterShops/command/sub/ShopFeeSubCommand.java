@@ -85,7 +85,7 @@ public class ShopFeeSubCommand implements SubCommand {
 
     @Override
     public String getPermission() {
-        return "bartershops.economy.fee";
+        return "bartershops.create";
     }
 
     @Override

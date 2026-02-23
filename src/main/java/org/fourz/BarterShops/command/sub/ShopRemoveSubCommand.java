@@ -132,7 +132,7 @@ public class ShopRemoveSubCommand implements SubCommand {
 
     @Override
     public String getPermission() {
-        return "bartershops.command.remove";
+        return "bartershops.create";
     }
 
     @Override

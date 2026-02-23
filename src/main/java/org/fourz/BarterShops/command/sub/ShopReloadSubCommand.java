@@ -91,7 +91,7 @@ public class ShopReloadSubCommand implements SubCommand {
 
     @Override
     public String getPermission() {
-        return "bartershops.admin.reload";
+        return "bartershops.admin";
     }
 
     @Override

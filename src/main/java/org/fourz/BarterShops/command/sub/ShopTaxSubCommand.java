@@ -155,7 +155,7 @@ public class ShopTaxSubCommand implements SubCommand {
 
     @Override
     public String getPermission() {
-        return "bartershops.economy.tax";
+        return "bartershops.create";
     }
 
     @Override

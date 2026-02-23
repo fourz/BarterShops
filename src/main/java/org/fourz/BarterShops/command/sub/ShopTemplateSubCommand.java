@@ -144,7 +144,7 @@ public class ShopTemplateSubCommand implements SubCommand {
 
         // Check permissions - player can load own templates or server presets
         if (!template.isServerPreset() && !template.isOwnedBy(player.getUniqueId())) {
-            if (!sender.hasPermission("bartershops.template.load.other")) {
+            if (!sender.hasPermission("bartershops.admin")) {
                 sender.sendMessage(ChatColor.RED + "✖ You don't have permission to load other players' templates!");
                 return true;
             }
@@ -258,7 +258,7 @@ public class ShopTemplateSubCommand implements SubCommand {
         // Permission check
         if (sender instanceof Player) {
             Player player = (Player) sender;
-            if (!template.isOwnedBy(player.getUniqueId()) && !sender.hasPermission("bartershops.template.delete.other")) {
+            if (!template.isOwnedBy(player.getUniqueId()) && !sender.hasPermission("bartershops.admin")) {
                 sender.sendMessage(ChatColor.RED + "✖ You don't have permission to delete other players' templates!");
                 return true;
             }
@@ -362,7 +362,7 @@ public class ShopTemplateSubCommand implements SubCommand {
 
     @Override
     public String getPermission() {
-        return "bartershops.template";
+        return "bartershops.create";
     }
 
     @Override

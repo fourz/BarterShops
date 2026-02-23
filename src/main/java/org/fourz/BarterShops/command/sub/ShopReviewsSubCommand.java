@@ -186,7 +186,7 @@ public class ShopReviewsSubCommand implements SubCommand {
 
     @Override
     public String getPermission() {
-        return "bartershops.command.reviews";
+        return "bartershops.use";
     }
 
     @Override

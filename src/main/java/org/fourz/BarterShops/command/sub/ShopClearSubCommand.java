@@ -125,7 +125,7 @@ public class ShopClearSubCommand implements SubCommand {
 
     @Override
     public String getPermission() {
-        return "bartershops.admin.clear";
+        return "bartershops.admin";
     }
 
     @Override

@@ -97,7 +97,7 @@ public class ShopAdminGUISubCommand implements SubCommand {
 
     @Override
     public String getPermission() {
-        return "bartershops.admin.gui";
+        return "bartershops.admin";
     }
 
     @Override

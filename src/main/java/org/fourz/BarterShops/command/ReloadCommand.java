@@ -18,7 +18,7 @@ public class ReloadCommand implements BaseCommand {
 
     @Override
     public String getPermission() {
-        return "bartershops.command.reload";
+        return "bartershops.admin";
     }
 
     @Override

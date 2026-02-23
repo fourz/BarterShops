@@ -159,7 +159,7 @@ public class ShopNotificationsSubCommand implements SubCommand {
 
     @Override
     public String getPermission() {
-        return "bartershops.notifications";
+        return "bartershops.create";
     }
 
     @Override

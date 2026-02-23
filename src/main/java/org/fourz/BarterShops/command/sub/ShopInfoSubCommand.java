@@ -133,7 +133,7 @@ public class ShopInfoSubCommand implements SubCommand {
 
     @Override
     public String getPermission() {
-        return "bartershops.command.info";
+        return "bartershops.use";
     }
 
     @Override

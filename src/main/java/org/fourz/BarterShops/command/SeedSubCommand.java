@@ -52,7 +52,7 @@ public class SeedSubCommand implements SubCommand {
 
     @Override
     public String getPermission() {
-        return "bartershops.admin.seed";
+        return "bartershops.admin";
     }
 
     @Override

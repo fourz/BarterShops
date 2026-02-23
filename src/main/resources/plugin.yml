@@ -14,104 +14,12 @@ commands:
     aliases: [barter, shops]
 
 permissions:
-  bartershops.create:
-    description: Allows creating barter shops via signs
-    default: true
-  bartershops.configure:
-    description: Allows configuring shop signs (owner interaction)
-    default: true
-  bartershops.list:
-    description: Allows listing all shops
-    default: true
-  bartershops.nearby:
-    description: Allows finding nearby shops
-    default: true
-  bartershops.command.info:
-    description: View limited shop information (offering + payments)
-    default: true
-  bartershops.admin:
-    description: General admin bypass for shop operations
-    default: op
-  bartershops.stats.admin:
-    description: Allows viewing server-wide statistics
-    default: op
-  bartershops.reload:
-    description: Allows reloading the plugin configuration
-    default: op
-  bartershops.notifications:
-    description: Allows managing notification preferences
-    default: true
-  bartershops.admin.inspect:
-    description: Manage shop inspection preferences & see full details
-    default: op
-  bartershops.admin.clear:
-    description: Allows clearing shop inventories (admin)
-    default: op
-  bartershops.admin.reload:
-    description: Allows reloading plugin configuration (admin)
-    default: op
-  bartershops.admin.gui:
-    description: Allows access to admin GUI interfaces (shop browser, trade history, stats)
-    default: op
-  bartershops.admin.unlimited:
-    description: Bypass shop creation limits
-    default: op
-  # Template permissions
-  bartershops.template:
-    description: Base permission for template commands
-    default: true
-  bartershops.template.save:
-    description: Allows saving shop configurations as templates
-    default: true
-  bartershops.template.load:
-    description: Allows loading templates to create shops
-    default: true
-  bartershops.template.load.other:
-    description: Allows loading other players' templates
-    default: op
-  bartershops.template.list:
-    description: Allows listing available templates
-    default: true
-  bartershops.template.delete:
-    description: Allows deleting own templates
-    default: true
-  bartershops.template.delete.other:
-    description: Allows deleting other players' templates (admin)
-    default: op
-  bartershops.template.preset.create:
-    description: Allows creating server-wide preset templates (admin)
-    default: op
-  # Economy permissions
-  bartershops.economy.fee:
-    description: Allows viewing shop listing fees
-    default: true
-  bartershops.economy.tax:
-    description: Allows viewing trade tax information
-    default: true
-  bartershops.admin.economy:
-    description: Allows managing economy settings (admin)
-    default: op
-  # Region protection permissions
-  bartershops.command.region:
-    description: Allows viewing shop region protection info
-    default: true
-  bartershops.region.info:
-    description: Allows checking protection info at locations
-    default: true
-  bartershops.region.status:
-    description: Allows viewing protection system status
-    default: true
-  # Debug permissions
-  bartershops.debug:
-    description: Allows access to debug and diagnostic commands
-    default: op
-  bartershops.admin.seed:
-    description: Allows seeding test data into the database
-    default: op
-  # Ownership transfer permissions
-  bartershops.admin.changeowner:
-    description: Change shop ownership
-    default: op
-  bartershops.admin.changeowner.bypass:
-    description: Bypass ownership change restrictions (for automation)
+  bartershops.use:
+    description: Allows interacting with shops as a customer
     default: false
+  bartershops.create:
+    description: Allows creating and configuring barter shops, and all player commands
+    default: false
+  bartershops.admin:
+    description: Full admin access — bypasses all shop restrictions
+    default: op

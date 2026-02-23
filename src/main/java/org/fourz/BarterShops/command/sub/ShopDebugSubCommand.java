@@ -293,7 +293,7 @@ public class ShopDebugSubCommand implements SubCommand {
 
     @Override
     public String getPermission() {
-        return "bartershops.debug";
+        return "bartershops.admin";
     }
 
     @Override
