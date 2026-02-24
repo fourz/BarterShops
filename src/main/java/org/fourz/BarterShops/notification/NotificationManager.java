@@ -228,9 +228,17 @@ public class NotificationManager {
             int quietStart = quietHours != null ? quietHours.getStartHour() : -1;
             int quietEnd = quietHours != null ? quietHours.getEndHour() : -1;
 
+            // Map RVNKCore string channel names to typed ChannelPreference
+            Map<String, Map<String, Boolean>> serviceChannels = dto.getChannelPrefs();
             Map<NotificationType, NotificationPreferencesDTO.ChannelPreference> channels = new EnumMap<>(NotificationType.class);
             for (NotificationType type : NotificationType.values()) {
-                channels.put(type, NotificationPreferencesDTO.ChannelPreference.defaults());
+                Map<String, Boolean> tc = serviceChannels.getOrDefault(type.name(), Collections.emptyMap());
+                channels.put(type, new NotificationPreferencesDTO.ChannelPreference(
+                        tc.getOrDefault("CHAT", true),
+                        tc.getOrDefault("ACTION_BAR", true),
+                        tc.getOrDefault("TITLE", false),
+                        tc.getOrDefault("SOUND", true)
+                ));
             }
 
             return new NotificationPreferencesDTO(
@@ -280,6 +288,17 @@ public class NotificationManager {
                     new org.fourz.rvnkcore.api.model.QuietHoursConfig(
                             prefs.quietHoursStart(), prefs.quietHoursEnd());
 
+            // Map typed ChannelPreference to RVNKCore string channel names
+            Map<String, Map<String, Boolean>> channelPrefs = new HashMap<>();
+            for (Map.Entry<NotificationType, NotificationPreferencesDTO.ChannelPreference> entry : prefs.enabledChannels().entrySet()) {
+                Map<String, Boolean> tc = new HashMap<>();
+                tc.put("CHAT", entry.getValue().chat());
+                tc.put("ACTION_BAR", entry.getValue().actionBar());
+                tc.put("TITLE", entry.getValue().title());
+                tc.put("SOUND", entry.getValue().sound());
+                channelPrefs.put(entry.getKey().name(), tc);
+            }
+
             org.fourz.rvnkcore.api.model.PlayerPreferencesDTO dto =
                     new org.fourz.rvnkcore.api.model.PlayerPreferencesDTO.Builder()
                             .playerUuid(prefs.playerUuid())
@@ -287,6 +306,7 @@ public class NotificationManager {
                             .masterEnabled(prefs.masterEnabled())
                             .quietHours(quietHours)
                             .notificationTypes(notificationTypes)
+                            .channelPrefs(channelPrefs)
                             .build();
 
             service.savePreferences(dto).get(500, TimeUnit.MILLISECONDS);
