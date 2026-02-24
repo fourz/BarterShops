@@ -113,26 +113,6 @@ public interface ITradeService {
     CompletableFuture<Long> getTotalTradeCount();
 
     // ========================================================
-    // Item Utilities
-    // ========================================================
-
-    /**
-     * Serializes an ItemStack to a string for storage.
-     *
-     * @param item The item to serialize
-     * @return The serialized item string
-     */
-    String serializeItem(ItemStack item);
-
-    /**
-     * Deserializes a string back to an ItemStack.
-     *
-     * @param serialized The serialized item string
-     * @return The deserialized ItemStack, or null if invalid
-     */
-    ItemStack deserializeItem(String serialized);
-
-    // ========================================================
     // Fallback Mode
     // ========================================================
 

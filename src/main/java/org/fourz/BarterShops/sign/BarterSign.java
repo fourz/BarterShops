@@ -358,20 +358,6 @@ public class BarterSign implements ISignData {
     }
 
     /**
-     * Returns the allowed item types for this shop (derived from offering + payments).
-     * Replaces the legacy single lockedItemType field.
-     * @deprecated Use getAllowedChestTypes() directly for validation.
-     */
-    @Deprecated
-    public Material getLockedItemType() {
-        // Backwards compatibility: return first allowed type (offering type)
-        if (itemOffering != null) {
-            return itemOffering.getType();
-        }
-        return null;
-    }
-
-    /**
      * Returns the stackable mode for this shop (set manually or from chest).
      * This is the stored flag, not dynamically detected.
      */

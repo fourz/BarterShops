@@ -1,6 +1,5 @@
 package org.fourz.BarterShops.service.impl;
 
-import org.bukkit.configuration.file.YamlConfiguration;
 import org.bukkit.inventory.ItemStack;
 import org.fourz.BarterShops.BarterShops;
 import org.fourz.rvnkcore.data.FallbackTracker;
@@ -177,62 +176,6 @@ public class TradeServiceImpl implements ITradeService {
             return CompletableFuture.completedFuture(List.of());
         }
         return tradeRepository.findRecent(limit);
-    }
-
-    // ========================================================
-    // Item Utilities
-    // ========================================================
-
-    /**
-     * @deprecated Dead code. TradeEngine.serializeItem() (TYPE:amount format) writes all saved
-     * records. This YAML variant is never called by the trade flow. Retained for reference only.
-     * Future: replace with indexed item_type VARCHAR(64) column. See Archon: BS-economic-history.
-     */
-    @Deprecated
-    @Override
-    public String serializeItem(ItemStack item) {
-        if (item == null) return null;
-
-        try {
-            // Bukkit's serialize() preserves ALL NBT/metadata (enchantments, lore, custom names, etc.)
-            Map<String, Object> serialized = item.serialize();
-
-            // Convert to YAML string for database storage
-            YamlConfiguration yaml = new YamlConfiguration();
-            yaml.set("item", serialized);
-            return yaml.saveToString();
-
-        } catch (Exception e) {
-            logger.error("Failed to serialize item: " + item.getType(), e);
-            return null;
-        }
-    }
-
-    @Override
-    public ItemStack deserializeItem(String serialized) {
-        if (serialized == null || serialized.isEmpty()) return null;
-
-        try {
-            // Parse YAML string back to map
-            YamlConfiguration yaml = new YamlConfiguration();
-            yaml.loadFromString(serialized);
-
-            // Get the 'item' section from YAML
-            var itemSection = yaml.getConfigurationSection("item");
-            if (itemSection == null) {
-                logger.warning("Failed to deserialize item - no 'item' section in YAML");
-                return null;
-            }
-
-            Map<String, Object> data = itemSection.getValues(false);
-
-            // Bukkit's deserialize() restores ALL NBT/metadata
-            return ItemStack.deserialize(data);
-
-        } catch (Exception e) {
-            logger.error("Failed to deserialize item from YAML: " + e.getMessage(), e);
-            return null;
-        }
     }
 
     // ========================================================
