@@ -239,21 +239,23 @@ public class NotificationManager {
 
     /**
      * Updates notification preferences for a player.
-     * Saves to PlayerPreferencesService if available, otherwise uses local storage.
+     * Updates local cache immediately, then persists to PlayerPreferencesService async.
      */
     public void updatePreferences(NotificationPreferencesDTO newPreferences) {
-        // Save to PlayerPreferencesService if available
-        if (RVNKCore.getServiceSafe(PlayerPreferencesService.class) != null) {
-            try {
-                savePreferencesToService(newPreferences);
-            } catch (Exception e) {
-                logger.warning("Failed to save preferences to service: " + e.getMessage());
-            }
-        }
-
-        // Always save to local cache as fallback
+        // Update local cache immediately for instant effect
         preferences.put(newPreferences.playerUuid(), newPreferences);
         logger.debug("Updated preferences for player: " + newPreferences.playerUuid());
+
+        // Persist to PlayerPreferencesService asynchronously (fire and forget)
+        if (RVNKCore.getServiceSafe(PlayerPreferencesService.class) != null) {
+            Bukkit.getScheduler().runTaskAsynchronously(plugin, () -> {
+                try {
+                    savePreferencesToService(newPreferences);
+                } catch (Exception e) {
+                    logger.warning("Failed to save preferences to service: " + e.getMessage());
+                }
+            });
+        }
     }
 
     /**
@@ -292,7 +294,7 @@ public class NotificationManager {
                             .channelPrefs(channelPrefs)
                             .build();
 
-            service.savePreferences(dto).get(500, TimeUnit.MILLISECONDS);
+            service.savePreferences(dto).get(5, TimeUnit.SECONDS);
             logger.debug("Saved preferences to PlayerPreferencesService: " + prefs.playerUuid());
         } catch (Exception e) {
             logger.error("Failed to save preferences to service: " + e.getMessage());
