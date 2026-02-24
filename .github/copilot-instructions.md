@@ -43,6 +43,6 @@ debug = new Debug(plugin, "ClassName", plugin.getDebugger().getLogLevel()) {};
 
 ## References
 
-- **Architecture Spec**: `docs/spec/bartershops-architecture.md`
-- **Database API**: `docs/standard/bartershops-database-api.md`
+- **Architecture Spec**: `docs/architecture.md`
+- **Database API**: `docs/bartershops-database-api.md`
 - **Coding Standards**: `docs/standard/coding-standards.md`
