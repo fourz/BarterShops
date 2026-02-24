@@ -12,7 +12,6 @@ import org.fourz.rvnkcore.RVNKCore;
 import org.fourz.rvnkcore.api.service.PlayerPreferencesService;
 import org.fourz.rvnkcore.util.log.LogManager;
 
-import java.time.LocalTime;
 import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.TimeUnit;
@@ -83,13 +82,6 @@ public class NotificationManager {
         // Check type enabled
         if (!prefs.isTypeEnabled(type)) {
             logger.debug("Notification type disabled: " + type + " for " + player.getName());
-            return;
-        }
-
-        // Check quiet hours
-        int currentHour = LocalTime.now().getHour();
-        if (prefs.isQuietHours(currentHour)) {
-            logger.debug("Quiet hours active for player: " + player.getName());
             return;
         }
 
@@ -224,10 +216,6 @@ public class NotificationManager {
                 enabledTypes.put(type, enabled);
             }
 
-            org.fourz.rvnkcore.api.model.QuietHoursConfig quietHours = dto.getQuietHours();
-            int quietStart = quietHours != null ? quietHours.getStartHour() : -1;
-            int quietEnd = quietHours != null ? quietHours.getEndHour() : -1;
-
             // Map RVNKCore string channel names to typed ChannelPreference
             Map<String, Map<String, Boolean>> serviceChannels = dto.getChannelPrefs();
             Map<NotificationType, NotificationPreferencesDTO.ChannelPreference> channels = new EnumMap<>(NotificationType.class);
@@ -242,7 +230,7 @@ public class NotificationManager {
             }
 
             return new NotificationPreferencesDTO(
-                    playerUuid, channels, enabledTypes, quietStart, quietEnd, dto.isMasterEnabled());
+                    playerUuid, channels, enabledTypes, dto.isMasterEnabled());
         } catch (Exception e) {
             logger.error("Failed to retrieve preferences from service: " + e.getMessage());
             throw new RuntimeException(e);
@@ -284,10 +272,6 @@ public class NotificationManager {
                 notificationTypes.put(entry.getKey().name(), entry.getValue());
             }
 
-            org.fourz.rvnkcore.api.model.QuietHoursConfig quietHours =
-                    new org.fourz.rvnkcore.api.model.QuietHoursConfig(
-                            prefs.quietHoursStart(), prefs.quietHoursEnd());
-
             // Map typed ChannelPreference to RVNKCore string channel names
             Map<String, Map<String, Boolean>> channelPrefs = new HashMap<>();
             for (Map.Entry<NotificationType, NotificationPreferencesDTO.ChannelPreference> entry : prefs.enabledChannels().entrySet()) {
@@ -304,7 +288,6 @@ public class NotificationManager {
                             .playerUuid(prefs.playerUuid())
                             .pluginId(PLUGIN_ID)
                             .masterEnabled(prefs.masterEnabled())
-                            .quietHours(quietHours)
                             .notificationTypes(notificationTypes)
                             .channelPrefs(channelPrefs)
                             .build();
@@ -326,8 +309,6 @@ public class NotificationManager {
                 current.playerUuid(),
                 current.enabledChannels(),
                 current.enabledTypes(),
-                current.quietHoursStart(),
-                current.quietHoursEnd(),
                 !current.masterEnabled()
         );
         updatePreferences(updated);
@@ -345,28 +326,6 @@ public class NotificationManager {
                 current.playerUuid(),
                 current.enabledChannels(),
                 newTypes,
-                current.quietHoursStart(),
-                current.quietHoursEnd(),
-                current.masterEnabled()
-        );
-        updatePreferences(updated);
-    }
-
-    /**
-     * Sets quiet hours for a player.
-     */
-    public void setQuietHours(UUID playerUuid, int startHour, int endHour) {
-        if (startHour < -1 || startHour > 23 || endHour < -1 || endHour > 23) {
-            throw new IllegalArgumentException("Hours must be -1 (disabled) or 0-23");
-        }
-
-        NotificationPreferencesDTO current = getPreferences(playerUuid);
-        NotificationPreferencesDTO updated = new NotificationPreferencesDTO(
-                current.playerUuid(),
-                current.enabledChannels(),
-                current.enabledTypes(),
-                startHour,
-                endHour,
                 current.masterEnabled()
         );
         updatePreferences(updated);

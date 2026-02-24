@@ -11,16 +11,12 @@ import java.util.UUID;
  * @param playerUuid Player's unique identifier
  * @param enabledChannels Map of notification types to enabled channels
  * @param enabledTypes Set of enabled notification types
- * @param quietHoursStart Quiet hours start time (0-23, -1 = disabled)
- * @param quietHoursEnd Quiet hours end time (0-23, -1 = disabled)
  * @param masterEnabled Master notification toggle
  */
 public record NotificationPreferencesDTO(
         UUID playerUuid,
         Map<NotificationType, ChannelPreference> enabledChannels,
         Map<NotificationType, Boolean> enabledTypes,
-        int quietHoursStart,
-        int quietHoursEnd,
         boolean masterEnabled
 ) {
     /**
@@ -80,9 +76,7 @@ public record NotificationPreferencesDTO(
                 playerUuid,
                 channels,
                 types,
-                -1, // No quiet hours
-                -1,
-                true // Master enabled
+                true
         );
     }
 
@@ -104,25 +98,6 @@ public record NotificationPreferencesDTO(
 
         ChannelPreference channels = enabledChannels.get(type);
         return channels != null && channels.hasAnyEnabled();
-    }
-
-    /**
-     * Checks if currently within quiet hours.
-     *
-     * @param currentHour Current hour of day (0-23)
-     * @return true if within quiet hours
-     */
-    public boolean isQuietHours(int currentHour) {
-        if (quietHoursStart == -1 || quietHoursEnd == -1) {
-            return false;
-        }
-
-        if (quietHoursStart <= quietHoursEnd) {
-            return currentHour >= quietHoursStart && currentHour < quietHoursEnd;
-        } else {
-            // Quiet hours span midnight
-            return currentHour >= quietHoursStart || currentHour < quietHoursEnd;
-        }
     }
 
     /**

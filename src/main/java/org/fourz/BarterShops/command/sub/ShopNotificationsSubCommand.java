@@ -80,35 +80,9 @@ public class ShopNotificationsSubCommand implements SubCommand {
                 }
                 return true;
             }
-            case "quiet" -> {
-                if (args.length < 3) {
-                    player.sendMessage(ChatColor.RED + "Usage: /shop notifications quiet <start> <end>");
-                    player.sendMessage(ChatColor.GRAY + "Hours: 0-23, or -1 to disable");
-                    player.sendMessage(ChatColor.GRAY + "Example: /shop notifications quiet 22 8 (10 PM to 8 AM)");
-                    return true;
-                }
-
-                try {
-                    int start = Integer.parseInt(args[1]);
-                    int end = Integer.parseInt(args[2]);
-                    plugin.getNotificationManager().setQuietHours(player.getUniqueId(), start, end);
-
-                    if (start == -1 || end == -1) {
-                        player.sendMessage(ChatColor.GOLD + "Quiet hours disabled");
-                    } else {
-                        player.sendMessage(ChatColor.GOLD + "Quiet hours set: " +
-                                ChatColor.WHITE + start + ":00 - " + end + ":00");
-                    }
-                } catch (NumberFormatException e) {
-                    player.sendMessage(ChatColor.RED + "Invalid hour format. Use numbers 0-23 or -1.");
-                } catch (IllegalArgumentException e) {
-                    player.sendMessage(ChatColor.RED + e.getMessage());
-                }
-                return true;
-            }
             default -> {
                 player.sendMessage(ChatColor.RED + "Unknown action: " + action);
-                player.sendMessage(ChatColor.GRAY + "Available: toggle, quiet");
+                player.sendMessage(ChatColor.GRAY + "Available: toggle");
                 return true;
             }
         }
@@ -122,14 +96,6 @@ public class ShopNotificationsSubCommand implements SubCommand {
 
         player.sendMessage(ChatColor.GOLD + "=== Notification Settings ===");
 
-        // Quiet hours
-        if (prefs.quietHoursStart() != -1 && prefs.quietHoursEnd() != -1) {
-            player.sendMessage(ChatColor.YELLOW + "Quiet Hours: " + ChatColor.WHITE +
-                    prefs.quietHoursStart() + ":00 - " + prefs.quietHoursEnd() + ":00");
-        } else {
-            player.sendMessage(ChatColor.YELLOW + "Quiet Hours: " + ChatColor.GRAY + "Disabled");
-        }
-
         // Notification types
         player.sendMessage(ChatColor.GOLD + "Notification Types:");
         for (NotificationType type : NotificationType.values()) {
@@ -139,7 +105,6 @@ public class ShopNotificationsSubCommand implements SubCommand {
         }
 
         player.sendMessage(ChatColor.GRAY + "Use /shop notifications toggle <type> to manage");
-        player.sendMessage(ChatColor.GRAY + "Or: /shop notifications quiet <start> <end>");
     }
 
     @Override
@@ -149,7 +114,7 @@ public class ShopNotificationsSubCommand implements SubCommand {
 
     @Override
     public String getUsage() {
-        return "/shop notifications [list|toggle <type>|quiet <start> <end>]";
+        return "/shop notifications [list|toggle <type>]";
     }
 
     @Override
@@ -168,7 +133,7 @@ public class ShopNotificationsSubCommand implements SubCommand {
 
         if (args.length == 1) {
             String partial = args[0].toLowerCase();
-            List<String> actions = Arrays.asList("list", "toggle", "quiet");
+            List<String> actions = Arrays.asList("list", "toggle");
             for (String action : actions) {
                 if (action.startsWith(partial)) {
                     completions.add(action);
@@ -183,12 +148,6 @@ public class ShopNotificationsSubCommand implements SubCommand {
                     completions.add(typeName);
                 }
             }
-        } else if (args.length == 2 && args[0].equalsIgnoreCase("quiet")) {
-            // Suggest common quiet hour starts
-            completions.addAll(Arrays.asList("-1", "0", "22", "23"));
-        } else if (args.length == 3 && args[0].equalsIgnoreCase("quiet")) {
-            // Suggest common quiet hour ends
-            completions.addAll(Arrays.asList("-1", "6", "7", "8"));
         }
 
         return completions;
