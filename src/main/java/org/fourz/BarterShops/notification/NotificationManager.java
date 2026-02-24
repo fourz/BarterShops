@@ -15,6 +15,7 @@ import org.fourz.rvnkcore.util.log.LogManager;
 import java.time.LocalTime;
 import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.TimeUnit;
 
 /**
  * Central notification dispatcher for trade events and shop updates.
@@ -203,8 +204,7 @@ public class NotificationManager {
 
     /**
      * Retrieves preferences from PlayerPreferencesService.
-     * Converts RVNKCore service data to NotificationPreferencesDTO.
-     * Uses .join() to block since this is called synchronously from commands.
+     * Fetches the full PlayerPreferencesDTO in a single call (was 10+ sequential calls).
      */
     private NotificationPreferencesDTO getPreferencesFromService(UUID playerUuid) {
         PlayerPreferencesService service = RVNKCore.getServiceSafe(PlayerPreferencesService.class);
@@ -213,43 +213,31 @@ public class NotificationManager {
         }
 
         try {
-            // Build preferences from service
+            // Single DB call instead of one per notification type
+            org.fourz.rvnkcore.api.model.PlayerPreferencesDTO dto =
+                    service.getPreferences(playerUuid, PLUGIN_ID)
+                           .get(500, TimeUnit.MILLISECONDS);
+
             Map<NotificationType, Boolean> enabledTypes = new EnumMap<>(NotificationType.class);
             for (NotificationType type : NotificationType.values()) {
-                boolean enabled = service.isNotificationEnabled(
-                        playerUuid,
-                        PLUGIN_ID,
-                        type.name()
-                ).join(); // Block synchronously
+                boolean enabled = dto.getNotificationTypes().getOrDefault(type.name(), true);
                 enabledTypes.put(type, enabled);
             }
 
-            // Check master toggle (default: true)
-            boolean masterEnabled = service.isMasterEnabled(playerUuid, PLUGIN_ID).join();
+            org.fourz.rvnkcore.api.model.QuietHoursConfig quietHours = dto.getQuietHours();
+            int quietStart = quietHours != null ? quietHours.getStartHour() : -1;
+            int quietEnd = quietHours != null ? quietHours.getEndHour() : -1;
 
-            // Get quiet hours configuration
-            org.fourz.rvnkcore.api.model.QuietHoursConfig quietHours =
-                    service.getQuietHours(playerUuid, PLUGIN_ID).join();
-            int quietStart = quietHours.getStartHour();
-            int quietEnd = quietHours.getEndHour();
-
-            // Use default channel preferences for now (can be expanded later via setChannelEnabled)
             Map<NotificationType, NotificationPreferencesDTO.ChannelPreference> channels = new EnumMap<>(NotificationType.class);
             for (NotificationType type : NotificationType.values()) {
                 channels.put(type, NotificationPreferencesDTO.ChannelPreference.defaults());
             }
 
             return new NotificationPreferencesDTO(
-                    playerUuid,
-                    channels,
-                    enabledTypes,
-                    quietStart,
-                    quietEnd,
-                    masterEnabled
-            );
+                    playerUuid, channels, enabledTypes, quietStart, quietEnd, dto.isMasterEnabled());
         } catch (Exception e) {
             logger.error("Failed to retrieve preferences from service: " + e.getMessage());
-            throw e;
+            throw new RuntimeException(e);
         }
     }
 
@@ -274,7 +262,7 @@ public class NotificationManager {
 
     /**
      * Saves preferences to PlayerPreferencesService.
-     * Uses .join() to block since this is called synchronously from commands.
+     * Builds a single PlayerPreferencesDTO and saves in one call (was 10+ sequential calls).
      */
     private void savePreferencesToService(NotificationPreferencesDTO prefs) {
         PlayerPreferencesService service = RVNKCore.getServiceSafe(PlayerPreferencesService.class);
@@ -283,31 +271,29 @@ public class NotificationManager {
         }
 
         try {
-            // Save master toggle
-            service.setMasterEnabled(prefs.playerUuid(), PLUGIN_ID, prefs.masterEnabled()).join();
-
-            // Save notification type toggles
+            Map<String, Boolean> notificationTypes = new HashMap<>();
             for (Map.Entry<NotificationType, Boolean> entry : prefs.enabledTypes().entrySet()) {
-                service.setNotificationEnabled(
-                        prefs.playerUuid(),
-                        PLUGIN_ID,
-                        entry.getKey().name(),
-                        entry.getValue()
-                ).join();
+                notificationTypes.put(entry.getKey().name(), entry.getValue());
             }
 
-            // Save quiet hours
-            service.setQuietHours(
-                    prefs.playerUuid(),
-                    PLUGIN_ID,
-                    prefs.quietHoursStart(),
-                    prefs.quietHoursEnd()
-            ).join();
+            org.fourz.rvnkcore.api.model.QuietHoursConfig quietHours =
+                    new org.fourz.rvnkcore.api.model.QuietHoursConfig(
+                            prefs.quietHoursStart(), prefs.quietHoursEnd());
 
+            org.fourz.rvnkcore.api.model.PlayerPreferencesDTO dto =
+                    new org.fourz.rvnkcore.api.model.PlayerPreferencesDTO.Builder()
+                            .playerUuid(prefs.playerUuid())
+                            .pluginId(PLUGIN_ID)
+                            .masterEnabled(prefs.masterEnabled())
+                            .quietHours(quietHours)
+                            .notificationTypes(notificationTypes)
+                            .build();
+
+            service.savePreferences(dto).get(500, TimeUnit.MILLISECONDS);
             logger.debug("Saved preferences to PlayerPreferencesService: " + prefs.playerUuid());
         } catch (Exception e) {
             logger.error("Failed to save preferences to service: " + e.getMessage());
-            throw e;
+            throw new RuntimeException(e);
         }
     }
 
