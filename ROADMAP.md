@@ -1,3 +1,7 @@
+> **DEPRECATED — March 2026**: Status is now tracked in Docker MCP knowledge graph
+> (`mcp__MCP_DOCKER__search_nodes("BarterShops")`). Open tasks tracked in GitHub Issues (`board:bartershops`).
+> This file is preserved as historical reference only and is no longer actively maintained.
+
 # BarterShops Development Roadmap
 
 **Last Updated**: February 28, 2026
