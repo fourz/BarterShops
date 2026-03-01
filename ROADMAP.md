@@ -1,8 +1,26 @@
 # BarterShops Development Roadmap
 
-**Last Updated**: February 21, 2026
+**Last Updated**: February 28, 2026
 **Archon Board**: `bd4e478b-772a-4b97-bd99-300552840815`
 **Version**: 1.0.29
+**GitHub Board**: [board:bartershops](https://github.com/fourz/Ravenkaft-Dev/issues?q=is:open+label:board:bartershops) (6 open issues)
+
+---
+
+## February 28, 2026 Status: Current Issues and Planned Work
+
+**Open GitHub Issues** (6 total):
+
+- **#316** `bug-BS-59`: Shop shows stale out-of-stock state after changeowner + restock cycle (LOW priority — cache invalidation on ownership change, workaround: `/shop reload`)
+- **#194** `test-33`: BUY/SELL shops unaffected by Phases 8-14 QA (verify standard behavior maintained)
+- **#193** `refactor`: SignDisplay to use SignLayoutFactory (reduce SignDisplay from 511 to ~120 lines via delegation)
+- **#192** `feat-10`: Trade history for WebUI and /shop history command (UNBLOCKED — ITradeRepository.findByShop() confirmed implemented)
+- **#191** `feat`: Economic history archive tables and aggregate datapoints (daily/monthly summaries, archive pruning, ITransactionLogger wiring)
+- **#190** `doc-18`: Update BarterShops documentation — current feature set (CLAUDE.md, README.md, SIGN_UI_UX.md creation)
+
+**Next Phase**: Trade history display (WebUI + command), documentation update, QA for Phases 8-14
+
+---
 
 ## February 21, 2026 Status: Trade Logging, Retention, Admin Trade Command, Debounce Fix
 
