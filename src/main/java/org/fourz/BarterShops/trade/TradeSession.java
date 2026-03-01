@@ -23,6 +23,13 @@ public class TradeSession {
     private ItemStack requestedItem;
     private int requestedQuantity;
 
+    /**
+     * Pre-resolved shop inventory. Set when inventory is obtained on the main thread
+     * (e.g. in handlePaymentDeposit) to avoid async thread-safety issues with double-chest
+     * adjacency detection in Paper's CraftChest.getInventory().
+     */
+    private org.bukkit.inventory.Inventory preResolvedShopInventory = null;
+
     private static final long DEFAULT_TIMEOUT_MS = 5 * 60 * 1000; // 5 minutes
 
     /**
@@ -65,6 +72,9 @@ public class TradeSession {
     public int getOfferedQuantity() { return offeredQuantity; }
     public ItemStack getRequestedItem() { return requestedItem; }
     public int getRequestedQuantity() { return requestedQuantity; }
+
+    public org.bukkit.inventory.Inventory getPreResolvedShopInventory() { return preResolvedShopInventory; }
+    public void setPreResolvedShopInventory(org.bukkit.inventory.Inventory inv) { this.preResolvedShopInventory = inv; }
 
     // Setters
     public void setState(TradeState state) { this.state = state; }

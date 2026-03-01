@@ -42,7 +42,7 @@ public class SignInteraction {
     private final Map<Location, Long> lastPreviewToggleTime = new ConcurrentHashMap<>(); // Debounce preview toggle
     private final SignSessionManager sessionManager = new SignSessionManager();
     private static final long PREVIEW_TOGGLE_DEBOUNCE_MS = 150; // Ignore toggles within 150ms
-    private static final long PURCHASE_DEBOUNCE_MS = STATUS_DISPLAY_TICKS * 50L; // Match feedback window (3s)
+    private static final long PURCHASE_DEBOUNCE_MS = 2000L; // 2 seconds between repeat purchases
 
     public SignInteraction(BarterShops plugin) {
         this.plugin = plugin;
@@ -696,13 +696,16 @@ public class SignInteraction {
         Inventory stockInv = null;
         if (barterSign.getShopContainerWrapper() != null) {
             stockInv = barterSign.getShopContainerWrapper().getInventory();
+            logger.debug("Stock check: using ShopContainerWrapper inventory");
         } else {
             Container shopContainer = barterSign.getShopContainer();
             if (shopContainer == null) shopContainer = barterSign.getContainer();
             if (shopContainer != null) stockInv = shopContainer.getInventory();
+            logger.debug("Stock check: using raw container, shopContainer=" + (shopContainer != null));
         }
 
         if (stockInv == null) {
+            logger.debug("Stock check: stockInv is NULL - no container linked to shop");
             showTemporaryStatus(sign, barterSign, "\u00A7cNo container", "\u00A7cfound");
             return;
         }
@@ -714,6 +717,10 @@ public class SignInteraction {
                 availableStock += item.getAmount();
             }
         }
+
+        logger.debug("Stock check: availableStock=" + availableStock + ", required=" + offering.getAmount() +
+            ", offering=" + offering.getType() + "x" + offering.getAmount() +
+            ", wrapperNull=" + (barterSign.getShopContainerWrapper() == null));
 
         if (availableStock < offering.getAmount()) {
             showTemporaryStatus(sign, barterSign, "\u00A7cOut of", "\u00A7cstock");
@@ -833,6 +840,21 @@ public class SignInteraction {
 
         TradeSession session = sessionOpt.get();
 
+        // Resolve shop inventory on the main thread before async executeTrade() runs.
+        // Paper's CraftChest.getInventory() does a world-level adjacency check to detect double
+        // chests. When called from a ForkJoinPool (async) thread, this check is not thread-safe
+        // and may return only the 27-slot half instead of the full 54-slot DoubleChestInventory.
+        org.bukkit.inventory.Inventory resolvedShopInventory = null;
+        org.fourz.BarterShops.container.ShopContainer shopWrapper = barterSign.getShopContainerWrapper();
+        if (shopWrapper != null) {
+            resolvedShopInventory = shopWrapper.getInventory();
+        } else if (barterSign.getShopContainer() != null) {
+            resolvedShopInventory = barterSign.getShopContainer().getInventory();
+        }
+        if (resolvedShopInventory != null) {
+            session.setPreResolvedShopInventory(resolvedShopInventory);
+        }
+
         // Configure trade items with validated offering and payment
         session.setOfferedItem(offering, offering.getAmount());
         session.setRequestedItem(paymentItem, paymentAmount);
@@ -895,6 +917,15 @@ public class SignInteraction {
             return;
         }
 
+        // Resolve shop inventory on the main thread before going async (double-chest safety).
+        org.bukkit.inventory.Inventory resolvedShopInventory = null;
+        org.fourz.BarterShops.container.ShopContainer shopWrapper = barterSign.getShopContainerWrapper();
+        if (shopWrapper != null) {
+            resolvedShopInventory = shopWrapper.getInventory();
+        } else if (barterSign.getShopContainer() != null) {
+            resolvedShopInventory = barterSign.getShopContainer().getInventory();
+        }
+
         // Execute direct trade via AutoExchangeHandler pattern
         tradeEngine.executeDirectTrade(
             player,
@@ -903,7 +934,8 @@ public class SignInteraction {
             offering.getAmount(),
             payment,
             paymentAmount,
-            org.fourz.BarterShops.trade.TradeSource.INSTANT_PURCHASE
+            org.fourz.BarterShops.trade.TradeSource.INSTANT_PURCHASE,
+            resolvedShopInventory
         ).thenAccept(result -> {
             plugin.getServer().getScheduler().runTask(plugin, () -> {
                 if (result.success()) {

@@ -121,6 +121,20 @@ public class AutoExchangeHandler {
         // drops any overflow items at the buyer's feet via dropItems(), so a full
         // inventory should not block the trade.
 
+        // Resolve shop inventory on the CALLING (main) thread before going async.
+        // Paper's CraftChest.getInventory() does a world-level block adjacency check to detect
+        // double chests. This check is not thread-safe from CompletableFuture.supplyAsync()
+        // (ForkJoinPool thread). When called async, a double chest may appear as a 27-slot
+        // single chest, causing stock to read as 0 even when items are in the other half.
+        // Resolving here (main thread) ensures we get the correct 54-slot DoubleChestInventory.
+        Inventory resolvedShopInventory = null;
+        org.fourz.BarterShops.container.ShopContainer shopWrapper = shop.getShopContainerWrapper();
+        if (shopWrapper != null) {
+            resolvedShopInventory = shopWrapper.getInventory();
+        } else if (shop.getShopContainer() != null) {
+            resolvedShopInventory = shop.getShopContainer().getInventory();
+        }
+
         // Execute direct trade — payment already deposited in chest, skip Steps 2 & 4
         updateDebounce(player.getUniqueId(), shop.getShopId());
         return tradeEngine.executeDirectTrade(
@@ -130,7 +144,8 @@ public class AutoExchangeHandler {
             totalOffering,
             null,   // Payment already in chest — skip remove-from-player and re-add-to-chest
             0,
-            TradeSource.DEPOSIT_EXCHANGE
+            TradeSource.DEPOSIT_EXCHANGE,
+            resolvedShopInventory
         );
     }
 
