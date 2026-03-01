@@ -85,7 +85,9 @@ public class BarterShops extends JavaPlugin {
         logger.info("BarterShops v" + this.getDescription().getVersion() + " - Enabling");
 
         this.configManager = new ConfigManager(this);
-        LogManager.setPluginLogLevel(this, configManager.getLogLevel());
+        // Use setGlobalLogLevel so defaultLevel is updated — all subsequent LogManager.getInstance()
+        // calls for any manager will inherit this level, not just instances already in the cache.
+        LogManager.setGlobalLogLevel(configManager.getLogLevel());
         logger.info("Log level set to: " + configManager.getLogLevel());
         this.notificationManager = new NotificationManager(this);
         this.templateManager = new TemplateManager(this);

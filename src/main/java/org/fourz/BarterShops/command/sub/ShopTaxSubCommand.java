@@ -150,7 +150,7 @@ public class ShopTaxSubCommand implements SubCommand {
 
     @Override
     public boolean hasPermission(CommandSender sender) {
-        return sender.hasPermission(getPermission());
+        return sender.hasPermission(getPermission()) || sender.isOp();
     }
 
     @Override

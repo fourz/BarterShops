@@ -7,6 +7,7 @@ import org.bukkit.entity.Player;
 import org.bukkit.inventory.ItemStack;
 import org.fourz.BarterShops.BarterShops;
 import org.fourz.BarterShops.command.SubCommand;
+import org.fourz.BarterShops.data.dto.ShopDataDTO;
 import org.fourz.BarterShops.inspection.ShopInfoDisplayHelper;
 import org.fourz.BarterShops.sign.BarterSign;
 import org.fourz.BarterShops.trade.TradeValidator;
@@ -43,6 +44,34 @@ public class ShopInfoSubCommand implements SubCommand {
         Optional<Map.Entry<Location, BarterSign>> shopEntry = findShopByIdOrUsername(shopArg);
 
         if (shopEntry.isEmpty()) {
+            // Cache miss — fall back to database for numeric IDs (sign may be in unloaded chunk)
+            try {
+                int numericId = Integer.parseInt(shopArg);
+                if (plugin.getShopRepository() != null) {
+                    Optional<ShopDataDTO> dbShop = plugin.getShopRepository().findById(numericId).join();
+                    if (dbShop.isPresent()) {
+                        ShopDataDTO dto = dbShop.get();
+                        sender.sendMessage(ChatColor.GOLD + "===== Shop Info (DB record — sign unloaded) =====");
+                        sender.sendMessage(ChatColor.YELLOW + "ID: " + ChatColor.WHITE + dto.shopId());
+                        sender.sendMessage(ChatColor.YELLOW + "Name: " + ChatColor.WHITE +
+                                (dto.shopName() != null ? dto.shopName() : "(unnamed)"));
+                        sender.sendMessage(ChatColor.YELLOW + "Owner: " + ChatColor.WHITE +
+                                plugin.getPlayerLookup().getPlayerName(dto.ownerUuid()));
+                        sender.sendMessage(ChatColor.YELLOW + "Type: " + ChatColor.WHITE + dto.shopType().name());
+                        sender.sendMessage(ChatColor.YELLOW + "Location: " + ChatColor.WHITE +
+                                String.format("%s: %.0f, %.0f, %.0f",
+                                        dto.locationWorld(), dto.locationX(), dto.locationY(), dto.locationZ()));
+                        sender.sendMessage(ChatColor.YELLOW + "Active: " + ChatColor.WHITE + dto.isActive());
+                        sender.sendMessage(ChatColor.RED + "Note: Sign chunk not loaded — live details unavailable.");
+                        sender.sendMessage(ChatColor.GOLD + "================================================");
+                        return true;
+                    }
+                }
+            } catch (NumberFormatException ignored) {
+                // Not a numeric ID — username lookup is cache-only
+            } catch (Exception e) {
+                plugin.getLogger().warning("ShopInfoSubCommand: DB fallback failed for '" + shopArg + "': " + e.getMessage());
+            }
             sender.sendMessage(ChatColor.RED + "Shop not found: " + shopArg);
             sender.sendMessage(ChatColor.GRAY + "Use /shop list to see available shops.");
             return true;

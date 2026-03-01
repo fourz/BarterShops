@@ -7,6 +7,7 @@ import org.bukkit.command.CommandSender;
 import org.bukkit.entity.Player;
 import org.fourz.BarterShops.BarterShops;
 import org.fourz.BarterShops.command.SubCommand;
+import org.fourz.BarterShops.data.dto.ShopDataDTO;
 import org.fourz.BarterShops.sign.BarterSign;
 
 import java.util.ArrayList;
@@ -40,6 +41,26 @@ public class ShopRemoveSubCommand implements SubCommand {
         Optional<Map.Entry<Location, BarterSign>> shopEntry = findShopById(shopId);
 
         if (shopEntry.isEmpty()) {
+            // Cache miss — fall back to database (sign may be in unloaded chunk)
+            try {
+                if (plugin.getShopRepository() != null) {
+                    Optional<ShopDataDTO> dbShop = plugin.getShopRepository().findById(shopId).join();
+                    if (dbShop.isPresent()) {
+                        ShopDataDTO dto = dbShop.get();
+                        sender.sendMessage(ChatColor.RED + "Shop exists in DB but its sign chunk is not loaded.");
+                        sender.sendMessage(ChatColor.YELLOW + "Shop ID: " + dto.shopId() + " | Owner: " +
+                                plugin.getPlayerLookup().getPlayerName(dto.ownerUuid()));
+                        sender.sendMessage(ChatColor.YELLOW + "Location: " +
+                                String.format("%s: %.0f, %.0f, %.0f",
+                                        dto.locationWorld(), dto.locationX(), dto.locationY(), dto.locationZ()));
+                        sender.sendMessage(ChatColor.RED + "The chunk must be loaded before the shop can be removed.");
+                        sender.sendMessage(ChatColor.GRAY + "Travel to the shop location to load the chunk, then re-run the command.");
+                        return true;
+                    }
+                }
+            } catch (Exception e) {
+                plugin.getLogger().warning("ShopRemoveSubCommand: DB fallback failed for '" + shopId + "': " + e.getMessage());
+            }
             sender.sendMessage(ChatColor.RED + "Shop not found: " + shopId);
             sender.sendMessage(ChatColor.GRAY + "Use /shop list to see available shops.");
             return true;

@@ -30,8 +30,19 @@ public class ShopReloadSubCommand implements SubCommand {
         try {
             long startTime = System.currentTimeMillis();
 
+            // Capture storage backend BEFORE reload to detect changes requiring restart
+            String previousStorageType = plugin.getConfigManager().getStorageType();
+
             // Reload configuration
             plugin.getConfigManager().reloadConfig();
+
+            // Warn if storage backend changed — DB pool re-init is not safe at runtime
+            String newStorageType = plugin.getConfigManager().getStorageType();
+            if (!previousStorageType.equalsIgnoreCase(newStorageType)) {
+                sender.sendMessage(ChatColor.translateAlternateColorCodes('&',
+                    "&e⚠ Database backend change requires server restart to apply. " +
+                    "Current backend: &f" + previousStorageType + "&e is still active."));
+            }
 
             // Reload economy manager
             plugin.getEconomyManager().reloadConfiguration();
