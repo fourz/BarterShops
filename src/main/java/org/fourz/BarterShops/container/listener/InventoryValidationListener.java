@@ -200,6 +200,13 @@ public class InventoryValidationListener implements Listener {
             return;
         }
 
+        // SlotType.OUTSIDE means the player clicked outside the inventory window (rawSlot = -999).
+        // The existing rawSlot >= inventory.getSize() guard does NOT catch this because -999 < any
+        // positive size. Ignore these clicks entirely — they drop the cursor item as normal.
+        if (event.getSlotType() == InventoryType.SlotType.OUTSIDE) {
+            return;
+        }
+
         Player player = (event.getWhoClicked() instanceof Player) ? (Player) event.getWhoClicked() : null;
         logger.debug("InventoryClickEvent: Shop container found at " + shopContainer.getLocation() +
                     ", action=" + event.getAction() + ", slot=" + event.getRawSlot());
@@ -212,6 +219,17 @@ public class InventoryValidationListener implements Listener {
         if (barterSign != null && player != null
                 && !barterSign.getOwner().equals(player.getUniqueId())
                 && isRemovingFromShopSlot(event)) {
+            // SWAP_WITH_CURSOR atomically removes the clicked slot item into the cursor AND places
+            // the cursor item into the slot. For customers this causes duplication: the offering
+            // moves to the cursor via the swap, then onCustomerDepositPayment sees the cursor
+            // (payment) and schedules another trade that gives the offering a second time.
+            // Block the action entirely — customers must deposit into an empty slot.
+            if (event.getAction() == InventoryAction.SWAP_WITH_CURSOR) {
+                event.setCancelled(true);
+                player.sendMessage(ChatColor.RED + "x Place payment in an empty slot to trade.");
+                return;
+            }
+
             ItemStack shopItem = event.getCurrentItem();
             ItemStack offering = barterSign.getItemOffering();
             boolean isOffering = offering != null && shopItem != null
@@ -341,6 +359,17 @@ public class InventoryValidationListener implements Listener {
         Player player = (event.getWhoClicked() instanceof Player) ? (Player) event.getWhoClicked() : null;
         if (player == null) return;
 
+        // Outside-window clicks (rawSlot = -999) are not chest interactions.
+        // The rawSlot >= inventory.getSize() guard below does NOT catch this because -999 < any size.
+        if (event.getSlotType() == InventoryType.SlotType.OUTSIDE) return;
+
+        // SWAP_WITH_CURSOR is blocked at HIGH priority. Guard here as a safety net so we never
+        // schedule a deposit trade for a swap action that atomically took the offering already.
+        if (event.getAction() == InventoryAction.SWAP_WITH_CURSOR
+                && event.getRawSlot() < event.getInventory().getSize()) {
+            return;
+        }
+
         BarterSign barterSign = shopContainer.getBarterSign();
         if (barterSign == null) return;
 
@@ -357,14 +386,63 @@ public class InventoryValidationListener implements Listener {
             }
         }
 
-        // Get item being deposited
+        // Get item being deposited — amount must reflect what was ACTUALLY placed, not the
+        // full cursor. For PLACE_SOME, the cursor retains the items that didn't fit, so
+        // cursor.getAmount() > actual deposited. This caused a "every other time" duplication
+        // bug: trade 1 leaves payment in chest; trade 2 triggers PLACE_SOME (slot partially
+        // occupied), overcounts cursor as the deposit amount, and gives 2× offerings.
         ItemStack cursorItem = event.getCursor();
-        ItemStack depositedItem = cursorItem;
-        if (depositedItem == null || depositedItem.getType() == Material.AIR) {
-            // Might be shift-click
-            depositedItem = event.getCurrentItem();
-            if (depositedItem == null || depositedItem.getType() == Material.AIR) {
-                return;
+        ItemStack depositedItem;
+        if (cursorItem == null || cursorItem.getType() == Material.AIR) {
+            // Shift-click (MOVE_TO_OTHER_INVENTORY): no cursor; getCurrentItem is the moved stack.
+            // Guard 1: skip no-cursor actions that are NOT a shift-click move.
+            if (event.getAction() != InventoryAction.MOVE_TO_OTHER_INVENTORY) return;
+            // Guard 2: only handle player-inventory → chest direction.
+            // Chest-side rawSlot means the player is shift-clicking FROM the chest (taking),
+            // not depositing — that path belongs to onCustomerTakeOffering.
+            if (event.getRawSlot() < event.getInventory().getSize()) return;
+
+            ItemStack movingStack = event.getCurrentItem();
+            if (movingStack == null || movingStack.getType() == Material.AIR) return;
+
+            // CRITICAL FIX (bug-BS-75): getCurrentItem().getAmount() is the FULL player stack,
+            // NOT the amount actually deposited. When the chest already holds accumulated payment
+            // items from a prior trade, only (availableSpace) items can fit — but the full stack
+            // amount was previously used for increments, causing 2× offering delivery on every
+            // other trade. Compute real available chest space to get the actual deposited count.
+            int movingAmount = movingStack.getAmount();
+            int availableSpace = 0;
+            for (ItemStack slotItem : event.getInventory().getContents()) {
+                if (slotItem == null || slotItem.getType() == Material.AIR) {
+                    availableSpace += movingStack.getMaxStackSize();
+                } else if (slotItem.isSimilar(movingStack)) {
+                    availableSpace += movingStack.getMaxStackSize() - slotItem.getAmount();
+                }
+            }
+            int actualDeposited = Math.min(movingAmount, availableSpace);
+            if (actualDeposited <= 0) return;
+            depositedItem = movingStack.clone();
+            depositedItem.setAmount(actualDeposited);
+        } else {
+            // Cursor-based placement: actual deposited amount depends on action type.
+            switch (event.getAction()) {
+                case PLACE_ALL -> depositedItem = cursorItem; // Full cursor placed — correct as-is
+                case PLACE_SOME -> {
+                    // Fills slot to maxStack; only (maxStack - slotExisting) items deposited.
+                    // cursorItem.getAmount() is the FULL cursor — overcounts actual deposit.
+                    ItemStack slotItem = event.getCurrentItem();
+                    int slotExisting = (slotItem != null && !slotItem.getType().isAir()) ? slotItem.getAmount() : 0;
+                    int actualDeposited = Math.min(cursorItem.getAmount(), cursorItem.getMaxStackSize() - slotExisting);
+                    if (actualDeposited <= 0) return;
+                    depositedItem = cursorItem.clone();
+                    depositedItem.setAmount(actualDeposited);
+                }
+                case PLACE_ONE -> {
+                    // Right-click places exactly 1 item regardless of cursor size.
+                    depositedItem = cursorItem.clone();
+                    depositedItem.setAmount(1);
+                }
+                default -> { return; } // Not a deposit action (e.g. pickup, hotbar swap)
             }
         }
 
@@ -385,13 +463,16 @@ public class InventoryValidationListener implements Listener {
                 return;
             }
 
-            // Validate shop has stock for the full deposit quantity (pre-event, mirrors partial-payment logic)
+            // Validate shop has stock for the full deposit quantity.
+            // Use event.getInventory() (the live double chest inventory) rather than
+            // shopContainer.getInventory() which can return only one half of a double chest
+            // depending on which half the ShopContainer was registered against.
             ItemStack offering = barterSign.getItemOffering();
             if (offering != null) {
                 int increments = depositedAmount / requiredQty;
                 int neededStock = offering.getAmount() * increments;
                 int availableStock = 0;
-                for (ItemStack item : shopContainer.getInventory().getContents()) {
+                for (ItemStack item : event.getInventory().getContents()) {
                     if (item != null && item.isSimilar(offering)) {
                         availableStock += item.getAmount();
                     }
@@ -426,13 +507,21 @@ public class InventoryValidationListener implements Listener {
                                 barterSign.getItemOffering().getType().name());
                             logger.debug("Deposit auto-exchange completed: " + result.transactionId());
                         } else {
-                            player.sendMessage(ChatColor.RED + "x Trade failed: " + result.message());
                             logger.debug("Deposit auto-exchange failed: " + result.message());
+                            // Return deposited payment to prevent theft.
+                            // The payment was placed in the chest before the trade ran;
+                            // if the trade fails the chest keeps it unless we return it.
+                            returnPaymentToPlayer(player, shopContainer, finalDepositedItem);
+                            player.sendMessage(ChatColor.RED + "x Trade failed: " + result.message());
                         }
                     });
                 })
                 .exceptionally(ex -> {
-                    logger.error("Deposit auto-exchange error: " + ex.getMessage());
+                    plugin.getServer().getScheduler().runTask(plugin, () -> {
+                        logger.error("Deposit auto-exchange error: " + ex.getMessage());
+                        returnPaymentToPlayer(player, shopContainer, finalDepositedItem);
+                        player.sendMessage(ChatColor.RED + "x Trade error - payment returned");
+                    });
                     return null;
                 });
         }, 1L); // 1 tick delay to ensure item is in chest
@@ -569,6 +658,15 @@ public class InventoryValidationListener implements Listener {
         // Calculate quantity taken
         int takenQty = calculateTakeQuantity(event, takenItem);
         if (takenQty <= 0) return;
+
+        // Synchronous exact-multiple pre-validation — must happen before event resolves.
+        // event.setCancelled() is ineffective inside thenAccept() (items already transferred).
+        int baseOffering = offering.getAmount();
+        if (baseOffering > 0 && takenQty % baseOffering != 0) {
+            event.setCancelled(true);
+            player.sendMessage(ChatColor.RED + "✗ Must take exact multiple of " + baseOffering);
+            return;
+        }
 
         // Check auto-exchange preference
         org.fourz.BarterShops.trade.AutoExchangeHandler autoExchange = plugin.getAutoExchangeHandler();
@@ -735,6 +833,48 @@ public class InventoryValidationListener implements Listener {
             }
         }
         return availableStock < offering.getAmount();
+    }
+
+    /**
+     * Returns deposited payment items from the shop chest back to the player.
+     * Called when a deposit auto-exchange trade fails after payment was already placed in chest.
+     * Must be called on the main thread.
+     *
+     * @param player Player to return items to
+     * @param shopContainer The shop container holding the payment
+     * @param payment The payment item to return (quantity as deposited)
+     */
+    private void returnPaymentToPlayer(Player player, ShopContainer shopContainer, ItemStack payment) {
+        try {
+            org.bukkit.inventory.Inventory chestInv = shopContainer.getInventory();
+            ItemStack toReturn = payment.clone();
+            int remaining = toReturn.getAmount();
+
+            // Remove from chest
+            org.bukkit.inventory.ItemStack[] contents = chestInv.getContents();
+            for (int i = 0; i < contents.length && remaining > 0; i++) {
+                org.bukkit.inventory.ItemStack stack = contents[i];
+                if (stack != null && stack.isSimilar(toReturn)) {
+                    int take = Math.min(remaining, stack.getAmount());
+                    stack.setAmount(stack.getAmount() - take);
+                    chestInv.setItem(i, stack.getAmount() == 0 ? null : stack);
+                    remaining -= take;
+                }
+            }
+
+            int returned = toReturn.getAmount() - remaining;
+            if (returned > 0) {
+                toReturn.setAmount(returned);
+                Map<Integer, org.bukkit.inventory.ItemStack> leftover = player.getInventory().addItem(toReturn);
+                if (!leftover.isEmpty()) {
+                    leftover.values().forEach(drop -> player.getWorld().dropItem(player.getLocation(), drop));
+                    player.sendMessage(ChatColor.YELLOW + "! Payment dropped at your feet (inventory full)");
+                }
+                logger.debug("Returned " + returned + "x " + payment.getType() + " payment to " + player.getName());
+            }
+        } catch (Exception ex) {
+            logger.error("Failed to return payment to " + player.getName() + ": " + ex.getMessage());
+        }
     }
 
     /**
