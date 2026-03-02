@@ -8,6 +8,7 @@ import org.fourz.BarterShops.service.IShopDatabaseService;
 import org.fourz.BarterShops.service.IShopService;
 import org.fourz.BarterShops.service.ITradeService;
 import org.fourz.rvnkcore.api.model.response.ApiResponse;
+import org.fourz.rvnkcore.api.util.ApiUtils;
 
 import java.util.*;
 import java.util.concurrent.CompletableFuture;
@@ -61,8 +62,8 @@ public class ShopApiEndpointImpl implements ShopApiEndpoint {
                 List<ShopDataDTO> sorted = applySorting(filtered, sortField, sortOrder);
 
                 // Apply pagination
-                int page = parseIntOrDefault(filters.get("page"), 1);
-                int limit = Math.min(parseIntOrDefault(filters.get("limit"), 20), 100);
+                int page = ApiUtils.parseIntOrDefault(filters.get("page"), 1);
+                int limit = Math.min(ApiUtils.parseIntOrDefault(filters.get("limit"), 20), 100);
                 List<ShopDataDTO> paginated = applyPagination(sorted, page, limit);
 
                 return ApiResponse.success(paginated, page, limit, sorted.size());
@@ -355,17 +356,4 @@ public class ShopApiEndpointImpl implements ShopApiEndpoint {
         return shops.subList(startIndex, endIndex);
     }
 
-    /**
-     * Parses an integer from a string, returning default value on error.
-     */
-    private int parseIntOrDefault(String value, int defaultValue) {
-        if (value == null || value.isEmpty()) {
-            return defaultValue;
-        }
-        try {
-            return Integer.parseInt(value);
-        } catch (NumberFormatException e) {
-            return defaultValue;
-        }
-    }
 }

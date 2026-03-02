@@ -3,6 +3,7 @@ package org.fourz.BarterShops.api;
 import com.google.gson.Gson;
 import com.google.gson.GsonBuilder;
 import org.fourz.rvnkcore.api.model.response.ApiResponse;
+import org.fourz.rvnkcore.api.util.ApiUtils;
 
 import jakarta.servlet.http.HttpServlet;
 import jakarta.servlet.http.HttpServletRequest;
@@ -170,7 +171,7 @@ public class ShopApiServlet extends HttpServlet {
         String shopId = req.getParameter("shop");
         String playerUuidStr = req.getParameter("player");
 
-        int limit = limitStr != null ? parseIntOrDefault(limitStr, 20) : 20;
+        int limit = limitStr != null ? ApiUtils.parseIntOrDefault(limitStr, 20) : 20;
         UUID playerUuid = null;
 
         if (playerUuidStr != null) {
@@ -307,17 +308,4 @@ public class ShopApiServlet extends HttpServlet {
         sendJsonResponse(resp, status, errorResponse);
     }
 
-    /**
-     * Parses an integer from a string, returning default value on error.
-     */
-    private int parseIntOrDefault(String value, int defaultValue) {
-        if (value == null || value.isEmpty()) {
-            return defaultValue;
-        }
-        try {
-            return Integer.parseInt(value);
-        } catch (NumberFormatException e) {
-            return defaultValue;
-        }
-    }
 }
