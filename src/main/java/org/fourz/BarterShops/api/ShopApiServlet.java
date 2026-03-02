@@ -98,7 +98,7 @@ public class ShopApiServlet extends HttpServlet {
         Map<String, String> filters = extractQueryParams(req);
 
         apiEndpoint.getShops(filters)
-            .thenAccept(response -> sendJsonResponse(resp, 200, response))
+            .thenAccept(response -> sendApiResponse(resp, response))
             .exceptionally(ex -> {
                 try {
                     sendErrorResponse(resp, 500, "INTERNAL_ERROR", ex.getMessage());
@@ -119,7 +119,7 @@ public class ShopApiServlet extends HttpServlet {
         String shopId = matcher.group(1);
 
         apiEndpoint.getShopById(shopId)
-            .thenAccept(response -> sendJsonResponse(resp, 200, response))
+            .thenAccept(response -> sendApiResponse(resp, response))
             .exceptionally(ex -> {
                 try {
                     sendErrorResponse(resp, 500, "INTERNAL_ERROR", ex.getMessage());
@@ -151,7 +151,7 @@ public class ShopApiServlet extends HttpServlet {
             double radius = radiusStr != null ? Double.parseDouble(radiusStr) : 50.0;
 
             apiEndpoint.getShopsNearby(world, x, y, z, radius)
-                .thenAccept(response -> sendJsonResponse(resp, 200, response))
+                .thenAccept(response -> sendApiResponse(resp, response))
                 .exceptionally(ex -> {
                     try {
                         sendErrorResponse(resp, 500, "INTERNAL_ERROR", ex.getMessage());
@@ -185,7 +185,7 @@ public class ShopApiServlet extends HttpServlet {
 
         UUID finalPlayerUuid = playerUuid;
         apiEndpoint.getRecentTrades(limit, shopId, finalPlayerUuid)
-            .thenAccept(response -> sendJsonResponse(resp, 200, response))
+            .thenAccept(response -> sendApiResponse(resp, response))
             .exceptionally(ex -> {
                 try {
                     sendErrorResponse(resp, 500, "INTERNAL_ERROR", ex.getMessage());
@@ -206,7 +206,7 @@ public class ShopApiServlet extends HttpServlet {
         String transactionId = matcher.group(1);
 
         apiEndpoint.getTradeById(transactionId)
-            .thenAccept(response -> sendJsonResponse(resp, 200, response))
+            .thenAccept(response -> sendApiResponse(resp, response))
             .exceptionally(ex -> {
                 try {
                     sendErrorResponse(resp, 500, "INTERNAL_ERROR", ex.getMessage());
@@ -219,7 +219,7 @@ public class ShopApiServlet extends HttpServlet {
 
     private void handleGetStats(HttpServletRequest req, HttpServletResponse resp) throws IOException {
         apiEndpoint.getServerStats()
-            .thenAccept(response -> sendJsonResponse(resp, 200, response))
+            .thenAccept(response -> sendApiResponse(resp, response))
             .exceptionally(ex -> {
                 try {
                     sendErrorResponse(resp, 500, "INTERNAL_ERROR", ex.getMessage());
@@ -244,7 +244,7 @@ public class ShopApiServlet extends HttpServlet {
 
         String finalShopId = shopId;
         apiEndpoint.getShopStats(finalShopId)
-            .thenAccept(response -> sendJsonResponse(resp, 200, response))
+            .thenAccept(response -> sendApiResponse(resp, response))
             .exceptionally(ex -> {
                 try {
                     sendErrorResponse(resp, 500, "INTERNAL_ERROR", ex.getMessage());
@@ -257,7 +257,7 @@ public class ShopApiServlet extends HttpServlet {
 
     private void handleGetHealth(HttpServletRequest req, HttpServletResponse resp) throws IOException {
         apiEndpoint.getHealthStatus()
-            .thenAccept(response -> sendJsonResponse(resp, 200, response))
+            .thenAccept(response -> sendApiResponse(resp, response))
             .exceptionally(ex -> {
                 try {
                     sendErrorResponse(resp, 500, "INTERNAL_ERROR", ex.getMessage());
@@ -306,6 +306,16 @@ public class ShopApiServlet extends HttpServlet {
     private void sendErrorResponse(HttpServletResponse resp, int status, String code, String message) throws IOException {
         ApiResponse<?> errorResponse = ApiResponse.error(code, message);
         sendJsonResponse(resp, status, errorResponse);
+    }
+
+    /**
+     * Sends an ApiResponse with the correct HTTP status derived from the response envelope.
+     * Success → 200; failure → status from ApiError.suggestedHttpStatus().
+     */
+    private void sendApiResponse(HttpServletResponse resp, ApiResponse<?> response) {
+        int httpStatus = response.success() ? 200
+            : (response.error() != null ? response.error().suggestedHttpStatus() : 400);
+        sendJsonResponse(resp, httpStatus, response);
     }
 
 }
