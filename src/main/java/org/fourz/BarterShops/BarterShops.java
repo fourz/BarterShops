@@ -75,6 +75,7 @@ public class BarterShops extends JavaPlugin {
     // RVNKCore integration
     private boolean rvnkCoreAvailable = false;
     private Object rvnkCoreInstance = null;
+    private org.fourz.BarterShops.api.ShopApiInitializer shopApiInitializer;
 
     @Override
     public void onEnable() {
@@ -315,6 +316,10 @@ public class BarterShops extends JavaPlugin {
             rvnkCoreInstance = coreInstance;
             logger.info("RVNKCore integration enabled - services registered");
 
+            // Register REST API with RVNKCore servlet service
+            shopApiInitializer = new org.fourz.BarterShops.api.ShopApiInitializer(this);
+            shopApiInitializer.initialize();
+
             // Register notification types with PlayerPreferencesService
             registerNotificationTypes();
 
@@ -416,6 +421,10 @@ public class BarterShops extends JavaPlugin {
     private void unregisterFromRVNKCore() {
         if (!rvnkCoreAvailable || rvnkCoreInstance == null) {
             return;
+        }
+
+        if (shopApiInitializer != null) {
+            shopApiInitializer.shutdown();
         }
 
         try {
