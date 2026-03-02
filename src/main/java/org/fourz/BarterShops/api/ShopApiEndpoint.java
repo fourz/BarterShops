@@ -3,6 +3,7 @@ package org.fourz.BarterShops.api;
 import org.bukkit.Location;
 import org.fourz.BarterShops.data.dto.ShopDataDTO;
 import org.fourz.BarterShops.data.dto.TradeRecordDTO;
+import org.fourz.rvnkcore.api.model.response.ApiResponse;
 
 import java.util.List;
 import java.util.Map;
@@ -159,121 +160,4 @@ public interface ShopApiEndpoint {
      */
     CompletableFuture<ApiResponse<Map<String, Object>>> getHealthStatus();
 
-    // ========================================================
-    // API Response Record
-    // ========================================================
-
-    /**
-     * Standard API response format following RVNKCore REST API Standards.
-     *
-     * @param <T> The data type
-     */
-    record ApiResponse<T>(
-        boolean success,
-        T data,
-        ApiError error,
-        ApiMeta meta
-    ) {
-        /**
-         * Creates a successful response.
-         */
-        public static <T> ApiResponse<T> success(T data) {
-            return new ApiResponse<>(
-                true,
-                data,
-                null,
-                ApiMeta.create()
-            );
-        }
-
-        /**
-         * Creates a successful paginated response.
-         */
-        public static <T> ApiResponse<T> success(T data, int page, int limit, int totalItems) {
-            return new ApiResponse<>(
-                true,
-                data,
-                null,
-                ApiMeta.createPaginated(page, limit, totalItems)
-            );
-        }
-
-        /**
-         * Creates an error response.
-         */
-        public static <T> ApiResponse<T> error(String code, String message) {
-            return new ApiResponse<>(
-                false,
-                null,
-                new ApiError(code, message, null),
-                ApiMeta.create()
-            );
-        }
-
-        /**
-         * Creates an error response with details.
-         */
-        public static <T> ApiResponse<T> error(String code, String message, List<String> details) {
-            return new ApiResponse<>(
-                false,
-                null,
-                new ApiError(code, message, details),
-                ApiMeta.create()
-            );
-        }
-    }
-
-    /**
-     * API error details.
-     */
-    record ApiError(
-        String code,
-        String message,
-        List<String> details
-    ) {
-        public ApiError {
-            details = details == null ? List.of() : List.copyOf(details);
-        }
-    }
-
-    /**
-     * API response metadata.
-     */
-    record ApiMeta(
-        String timestamp,
-        String version,
-        Integer page,
-        Integer limit,
-        Integer totalItems,
-        Integer totalPages
-    ) {
-        /**
-         * Creates basic metadata.
-         */
-        public static ApiMeta create() {
-            return new ApiMeta(
-                java.time.Instant.now().toString(),
-                "1.0",
-                null,
-                null,
-                null,
-                null
-            );
-        }
-
-        /**
-         * Creates paginated metadata.
-         */
-        public static ApiMeta createPaginated(int page, int limit, int totalItems) {
-            int totalPages = (int) Math.ceil((double) totalItems / limit);
-            return new ApiMeta(
-                java.time.Instant.now().toString(),
-                "1.0",
-                page,
-                limit,
-                totalItems,
-                totalPages
-            );
-        }
-    }
 }

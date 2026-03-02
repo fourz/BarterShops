@@ -2,7 +2,7 @@ package org.fourz.BarterShops.api;
 
 import com.google.gson.Gson;
 import com.google.gson.GsonBuilder;
-import org.fourz.BarterShops.api.ShopApiEndpoint.ApiResponse;
+import org.fourz.rvnkcore.api.model.response.ApiResponse;
 
 import jakarta.servlet.http.HttpServlet;
 import jakarta.servlet.http.HttpServletRequest;

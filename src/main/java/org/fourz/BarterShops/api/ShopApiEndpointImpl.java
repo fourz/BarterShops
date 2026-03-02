@@ -7,6 +7,7 @@ import org.fourz.BarterShops.data.dto.TradeRecordDTO;
 import org.fourz.BarterShops.service.IShopDatabaseService;
 import org.fourz.BarterShops.service.IShopService;
 import org.fourz.BarterShops.service.ITradeService;
+import org.fourz.rvnkcore.api.model.response.ApiResponse;
 
 import java.util.*;
 import java.util.concurrent.CompletableFuture;
