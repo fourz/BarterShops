@@ -303,7 +303,7 @@ Use consistent message prefixes in command handlers:
 - [ADMIN_GUIDE.md](ADMIN_GUIDE.md) - Installation, configuration, permissions
 - [DEVELOPER_GUIDE.md](DEVELOPER_GUIDE.md) - API usage, integration
 - [API_REFERENCE.md](API_REFERENCE.md) - REST API endpoints
-- **Docker MCP** — For BarterShops status and history: `search_nodes("BarterShops")`
+- **GraphQL-Memdock** — For BarterShops status and history: `search_nodes("BarterShops")`
 
 ### Archon Board Documents (BarterShops-specific)
 Documents on BarterShops board (`bd4e478b-772a-4b97-bd99-300552840815`):
@@ -344,7 +344,7 @@ manage_task("update", task_id="...", status="done")
 
 **Current Version**: 1.0.29 (Feb 21, 2026)
 
-For plugin status and history, search Docker MCP: `search_nodes("BarterShops")`
+For plugin status and history, search GraphQL-Memdock: `search_nodes("BarterShops")`
 
 **Latest Completions** (Feb 21):
 - v1.0.27: `trade_source` persisted across all TradeEngine paths — ALTER TABLE migration for existing installs; `TradeRecordDTO.tradeSource` field; TradeEngine.logTrade() wires source; `TradeServiceImpl.serializeItem()` marked `@Deprecated` (dead code)
