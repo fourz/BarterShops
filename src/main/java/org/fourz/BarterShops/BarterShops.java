@@ -86,10 +86,6 @@ public class BarterShops extends JavaPlugin {
         logger.info("BarterShops v" + this.getDescription().getVersion() + " - Enabling");
 
         this.configManager = new ConfigManager(this);
-        // Use setGlobalLogLevel so defaultLevel is updated — all subsequent LogManager.getInstance()
-        // calls for any manager will inherit this level, not just instances already in the cache.
-        LogManager.setGlobalLogLevel(configManager.getLogLevel());
-        logger.info("Log level set to: " + configManager.getLogLevel());
         this.notificationManager = new NotificationManager(this);
         this.templateManager = new TemplateManager(this);
         this.protectionManager = new ProtectionManager(this);
@@ -150,6 +146,11 @@ public class BarterShops extends JavaPlugin {
         // Initialize PlayerLookup (after RVNKCore registration so PlayerService is available)
         this.playerLookup = new PlayerLookup(this).enableMojangAPI();
         this.playerLookup.preloadFromDatabase(); // async, non-blocking
+
+        // Apply configured log level to all BarterShops instances now that all managers are created.
+        // Use setPluginLogLevel (not setGlobalLogLevel) to avoid resetting other plugins' log levels.
+        LogManager.setPluginLogLevel(this, configManager.getLogLevel());
+        logger.info("Log level set to: " + configManager.getLogLevel());
 
         logger.info("BarterShops has been loaded");
     }
