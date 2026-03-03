@@ -43,10 +43,7 @@ public class BoardModeRenderer implements ISignModeRenderer {
     // -------------------------------------------------------------------------
 
     private void renderNotConfigured(SignSide side, BarterSign barterSign) {
-        side.setLine(0, SignRenderUtil.getTypeHeader(barterSign.getType()));
-        side.setLine(1, "§eNot configured");
-        side.setLine(2, "§eAsk owner");
-        side.setLine(3, "");
+        SignRenderUtil.applyLayoutToSign(side, SignLayoutFactory.createNotConfiguredLayout(barterSign));
     }
 
     // -------------------------------------------------------------------------
