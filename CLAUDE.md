@@ -25,7 +25,7 @@ mvn validate
 mvn dependency:tree
 ```
 
-**Output**: `target/BarterShops-1.0-SNAPSHOT.jar`
+**Output**: `target/BarterShops-1.0-SNAPSHOT.jar` (deployed as `BarterShops-1.0.1+.jar` on RVNK Dev for v1.0.1+ releases)
 
 ## Remote Testing Workflow
 
@@ -265,6 +265,7 @@ Use consistent message prefixes in command handlers:
 | `/shop create <name>` | Create a new barter shop | `bartershops.create` |
 | `/shop list` | List all your shops | `bartershops.list` |
 | `/shop info <id>` | View shop details | `bartershops.info` |
+| `/shop history <id> [page]` | View paginated trade history for a shop | `bartershops.use` |
 | `/shop remove <id>` | Remove a shop | `bartershops.remove` |
 | `/shop nearby [radius]` | Find nearby shops | `bartershops.nearby` |
 | `/shop template <action>` | Manage shop templates | `bartershops.template` |
@@ -301,7 +302,7 @@ Use consistent message prefixes in command handlers:
 - [ADMIN_GUIDE.md](ADMIN_GUIDE.md) - Installation, configuration, permissions
 - [DEVELOPER_GUIDE.md](DEVELOPER_GUIDE.md) - API usage, integration
 - [API_REFERENCE.md](API_REFERENCE.md) - REST API endpoints
-- **GraphQL-Memdock** — For BarterShops status and history: `search_nodes("BarterShops")`
+- **Graph Memory** — For BarterShops status and history: `search_nodes("BarterShops")`
 
 ### Archon Board Documents (BarterShops-specific)
 Documents on BarterShops board (`bd4e478b-772a-4b97-bd99-300552840815`):
@@ -340,15 +341,36 @@ manage_task("update", task_id="...", status="done")
 
 ## Development Status
 
-**Current Version**: 1.0.29 (Feb 21, 2026)
+**Current Version**: 1.1.16 (Mar 3, 2026)
 
-For plugin status and history, search GraphQL-Memdock: `search_nodes("BarterShops")`
+For plugin status and history, search Graph Memory: `search_nodes("BarterShops")`
 
 **Latest Completions** (Feb 21):
 - v1.0.27: `trade_source` persisted across all TradeEngine paths — ALTER TABLE migration for existing installs; `TradeRecordDTO.tradeSource` field; TradeEngine.logTrade() wires source; `TradeServiceImpl.serializeItem()` marked `@Deprecated` (dead code)
 - v1.0.28: 30-day trade archive scheduler — `RetentionManager` Bukkit async repeating task; `retention:` config section; calls `ITradeRepository.archiveOlderThan()`
 - v1.0.28: `/shop trade <player> <shopId> [qty]` admin force-trade — console-capable, bypasses payment, `ADMIN_OVERRIDE` source, 20th subcommand
 - v1.0.29: Sign debounce fix — `PURCHASE_DEBOUNCE_MS = STATUS_DISPLAY_TICKS * 50L`; debounce check moved before null/air item check in `handleCustomerLeftClick()` to prevent "Hold payment item" overwriting "Purchased" feedback
+
+**Sign Display Optimization Phases (v1.0.1+)**:
+- **Phase 8** (Feb 12): Customer pagination for multi-payment BARTER shops — `currentPaymentPage` session field on `BarterSign`; right-click cycles pages; chat feedback "Payment option N/M". Owner preview mode — sneak+right-click in BOARD toggles `ownerPreviewMode` flag, sign switches to customer view.
+- **Phase 8.5** (Feb 12): 1 payment per page rendering — `renderPaginatedPayment()` in `BoardModeRenderer`; summary page (index 0) + N payment pages; page indicator `§6page N of M` on line 3.
+- **Phase 9** (Feb 13): Offering name wrapping — `displayOfferingWithWrapping(side, offering, startLine)` in `SignRenderUtil`; names >15 chars word-split across two lines; `computeNameSplit()` helper for word-boundary detection.
+- **Phases 10–13** (Feb 13): Dual-wrap mode for single-payment BARTER shops — `displayDualWrapMode()` in `SignRenderUtil`; when both offering AND payment exceed 15 chars, the [Barter] header is removed and all 4 sign lines are used for content. Payment wrapping added via `displayPaymentWithWrapping()`.
+
+**Sign Display Architecture (post-Phase 13)**:
+- `SignDisplay.java`: Thin dispatcher routing to `ISignModeRenderer` implementations via `EnumMap`
+- `BoardModeRenderer.java`: All BOARD mode rendering logic (customer/owner paths, pagination, wrapping)
+- `SignRenderUtil.java`: Shared rendering helpers (`getTypeHeader`, `formatItemName`, `displayOfferingWithWrapping`, `displayPaymentWithWrapping`, `displayDualWrapMode`, `computeNameSplit`, `applyLayoutToSign`)
+- `SignLayoutFactory.java`: Legacy layout builders (`MAX_LINE_LENGTH = 15`, `truncateForSign`, type/setup/board/delete layouts)
+
+**Known Issues**:
+- **bug-30**: Chest break prevention deletes shop from database — use DELETE mode instead
+- **bug-34**: Owner preview mode (sneak+right-click) shows owner summary instead of customer pagination view — workaround: check payment options manually in TYPE mode
+- **bug-32/33**: Auto-revert scheduler — fixed in commit 89f2e23, regression testing pending
+
+**Latest Completions** (Mar 3):
+- v1.1.16: SignDisplay refactor (#193) — all 5 ISignModeRenderer renderers delegate to SignLayoutFactory; TypeModeRenderer and BoardModeRenderer.renderNotConfigured() updated; factory createTypeLayout/createNotConfiguredLayout aligned to current output
+- v1.1.16: `/shop history <id> [page]` — paginated trade history command; async via ITradeRepository.findByShop(); buyer/seller/item/currency display; console-friendly; REST endpoint already existed at GET /api/trades/recent?shop={id}
 
 **In Development**:
 - Review follow-ups: debounce on trade-failure path; config caching consistency in RetentionManager; redundant null check in TradeRepositoryImpl.save()
@@ -368,3 +390,5 @@ Before committing changes:
 5. Test shop creation/removal workflow
 6. Validate trade execution if changes affect trade logic
 7. Check RVNKCore integration if services modified
+
+
