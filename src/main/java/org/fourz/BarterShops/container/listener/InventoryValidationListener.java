@@ -22,7 +22,9 @@ import org.fourz.BarterShops.sign.SignDisplay;
 import org.fourz.rvnkcore.util.log.LogManager;
 
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.Map;
+import java.util.Set;
 import java.util.UUID;
 
 /**
@@ -37,6 +39,7 @@ import java.util.UUID;
  */
 public class InventoryValidationListener implements Listener {
     private final Map<UUID, ShopContainer> shopContainers = new HashMap<>();
+    private final Set<String> pendingDeposits = new HashSet<>();
     private final long creationTime = System.currentTimeMillis();
     private final BarterShops plugin;
     private final LogManager logger;
@@ -491,6 +494,16 @@ public class InventoryValidationListener implements Listener {
             return; // Auto-exchange disabled
         }
 
+        // Per-event deduplication guard: Paper fires InventoryClickEvent for each DoubleChest
+        // half on a shift-click, which would schedule two auto-exchange tasks before the
+        // existing 500ms debounce in AutoExchangeHandler has a chance to block the second.
+        // This set ensures only one task is scheduled per player+shop per interaction.
+        final String depositKey = player.getUniqueId() + ":" + barterSign.getShopId();
+        if (!pendingDeposits.add(depositKey)) {
+            logger.debug("Duplicate deposit event suppressed — " + player.getName() + " shop " + barterSign.getShopId());
+            return;
+        }
+
         logger.debug("Processing payment deposit auto-exchange for " + player.getName());
 
         // Make final for lambda
@@ -498,6 +511,7 @@ public class InventoryValidationListener implements Listener {
 
         // Schedule for next tick to ensure item is in chest
         plugin.getServer().getScheduler().runTaskLater(plugin, () -> {
+            pendingDeposits.remove(depositKey);
             autoExchange.handlePaymentDeposit(player, finalDepositedItem, barterSign)
                 .thenAccept(result -> {
                     plugin.getServer().getScheduler().runTask(plugin, () -> {
@@ -882,5 +896,6 @@ public class InventoryValidationListener implements Listener {
      */
     public void cleanup() {
         shopContainers.clear();
+        pendingDeposits.clear();
     }
 }
