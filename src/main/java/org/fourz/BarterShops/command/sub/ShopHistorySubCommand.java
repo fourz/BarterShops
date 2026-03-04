@@ -24,7 +24,7 @@ public class ShopHistorySubCommand implements SubCommand {
 
     private static final int PAGE_SIZE = 5;
     private static final int MAX_FETCH = 50;
-    private static final Pattern MATERIAL_PATTERN = Pattern.compile("(?i)type:\\s*([A-Z_]+)");
+    private static final Pattern MATERIAL_PATTERN = Pattern.compile("^([A-Z_]+)");
     private static final SimpleDateFormat DATE_FORMAT = new SimpleDateFormat("MMM d, h:mm a");
 
     private final BarterShops plugin;
