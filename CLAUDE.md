@@ -364,9 +364,11 @@ For plugin status and history, search Graph Memory: `search_nodes("BarterShops")
 - `SignLayoutFactory.java`: Legacy layout builders (`MAX_LINE_LENGTH = 15`, `truncateForSign`, type/setup/board/delete layouts)
 
 **Known Issues**:
-- **bug-30**: Chest break prevention deletes shop from database — use DELETE mode instead
-- **bug-34**: Owner preview mode (sneak+right-click) shows owner summary instead of customer pagination view — workaround: check payment options manually in TYPE mode
 - **bug-32/33**: Auto-revert scheduler — fixed in commit 89f2e23, regression testing pending
+
+**Resolved Issues** (closed 2026-03-04):
+- ~~**bug-30**: Chest break prevention deletes shop from database~~ — resolved; use DELETE mode is now enforced
+- ~~**bug-34**: Owner preview mode (sneak+right-click) shows owner summary instead of customer pagination view~~ — resolved in v1.1.x sign display refactor
 
 **Latest Completions** (Mar 3):
 - v1.1.16: SignDisplay refactor (#193) — all 5 ISignModeRenderer renderers delegate to SignLayoutFactory; TypeModeRenderer and BoardModeRenderer.renderNotConfigured() updated; factory createTypeLayout/createNotConfiguredLayout aligned to current output
