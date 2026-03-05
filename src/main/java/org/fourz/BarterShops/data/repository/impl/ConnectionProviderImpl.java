@@ -159,10 +159,10 @@ public class ConnectionProviderImpl implements IConnectionProvider {
      * Each migration is idempotent — errors from already-applied changes are silently skipped.
      */
     private void runMigrations(Connection conn) {
-        // v1.0.27: add trade_source column to active and archive tables
+        // v1.0.27: add trade_source column to active and archive tables (IF NOT EXISTS = idempotent on reload)
         for (String tableName : new String[]{ table(TABLE_TRADE_RECORDS), table(TABLE_TRADE_RECORDS_ARCHIVE) }) {
             String alterSql = "mysql".equals(databaseType)
-                ? "ALTER TABLE " + tableName + " ADD COLUMN trade_source VARCHAR(32) NOT NULL DEFAULT 'UNKNOWN'"
+                ? "ALTER TABLE " + tableName + " ADD COLUMN IF NOT EXISTS trade_source VARCHAR(32) NOT NULL DEFAULT 'UNKNOWN'"
                 : "ALTER TABLE " + tableName + " ADD COLUMN trade_source TEXT NOT NULL DEFAULT 'UNKNOWN'";
             try (PreparedStatement s = conn.prepareStatement(alterSql)) {
                 s.execute();
@@ -173,10 +173,10 @@ public class ConnectionProviderImpl implements IConnectionProvider {
             }
         }
 
-        // #191: add item_type column to active and archive tables
+        // #191: add item_type column to active and archive tables (IF NOT EXISTS = idempotent on reload)
         for (String tableName : new String[]{ table(TABLE_TRADE_RECORDS), table(TABLE_TRADE_RECORDS_ARCHIVE) }) {
             String alterSql = "mysql".equals(databaseType)
-                ? "ALTER TABLE " + tableName + " ADD COLUMN item_type VARCHAR(64)"
+                ? "ALTER TABLE " + tableName + " ADD COLUMN IF NOT EXISTS item_type VARCHAR(64)"
                 : "ALTER TABLE " + tableName + " ADD COLUMN item_type TEXT";
             try (PreparedStatement s = conn.prepareStatement(alterSql)) {
                 s.execute();
@@ -186,10 +186,8 @@ public class ConnectionProviderImpl implements IConnectionProvider {
             }
         }
 
-        // #191: index for per-item analytics on active table
-        String idxSql = "mysql".equals(databaseType)
-            ? "ALTER TABLE " + table(TABLE_TRADE_RECORDS) + " ADD INDEX idx_" + getTablePrefix() + "item_type (item_type)"
-            : "CREATE INDEX IF NOT EXISTS idx_" + getTablePrefix() + "trade_records_item_type ON "
+        // #191: index for per-item analytics on active table (CREATE INDEX IF NOT EXISTS = idempotent)
+        String idxSql = "CREATE INDEX IF NOT EXISTS idx_" + getTablePrefix() + "trade_records_item_type ON "
                 + table(TABLE_TRADE_RECORDS) + "(item_type)";
         try (PreparedStatement s = conn.prepareStatement(idxSql)) {
             s.execute();
