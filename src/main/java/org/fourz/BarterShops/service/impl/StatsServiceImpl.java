@@ -477,6 +477,7 @@ public class StatsServiceImpl implements IStatsService {
      * Handles both MySQL format (namespace:TYPE) and SQLite JSON format ({"type":"TYPE",...}).
      */
     private String extractItemType(String itemStackData) {
+        if (itemStackData == null || itemStackData.isEmpty()) return "UNKNOWN";
         if (itemStackData.startsWith("{")) {
             // SQLite JSON serialization — extract the "type" field value
             int typeIdx = itemStackData.indexOf("\"type\"");
