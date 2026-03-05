@@ -36,12 +36,15 @@ public class ShopReloadSubCommand implements SubCommand {
             // Reload configuration
             plugin.getConfigManager().reloadConfig();
 
-            // Warn if storage backend changed — DB pool re-init is not safe at runtime
+            // Reload or warn based on whether the backend type changed
             String newStorageType = plugin.getConfigManager().getStorageType();
             if (!previousStorageType.equalsIgnoreCase(newStorageType)) {
                 sender.sendMessage(ChatColor.translateAlternateColorCodes('&',
                     "&e⚠ Database backend change requires server restart to apply. " +
                     "Current backend: &f" + previousStorageType + "&e is still active."));
+            } else {
+                plugin.getConnectionProvider().reload();
+                logger.debug("Database connection pool reloaded");
             }
 
             // Reload economy manager

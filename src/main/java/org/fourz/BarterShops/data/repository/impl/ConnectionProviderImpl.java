@@ -405,6 +405,14 @@ public class ConnectionProviderImpl implements IConnectionProvider {
     }
 
     @Override
+    public void reload() throws SQLException {
+        logger.info("Reloading database connection pool (" + databaseType + ")...");
+        shutdown();
+        initialize();
+        logger.info("Database connection pool reloaded successfully");
+    }
+
+    @Override
     public boolean isHealthy() {
         if (dataSource == null || dataSource.isClosed()) {
             return false;
