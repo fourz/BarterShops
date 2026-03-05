@@ -150,12 +150,14 @@ public class ShopTaxSubCommand implements SubCommand {
 
     @Override
     public boolean hasPermission(CommandSender sender) {
-        return sender.hasPermission(getPermission()) || sender.isOp();
+        return sender.hasPermission(getPermission())
+            || sender.hasPermission("bartershops.create")
+            || sender.isOp();
     }
 
     @Override
     public String getPermission() {
-        return "bartershops.create";
+        return "bartershops.economy.tax";
     }
 
     @Override

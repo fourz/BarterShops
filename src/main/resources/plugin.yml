@@ -20,6 +20,12 @@ permissions:
   bartershops.create:
     description: Allows creating and configuring barter shops, and all player commands
     default: false
+  bartershops.economy.fee:
+    description: View shop listing fee schedule (/shop fee)
+    default: op
+  bartershops.economy.tax:
+    description: View trade tax rates and calculate taxes (/shop tax)
+    default: op
   bartershops.admin:
     description: Full admin access — bypasses all shop restrictions
     default: op
