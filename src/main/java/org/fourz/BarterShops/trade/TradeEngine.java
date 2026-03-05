@@ -9,6 +9,7 @@ import org.fourz.BarterShops.BarterShops;
 import org.fourz.rvnkcore.data.FallbackTracker;
 import org.fourz.BarterShops.data.dto.TradeRecordDTO;
 import org.fourz.BarterShops.service.ITradeService.TradeResultDTO;
+import org.fourz.BarterShops.service.ITransactionLogger;
 import org.fourz.BarterShops.sign.BarterSign;
 import org.fourz.rvnkcore.util.log.LogManager;
 
@@ -469,9 +470,13 @@ public class TradeEngine {
         TradeServiceImpl tradeService = plugin.getTradeService();
         if (tradeService != null) {
             tradeService.saveTrade(record)
+                .thenAccept(saved -> {
+                    ITransactionLogger txLogger = plugin.getTransactionLogger();
+                    if (txLogger != null) txLogger.log(saved);
+                })
                 .exceptionally(ex -> {
                     logger.error("Failed to persist trade record: " + ex.getMessage());
-                    return record;
+                    return null;
                 });
         } else {
             logger.debug("Trade logged (no persistence — TradeServiceImpl not available): " + transactionId);

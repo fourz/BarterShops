@@ -23,6 +23,7 @@ import org.fourz.BarterShops.service.IShopService;
 import org.fourz.BarterShops.service.IRatingService;
 import org.fourz.BarterShops.service.IStatsService;
 import org.fourz.BarterShops.service.ITradeService;
+import org.fourz.BarterShops.service.ITransactionLogger;
 import org.fourz.BarterShops.service.impl.RatingServiceImpl;
 import org.fourz.BarterShops.service.impl.StatsServiceImpl;
 import org.fourz.BarterShops.service.impl.TradeServiceImpl;
@@ -68,6 +69,8 @@ public class BarterShops extends JavaPlugin {
     private ITradeRepository tradeRepository;
     private TradeServiceImpl tradeService;
     private RetentionManager retentionManager;
+
+    private ITransactionLogger transactionLogger;
 
     // Plugin lifecycle tracking
     private long startTime;
@@ -692,5 +695,13 @@ public class BarterShops extends JavaPlugin {
      */
     public org.fourz.BarterShops.service.IShopOwnershipService getOwnershipService() {
         return ownershipService;
+    }
+
+    public ITransactionLogger getTransactionLogger() {
+        return transactionLogger;
+    }
+
+    public void setTransactionLogger(ITransactionLogger logger) {
+        this.transactionLogger = logger;
     }
 }

@@ -29,8 +29,8 @@ retention:
   # "archive" = move to trade_records_archive table before removing from active table
   # Future stub: "delete" = direct delete without archiving
   action: archive
-  # Future stub: aggregate daily/monthly summaries before archiving
-  # Future stub: prune archive table after N months (archive-days: 365)
+  # Delete archive records older than this many days (0 = keep indefinitely)
+  archive-days: 365
   # Future stub: separate retention periods by trade status (FAILED/REFUNDED: keep longer)
 
 # REST API Configuration (feat-03)

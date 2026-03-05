@@ -70,8 +70,8 @@ public class TradeRepositoryImpl implements ITradeRepository {
 
         return CompletableFuture.supplyAsync(() -> {
             String sql = "INSERT INTO " + t("trade_records") + " (transaction_id, shop_id, buyer_uuid, seller_uuid, " +
-                "item_stack_data, quantity, currency_material, price_paid, status, trade_source, completed_at) " +
-                "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)";
+                "item_stack_data, quantity, currency_material, price_paid, status, trade_source, item_type, completed_at) " +
+                "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)";
 
             try (Connection conn = connectionProvider.getConnection();
                  PreparedStatement stmt = conn.prepareStatement(sql)) {
@@ -86,7 +86,8 @@ public class TradeRepositoryImpl implements ITradeRepository {
                 stmt.setInt(8, trade.pricePaid());
                 stmt.setString(9, trade.status().name());
                 stmt.setString(10, trade.tradeSource() != null ? trade.tradeSource() : "UNKNOWN");
-                stmt.setTimestamp(11, trade.completedAt());
+                stmt.setString(11, extractItemTypeForInsert(trade.itemStackData()));
+                stmt.setTimestamp(12, trade.completedAt());
 
                 stmt.executeUpdate();
                 fallbackTracker.recordSuccess();
@@ -676,7 +677,7 @@ public class TradeRepositoryImpl implements ITradeRepository {
 
                 // Archive the records — explicit column list excludes archived_at (auto-defaulted)
                 String cols = "transaction_id, shop_id, buyer_uuid, seller_uuid, item_stack_data," +
-                    " quantity, currency_material, price_paid, status, trade_source, completed_at";
+                    " quantity, currency_material, price_paid, status, trade_source, item_type, completed_at";
                 String archiveSql = "INSERT INTO " + archiveTable + " (" + cols + ")" +
                     " SELECT " + cols + " FROM " + t("trade_records") + " WHERE completed_at < ?";
                 String deleteSql = "DELETE FROM " + t("trade_records") + " WHERE completed_at < ?";
@@ -746,6 +747,115 @@ public class TradeRepositoryImpl implements ITradeRepository {
         }, executor);
     }
 
+    @Override
+    public CompletableFuture<Integer> populateDailySummaries(Timestamp olderThan) {
+        if (fallbackTracker.isInFallbackMode()) {
+            return CompletableFuture.completedFuture(0);
+        }
+
+        return CompletableFuture.supplyAsync(() -> {
+            boolean isMySQL = "mysql".equals(connectionProvider.getDatabaseType());
+            String dailyTable = connectionProvider.table("trade_daily_summary");
+            String tradeTable = connectionProvider.table("trade_records");
+            String sql;
+            if (isMySQL) {
+                sql = "INSERT INTO " + dailyTable +
+                    " (shop_id, summary_date, trade_count, total_qty, unique_buyers)" +
+                    " SELECT shop_id, DATE(completed_at), COUNT(*), SUM(quantity), COUNT(DISTINCT buyer_uuid)" +
+                    " FROM " + tradeTable + " WHERE completed_at < ?" +
+                    " GROUP BY shop_id, DATE(completed_at)" +
+                    " ON DUPLICATE KEY UPDATE" +
+                    " trade_count = VALUES(trade_count)," +
+                    " total_qty = VALUES(total_qty)," +
+                    " unique_buyers = VALUES(unique_buyers)";
+            } else {
+                sql = "INSERT OR REPLACE INTO " + dailyTable +
+                    " (shop_id, summary_date, trade_count, total_qty, unique_buyers)" +
+                    " SELECT shop_id, date(completed_at), COUNT(*), SUM(quantity), COUNT(DISTINCT buyer_uuid)" +
+                    " FROM " + tradeTable + " WHERE completed_at < ?" +
+                    " GROUP BY shop_id, date(completed_at)";
+            }
+
+            try (Connection conn = connectionProvider.getConnection();
+                 PreparedStatement stmt = conn.prepareStatement(sql)) {
+                stmt.setTimestamp(1, olderThan);
+                int rows = stmt.executeUpdate();
+                fallbackTracker.recordSuccess();
+                return rows;
+            } catch (SQLException e) {
+                fallbackTracker.recordFailure("Populate daily summaries failed: " + e.getMessage());
+                logger.error("Failed to populate daily summaries: " + e.getMessage());
+                return 0;
+            }
+        }, executor);
+    }
+
+    @Override
+    public CompletableFuture<Integer> rollupMonthlySummaries(Timestamp olderThan) {
+        if (fallbackTracker.isInFallbackMode()) {
+            return CompletableFuture.completedFuture(0);
+        }
+
+        return CompletableFuture.supplyAsync(() -> {
+            boolean isMySQL = "mysql".equals(connectionProvider.getDatabaseType());
+            String monthlyTable = connectionProvider.table("trade_monthly_summary");
+            String dailyTable = connectionProvider.table("trade_daily_summary");
+            String sql;
+            if (isMySQL) {
+                sql = "INSERT INTO " + monthlyTable +
+                    " (shop_id, summary_month, trade_count, total_qty, unique_buyers)" +
+                    " SELECT shop_id, DATE_FORMAT(summary_date, '%Y-%m-01'), SUM(trade_count), SUM(total_qty), SUM(unique_buyers)" +
+                    " FROM " + dailyTable + " WHERE summary_date < DATE(?)" +
+                    " GROUP BY shop_id, DATE_FORMAT(summary_date, '%Y-%m-01')" +
+                    " ON DUPLICATE KEY UPDATE" +
+                    " trade_count = VALUES(trade_count)," +
+                    " total_qty = VALUES(total_qty)," +
+                    " unique_buyers = VALUES(unique_buyers)";
+            } else {
+                sql = "INSERT OR REPLACE INTO " + monthlyTable +
+                    " (shop_id, summary_month, trade_count, total_qty, unique_buyers)" +
+                    " SELECT shop_id, strftime('%Y-%m-01', summary_date), SUM(trade_count), SUM(total_qty), SUM(unique_buyers)" +
+                    " FROM " + dailyTable + " WHERE summary_date < date(?)" +
+                    " GROUP BY shop_id, strftime('%Y-%m-01', summary_date)";
+            }
+
+            try (Connection conn = connectionProvider.getConnection();
+                 PreparedStatement stmt = conn.prepareStatement(sql)) {
+                stmt.setTimestamp(1, olderThan);
+                int rows = stmt.executeUpdate();
+                fallbackTracker.recordSuccess();
+                return rows;
+            } catch (SQLException e) {
+                fallbackTracker.recordFailure("Rollup monthly summaries failed: " + e.getMessage());
+                logger.error("Failed to rollup monthly summaries: " + e.getMessage());
+                return 0;
+            }
+        }, executor);
+    }
+
+    @Override
+    public CompletableFuture<Integer> pruneArchive(Timestamp olderThan) {
+        if (fallbackTracker.isInFallbackMode()) {
+            return CompletableFuture.completedFuture(0);
+        }
+
+        return CompletableFuture.supplyAsync(() -> {
+            String sql = "DELETE FROM " + t("trade_records_archive") + " WHERE completed_at < ?";
+
+            try (Connection conn = connectionProvider.getConnection();
+                 PreparedStatement stmt = conn.prepareStatement(sql)) {
+                stmt.setTimestamp(1, olderThan);
+                int affected = stmt.executeUpdate();
+                fallbackTracker.recordSuccess();
+                return affected;
+            } catch (SQLException e) {
+                fallbackTracker.recordFailure("Prune archive failed: " + e.getMessage());
+                logger.error("Failed to prune archive: " + e.getMessage());
+                return 0;
+            }
+        }, executor);
+    }
+
     // ========================================================
     // Fallback Mode
     // ========================================================
@@ -786,6 +896,12 @@ public class TradeRepositoryImpl implements ITradeRepository {
                 .tradeSource(tradeSource)
                 .completedAt(rs.getTimestamp("completed_at"))
                 .build();
+    }
+
+    private static String extractItemTypeForInsert(String data) {
+        if (data == null || data.isEmpty()) return "UNKNOWN";
+        int colon = data.indexOf(':');
+        return colon > 0 ? data.substring(0, colon) : data;
     }
 
     /**
