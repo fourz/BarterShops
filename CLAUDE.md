@@ -25,7 +25,7 @@ mvn validate
 mvn dependency:tree
 ```
 
-**Output**: `target/BarterShops-1.0-SNAPSHOT.jar` (deployed as `BarterShops-1.0.1+.jar` on RVNK Dev for v1.0.1+ releases)
+**Output**: `target/BarterShops.jar` (versionless — `<finalName>` set in pom.xml)
 
 ## Remote Testing Workflow
 

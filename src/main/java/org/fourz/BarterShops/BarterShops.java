@@ -78,7 +78,7 @@ public class BarterShops extends JavaPlugin {
     // RVNKCore integration
     private boolean rvnkCoreAvailable = false;
     private Object rvnkCoreInstance = null;
-    private org.fourz.BarterShops.api.ShopApiInitializer shopApiInitializer;
+    // shopApiInitializer removed — API routing handled by RVNKCore's BarterShopsController
 
     @Override
     public void onEnable() {
@@ -316,13 +316,21 @@ public class BarterShops extends JavaPlugin {
                 logger.info("Registered ITradeService with RVNKCore");
             }
 
+            // Register IBarterShopsApiService for RVNKCore's BarterShopsController
+            Object shopServiceForApi = createShopService();
+            org.fourz.BarterShops.api.ShopApiEndpointImpl apiService =
+                new org.fourz.BarterShops.api.ShopApiEndpointImpl(
+                    shopServiceForApi != null ? (IShopService) shopServiceForApi : null,
+                    tradeService,
+                    null  // IShopDatabaseService - impl pending
+                );
+            Class<?> apiServiceInterface = Class.forName("org.fourz.rvnkcore.api.service.IBarterShopsApiService");
+            registerMethod.invoke(serviceRegistry, apiServiceInterface, apiService);
+            logger.info("Registered IBarterShopsApiService with RVNKCore");
+
             rvnkCoreAvailable = true;
             rvnkCoreInstance = coreInstance;
             logger.info("RVNKCore integration enabled - services registered");
-
-            // Register REST API with RVNKCore servlet service
-            shopApiInitializer = new org.fourz.BarterShops.api.ShopApiInitializer(this);
-            shopApiInitializer.initialize();
 
             // Register notification types with PlayerPreferencesService
             registerNotificationTypes();
@@ -427,10 +435,6 @@ public class BarterShops extends JavaPlugin {
             return;
         }
 
-        if (shopApiInitializer != null) {
-            shopApiInitializer.shutdown();
-        }
-
         try {
             Class<?> rvnkCoreClass = rvnkCoreInstance.getClass();
             Object serviceRegistry = rvnkCoreClass.getMethod("getServiceRegistry").invoke(rvnkCoreInstance);
@@ -442,11 +446,14 @@ public class BarterShops extends JavaPlugin {
             java.lang.reflect.Method unregisterMethod = registryClass.getMethod("unregisterService", Class.class);
 
             // Unregister services in reverse order
+            try {
+                Class<?> apiServiceInterface = Class.forName("org.fourz.rvnkcore.api.service.IBarterShopsApiService");
+                unregisterMethod.invoke(serviceRegistry, apiServiceInterface);
+            } catch (ClassNotFoundException ignored) {}
             unregisterMethod.invoke(serviceRegistry, IStatsService.class);
             unregisterMethod.invoke(serviceRegistry, IShopService.class);
             unregisterMethod.invoke(serviceRegistry, IRatingService.class);
             unregisterMethod.invoke(serviceRegistry, ITradeService.class);
-            // unregisterMethod.invoke(serviceRegistry, IShopDatabaseService.class);
 
             logger.info("Services unregistered from RVNKCore");
 

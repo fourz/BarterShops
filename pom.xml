@@ -50,13 +50,7 @@
             <artifactId>snakeyaml</artifactId>
             <version>2.0</version>
         </dependency>
-        <!-- Jakarta Servlet API - provided by RVNKCore's bundled Jetty 11 at runtime -->
-        <dependency>
-            <groupId>jakarta.servlet</groupId>
-            <artifactId>jakarta.servlet-api</artifactId>
-            <version>5.0.0</version>
-            <scope>provided</scope>
-        </dependency>
+        <!-- Jakarta Servlet API removed — API routing handled by RVNKCore's BarterShopsController -->
         <dependency>
             <groupId>me.clip</groupId>
             <artifactId>placeholderapi</artifactId>
@@ -131,6 +125,7 @@
 
     </dependencies>
     <build>
+        <finalName>${project.artifactId}</finalName>
         <resources>
             <resource>
                 <directory>src/main/resources</directory>
