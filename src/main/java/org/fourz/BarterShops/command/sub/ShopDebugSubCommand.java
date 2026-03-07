@@ -239,10 +239,12 @@ public class ShopDebugSubCommand implements SubCommand {
             // Player is online
             newOwnerUUID = targetPlayer.getUniqueId();
         } else {
-            // Try offline player lookup
+            // Try offline player lookup — getUniqueId() is NEVER null (generates offline UUID for unknown names).
+            // Must check hasPlayedBefore() to reject completely unknown players.
             var offlinePlayer = Bukkit.getOfflinePlayer(playerName);
-            if (offlinePlayer.getUniqueId() == null) {
+            if (!offlinePlayer.hasPlayedBefore()) {
                 sender.sendMessage(ChatColor.RED + "Player not found: " + playerName);
+                sender.sendMessage(ChatColor.GRAY + "(Player has never joined this server)");
                 return true;
             }
             newOwnerUUID = offlinePlayer.getUniqueId();
@@ -293,7 +295,7 @@ public class ShopDebugSubCommand implements SubCommand {
 
     @Override
     public String getPermission() {
-        return "bartershops.debug";
+        return "bartershops.admin";
     }
 
     @Override

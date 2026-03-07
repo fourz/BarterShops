@@ -24,7 +24,6 @@ import org.fourz.rvnkcore.util.log.LogManager;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
-import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
 
@@ -39,39 +38,28 @@ public class SignInteraction {
     private final LogManager logger;
     private final Map<Location, BukkitTask> activeRevertTasks = new ConcurrentHashMap<>();
     private final Map<String, Long> pendingDeletions = new ConcurrentHashMap<>(); // signId -> timestamp
+    private final Map<String, Long> pendingTypeChanges = new ConcurrentHashMap<>(); // signId -> timestamp
     private final Map<Location, Long> lastPreviewToggleTime = new ConcurrentHashMap<>(); // Debounce preview toggle
-    private final Map<String, Integer> shiftClickPanelState = new ConcurrentHashMap<>(); // Track shift+click panel per player/sign
-    private final Set<UUID> customerInfoToggled = ConcurrentHashMap.newKeySet(); // Per-session info toggle for customers
+    private final SignSessionManager sessionManager = new SignSessionManager();
     private static final long PREVIEW_TOGGLE_DEBOUNCE_MS = 150; // Ignore toggles within 150ms
-    private final Map<String, Long> lastPurchaseTime = new ConcurrentHashMap<>(); // Debounce left-click purchases
-    private static final long PURCHASE_DEBOUNCE_MS = STATUS_DISPLAY_TICKS * 50L; // Match feedback window (3s)
+    private static final long PURCHASE_DEBOUNCE_MS = 2000L; // 2 seconds between repeat purchases
 
     public SignInteraction(BarterShops plugin) {
         this.plugin = plugin;
         this.logger = LogManager.getInstance(plugin, CLASS_NAME);
     }
 
-    /**
-     * Detects if a player is a customer (not the owner and in survival mode).
-     */
-    private boolean isCustomer(Player player, BarterSign barterSign) {
-        if (barterSign.getOwner().equals(player.getUniqueId())) {
-            return false; // Owner is never a customer
-        }
-        return player.getGameMode() == org.bukkit.GameMode.SURVIVAL;
-    }
-
     public void handleLeftClick(Player player, Sign sign, BarterSign barterSign, PlayerInteractEvent event) {
         if (barterSign == null) return;
 
         // CUSTOMER LEFT-CLICK: Direct trade initiation
-        if (isCustomer(player, barterSign)) {
+        if (barterSign.isCustomer(player)) {
             handleCustomerLeftClick(player, sign, barterSign, event);
             return;
         }
 
         // OWNER LEFT-CLICK: Configuration (requires permission)
-        if (!player.hasPermission("bartershops.configure")) {
+        if (!player.hasPermission("bartershops.create")) {
             logger.debug("Left-click ignored - player lacks configure permission");
             return;
         }
@@ -81,9 +69,9 @@ public class SignInteraction {
         }
 
         logger.debug("Owner left-click detected - mode: " + barterSign.getMode());
-        // Don't cancel revert in DELETE mode - let 10s countdown from right-click continue
+        // Don't cancel revert in DELETE or TYPE mode - let 10s countdown from right-click continue
         // Confirmation display is temporary (5s auto-clear), not a configuration interaction
-        if (barterSign.getMode() != ShopMode.DELETE) {
+        if (barterSign.getMode() != ShopMode.DELETE && barterSign.getMode() != ShopMode.TYPE) {
             cancelRevert(sign.getLocation());
         }
 
@@ -236,30 +224,63 @@ public class SignInteraction {
             }
 
             case TYPE -> {
-                // Left-click in TYPE: Cycle through shop types (BARTER, BUY, SELL)
-                // Inventory type (stackable/unstackable) is auto-detected separately
+                // Left-click in TYPE: Two-step confirmation before cycling shop type (BARTER, BUY, SELL)
+                // First click shows confirmation prompt; second click applies the change.
+                // Mirrors the DELETE two-step pattern - 10s revert timer from right-click continues.
                 SignType currentType = barterSign.getType();
                 SignType nextType = plugin.getTypeAvailabilityManager().getNextSignType(currentType);
 
-                // Clear payment configuration when changing type
                 if (currentType != nextType) {
-                    barterSign.clearPaymentOptions();
-                    barterSign.configurePrice(null, 0);
-                    barterSign.resetCustomerViewState(); // Reset pagination
-                    player.sendMessage(ChatColor.YELLOW + "! Type changed: " + currentType + " → " + nextType);
-                    player.sendMessage(ChatColor.GRAY + "Payment configuration cleared");
+                    String signId = barterSign.getId();
 
-                    // Save configuration to database
-                    if (barterSign.getShopId() > 0) {
-                        plugin.getSignManager().saveSignConfiguration(barterSign);
+                    if (pendingTypeChanges.containsKey(signId)) {
+                        // Second click - TYPE change confirmed
+                        pendingTypeChanges.remove(signId);
+
+                        barterSign.clearPaymentOptions();
+                        barterSign.configurePrice(null, 0);
+                        barterSign.resetCustomerViewState();
+                        barterSign.setType(nextType);
+                        player.sendMessage(ChatColor.YELLOW + "! Type changed: " + currentType + " → " + nextType);
+                        player.sendMessage(ChatColor.GRAY + "Payment configuration cleared");
+
+                        if (barterSign.getShopId() > 0) {
+                            plugin.getSignManager().saveSignConfiguration(barterSign);
+                        }
+                        logger.debug("Owner: TYPE confirmed - " + currentType + " -> " + nextType);
+
+                        SignDisplay.updateSign(sign, barterSign, false);
+                        event.setCancelled(true);
+                        return;
+                    } else {
+                        // First click - initiate confirmation prompt
+                        pendingTypeChanges.put(signId, System.currentTimeMillis());
+                        player.sendMessage(ChatColor.YELLOW + "⚠ Click AGAIN to confirm type change: " + currentType + " → " + nextType);
+                        player.sendMessage(ChatColor.GRAY + "This will reset payment configuration");
+
+                        SignDisplay.displayTypeConfirmation(sign, nextType);
+
+                        // Schedule auto-clear of confirmation display (5s timeout)
+                        final UUID confirmingPlayerUuid = player.getUniqueId();
+                        plugin.getServer().getScheduler().runTaskLater(plugin, () -> {
+                            if (pendingTypeChanges.containsKey(signId)) {
+                                pendingTypeChanges.remove(signId);
+                                Player confirmingPlayer = plugin.getServer().getPlayer(confirmingPlayerUuid);
+                                if (confirmingPlayer != null) {
+                                    confirmingPlayer.sendMessage(ChatColor.GRAY + "Type change confirmation expired");
+                                }
+                                // Revert sign display back to normal TYPE prompt, keep 10s timer running
+                                if (barterSign.getMode() == ShopMode.TYPE) {
+                                    SignDisplay.updateSign(sign, barterSign, false);
+                                }
+                            }
+                        }, DELETE_CONFIRMATION_TIMEOUT_TICKS);
+                        // NOTE: Do NOT reschedule the 10s auto-revert - original timer from right-click continues
+                        event.setCancelled(true);
+                        return;
                     }
                 }
-
-                barterSign.setType(nextType);
-                logger.debug("Owner: TYPE cycling - " + currentType + " -> " + nextType);
-
-                // Reschedule auto-revert after interaction completes
-                scheduleRevert(sign, barterSign);
+                // No-op if only one type available
             }
 
             case BOARD -> {
@@ -334,6 +355,11 @@ public class SignInteraction {
      * Only works in BOARD mode. Validates held item matches current payment option.
      */
     private void handleCustomerLeftClick(Player player, Sign sign, BarterSign barterSign, PlayerInteractEvent event) {
+        if (!player.hasPermission("bartershops.use") && !player.hasPermission("bartershops.create") && !player.hasPermission("bartershops.admin")) {
+            player.sendMessage(ChatColor.RED + "Permission needed for access to BarterShops");
+            return; // NO sign update
+        }
+
         if (barterSign.getMode() != ShopMode.BOARD) {
             logger.debug("Customer tried to interact with non-BOARD mode shop");
             return;
@@ -343,7 +369,7 @@ public class SignInteraction {
 
         // Debounce check before any feedback: prevents "Hold payment item" from overwriting
         // the "Purchased" message during the feedback window after payment is consumed.
-        if (isPurchaseDebounceActive(player.getUniqueId(), barterSign.getShopId())) {
+        if (isPurchaseDebounceActive(player.getUniqueId(), barterSign)) {
             return; // Silent — success message still visible
         }
 
@@ -368,7 +394,7 @@ public class SignInteraction {
                 return;
             }
 
-            recordPurchaseTime(player.getUniqueId(), barterSign.getShopId());
+            recordPurchaseTime(player.getUniqueId(), barterSign);
             processTrade(player, sign, barterSign);
         } else {
             // BUY/SELL: Validate held item matches price item
@@ -378,7 +404,7 @@ public class SignInteraction {
                 return;
             }
 
-            recordPurchaseTime(player.getUniqueId(), barterSign.getShopId());
+            recordPurchaseTime(player.getUniqueId(), barterSign);
             processTrade(player, sign, barterSign);
         }
 
@@ -487,9 +513,9 @@ public class SignInteraction {
      */
     private void handleOwnerShiftClick(Player player, Sign sign, BarterSign barterSign) {
         ShopPreferenceManager prefs = plugin.getPreferenceManager();
-        String stateKey = player.getUniqueId() + ":" + sign.getLocation().toString();
+        SignSession session = sessionManager.getOrCreate(player.getUniqueId(), sign.getLocation().toString());
 
-        int currentPanel = shiftClickPanelState.getOrDefault(stateKey, 1);
+        int currentPanel = session.getShiftClickPanel();
         int nextPanel = currentPanel;
 
         if (currentPanel == 1) {
@@ -506,7 +532,7 @@ public class SignInteraction {
             boolean canViewInfo = prefs.isInfoDisplayEnabled(player.getUniqueId()) &&
                 (barterSign.getOwner().equals(player.getUniqueId()) ||
                  player.hasPermission("bartershops.admin") ||
-                 player.hasPermission("bartershops.command.info"));
+                 player.hasPermission("bartershops.use"));
 
             if (canViewInfo) {
                 // Show shop info and advance to Panel 3 (info display shows messages)
@@ -534,7 +560,7 @@ public class SignInteraction {
         }
 
         // Store next panel state
-        shiftClickPanelState.put(stateKey, nextPanel);
+        session.setShiftClickPanel(nextPanel);
     }
 
     /**
@@ -542,17 +568,23 @@ public class SignInteraction {
      * Toggle is per-session (reset on server restart).
      */
     private void handleCustomerShiftClick(Player player, Sign sign, BarterSign barterSign) {
-        UUID uuid = player.getUniqueId();
-        if (customerInfoToggled.remove(uuid)) {
+        SignSession session = sessionManager.getOrCreate(player.getUniqueId(), sign.getLocation().toString());
+        if (session.isCustomerInfoToggled()) {
+            session.setCustomerInfoToggled(false);
             player.sendMessage(ChatColor.GRAY + "[BarterShops] Shop info view off.");
             return;
         }
-        customerInfoToggled.add(uuid);
+        session.setCustomerInfoToggled(true);
         ShopInfoDisplayHelper helper = plugin.getShopInfoDisplayHelper();
         helper.displayShopInfoForCustomer(player, barterSign, sign.getLocation());
     }
 
     private void handleCustomerRightClick(Player player, Sign sign, BarterSign barterSign) {
+        if (!player.hasPermission("bartershops.use") && !player.hasPermission("bartershops.create") && !player.hasPermission("bartershops.admin")) {
+            player.sendMessage(ChatColor.RED + "Permission needed for access to BarterShops");
+            return; // NO sign update
+        }
+
         logger.debug("Processing customer interaction");
 
         if (barterSign.getMode() != ShopMode.BOARD) {
@@ -664,13 +696,16 @@ public class SignInteraction {
         Inventory stockInv = null;
         if (barterSign.getShopContainerWrapper() != null) {
             stockInv = barterSign.getShopContainerWrapper().getInventory();
+            logger.debug("Stock check: using ShopContainerWrapper inventory");
         } else {
             Container shopContainer = barterSign.getShopContainer();
             if (shopContainer == null) shopContainer = barterSign.getContainer();
             if (shopContainer != null) stockInv = shopContainer.getInventory();
+            logger.debug("Stock check: using raw container, shopContainer=" + (shopContainer != null));
         }
 
         if (stockInv == null) {
+            logger.debug("Stock check: stockInv is NULL - no container linked to shop");
             showTemporaryStatus(sign, barterSign, "\u00A7cNo container", "\u00A7cfound");
             return;
         }
@@ -682,6 +717,10 @@ public class SignInteraction {
                 availableStock += item.getAmount();
             }
         }
+
+        logger.debug("Stock check: availableStock=" + availableStock + ", required=" + offering.getAmount() +
+            ", offering=" + offering.getType() + "x" + offering.getAmount() +
+            ", wrapperNull=" + (barterSign.getShopContainerWrapper() == null));
 
         if (availableStock < offering.getAmount()) {
             showTemporaryStatus(sign, barterSign, "\u00A7cOut of", "\u00A7cstock");
@@ -801,6 +840,21 @@ public class SignInteraction {
 
         TradeSession session = sessionOpt.get();
 
+        // Resolve shop inventory on the main thread before async executeTrade() runs.
+        // Paper's CraftChest.getInventory() does a world-level adjacency check to detect double
+        // chests. When called from a ForkJoinPool (async) thread, this check is not thread-safe
+        // and may return only the 27-slot half instead of the full 54-slot DoubleChestInventory.
+        org.bukkit.inventory.Inventory resolvedShopInventory = null;
+        org.fourz.BarterShops.container.ShopContainer shopWrapper = barterSign.getShopContainerWrapper();
+        if (shopWrapper != null) {
+            resolvedShopInventory = shopWrapper.getInventory();
+        } else if (barterSign.getShopContainer() != null) {
+            resolvedShopInventory = barterSign.getShopContainer().getInventory();
+        }
+        if (resolvedShopInventory != null) {
+            session.setPreResolvedShopInventory(resolvedShopInventory);
+        }
+
         // Configure trade items with validated offering and payment
         session.setOfferedItem(offering, offering.getAmount());
         session.setRequestedItem(paymentItem, paymentAmount);
@@ -863,6 +917,15 @@ public class SignInteraction {
             return;
         }
 
+        // Resolve shop inventory on the main thread before going async (double-chest safety).
+        org.bukkit.inventory.Inventory resolvedShopInventory = null;
+        org.fourz.BarterShops.container.ShopContainer shopWrapper = barterSign.getShopContainerWrapper();
+        if (shopWrapper != null) {
+            resolvedShopInventory = shopWrapper.getInventory();
+        } else if (barterSign.getShopContainer() != null) {
+            resolvedShopInventory = barterSign.getShopContainer().getInventory();
+        }
+
         // Execute direct trade via AutoExchangeHandler pattern
         tradeEngine.executeDirectTrade(
             player,
@@ -871,7 +934,8 @@ public class SignInteraction {
             offering.getAmount(),
             payment,
             paymentAmount,
-            org.fourz.BarterShops.trade.TradeSource.INSTANT_PURCHASE
+            org.fourz.BarterShops.trade.TradeSource.INSTANT_PURCHASE,
+            resolvedShopInventory
         ).thenAccept(result -> {
             plugin.getServer().getScheduler().runTask(plugin, () -> {
                 if (result.success()) {
@@ -949,12 +1013,15 @@ public class SignInteraction {
             public void run() {
                 // Auto-revert: Transitioning from non-BOARD mode (SETUP/TYPE/DELETE/HELP) back to BOARD
 
-                // Clean up DELETE-specific state if reverting from DELETE mode
+                // Clean up pending confirmation state if reverting from DELETE or TYPE mode
                 String signId = barterSign.getId();
                 if (barterSign.getMode() == ShopMode.DELETE && pendingDeletions.containsKey(signId)) {
-                    // Clear pending confirmation if timer fires while in DELETE mode
                     pendingDeletions.remove(signId);
                     logger.debug("Auto-revert from DELETE: Cleared pending confirmation");
+                }
+                if (barterSign.getMode() == ShopMode.TYPE && pendingTypeChanges.containsKey(signId)) {
+                    pendingTypeChanges.remove(signId);
+                    logger.debug("Auto-revert from TYPE: Cleared pending type change");
                 }
 
                 // Reset mode and UI state
@@ -1083,20 +1150,31 @@ public class SignInteraction {
         return SignDisplay.formatItemName(item);
     }
 
-    private boolean isPurchaseDebounceActive(UUID playerId, int shopId) {
-        Long last = lastPurchaseTime.get(playerId + ":" + shopId);
-        return last != null && (System.currentTimeMillis() - last) < PURCHASE_DEBOUNCE_MS;
+    private boolean isPurchaseDebounceActive(UUID playerId, BarterSign barterSign) {
+        SignSession session = sessionManager.get(playerId, barterSign.getSignLocation().toString());
+        if (session == null) return false;
+        long last = session.getLastPurchaseTime();
+        return last > 0 && (System.currentTimeMillis() - last) < PURCHASE_DEBOUNCE_MS;
     }
 
-    private void recordPurchaseTime(UUID playerId, int shopId) {
-        lastPurchaseTime.put(playerId + ":" + shopId, System.currentTimeMillis());
+    private void recordPurchaseTime(UUID playerId, BarterSign barterSign) {
+        sessionManager.getOrCreate(playerId, barterSign.getSignLocation().toString())
+            .setLastPurchaseTime(System.currentTimeMillis());
+    }
+
+    /**
+     * Removes all per-player session state for a player who has disconnected.
+     * Called by SignManager.onPlayerQuit() to prevent unbounded map growth.
+     */
+    public void cleanupPlayer(UUID playerUuid) {
+        sessionManager.cleanupPlayer(playerUuid);
     }
 
     public void cleanup() {
         activeRevertTasks.values().forEach(BukkitTask::cancel);
         activeRevertTasks.clear();
         pendingDeletions.clear();
-        customerInfoToggled.clear();
-        lastPurchaseTime.clear();
+        pendingTypeChanges.clear();
+        sessionManager.cleanup();
     }
 }

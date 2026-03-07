@@ -19,6 +19,7 @@ import org.bukkit.event.block.BlockPistonRetractEvent;
 import org.bukkit.event.block.SignChangeEvent;
 import org.bukkit.event.entity.EntityExplodeEvent;
 import org.bukkit.event.player.PlayerInteractEvent;
+import org.bukkit.event.player.PlayerQuitEvent;
 import org.bukkit.event.HandlerList;
 import org.bukkit.inventory.ItemStack;
 
@@ -360,6 +361,13 @@ public class SignManager implements Listener {
         if (barterSigns.containsKey(event.getBlock().getLocation())) {
             event.setCancelled(true);
         }
+    }
+
+    // ========== Player Session Cleanup ==========
+
+    @EventHandler
+    public void onPlayerQuit(PlayerQuitEvent event) {
+        signInteraction.cleanupPlayer(event.getPlayer().getUniqueId());
     }
 
     // ========== Sign Interaction Handlers ==========

@@ -140,7 +140,7 @@ public class ShopRegionSubCommand implements SubCommand {
                         ChatColor.WHITE + count + "/" + protectionManager.getMaxShopsPerPlayer());
 
                 boolean canCreate = count < protectionManager.getMaxShopsPerPlayer() ||
-                        player.hasPermission("bartershops.admin.unlimited") ||
+                        player.hasPermission("bartershops.admin") ||
                         player.isOp();
 
                 sender.sendMessage(ChatColor.YELLOW + "Can create more: " +
@@ -196,7 +196,7 @@ public class ShopRegionSubCommand implements SubCommand {
 
     @Override
     public String getPermission() {
-        return "bartershops.command.region";
+        return "bartershops.create";
     }
 
     @Override

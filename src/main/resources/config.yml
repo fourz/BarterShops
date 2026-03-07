@@ -29,8 +29,8 @@ retention:
   # "archive" = move to trade_records_archive table before removing from active table
   # Future stub: "delete" = direct delete without archiving
   action: archive
-  # Future stub: aggregate daily/monthly summaries before archiving
-  # Future stub: prune archive table after N months (archive-days: 365)
+  # Delete archive records older than this many days (0 = keep indefinitely)
+  archive-days: 365
   # Future stub: separate retention periods by trade status (FAILED/REFUNDED: keep longer)
 
 # REST API Configuration (feat-03)
@@ -85,8 +85,8 @@ protection:
   # Auto-protect radius around shops (in blocks)
   auto-protect-radius: 3
 
-  # Maximum shops per player (bypass with bartershops.admin.unlimited)
-  max-shops-per-player: 5
+  # Maximum shops per player (bypass with bartershops.admin)
+  max-shops-per-player: 64
 
 notifications:
   # Master notification toggle (can be overridden per-player)

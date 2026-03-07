@@ -1,8 +1,46 @@
+> **DEPRECATED — March 2026**: Status is now tracked in Docker MCP knowledge graph
+> (`mcp__MCP_DOCKER__search_nodes("BarterShops")`). Open tasks tracked in GitHub Issues (`board:bartershops`).
+> This file is preserved as historical reference only and is no longer actively maintained.
+
 # BarterShops Development Roadmap
 
-**Last Updated**: February 16, 2026
+**Last Updated**: February 28, 2026
 **Archon Board**: `bd4e478b-772a-4b97-bd99-300552840815`
-**Version**: 1.0.3 (Auto-Exchange Fix Complete)
+**Version**: 1.0.29
+**GitHub Board**: [board:bartershops](https://github.com/fourz/Ravenkaft-Dev/issues?q=is:open+label:board:bartershops) (6 open issues)
+
+---
+
+## February 28, 2026 Status: Current Issues and Planned Work
+
+**Open GitHub Issues** (6 total):
+
+- **#316** `bug-BS-59`: Shop shows stale out-of-stock state after changeowner + restock cycle (LOW priority — cache invalidation on ownership change, workaround: `/shop reload`)
+- **#194** `test-33`: BUY/SELL shops unaffected by Phases 8-14 QA (verify standard behavior maintained)
+- **#193** `refactor`: SignDisplay to use SignLayoutFactory (reduce SignDisplay from 511 to ~120 lines via delegation)
+- **#192** `feat-10`: Trade history for WebUI and /shop history command (UNBLOCKED — ITradeRepository.findByShop() confirmed implemented)
+- **#191** `feat`: Economic history archive tables and aggregate datapoints (daily/monthly summaries, archive pruning, ITransactionLogger wiring)
+- **#190** `doc-18`: Update BarterShops documentation — current feature set (CLAUDE.md, README.md, SIGN_UI_UX.md creation)
+
+**Next Phase**: Trade history display (WebUI + command), documentation update, QA for Phases 8-14
+
+---
+
+## February 21, 2026 Status: Trade Logging, Retention, Admin Trade Command, Debounce Fix
+
+**Today's Development** (Feb 21 — PR #1 merged → master):
+
+- ✅ **feat: trade_source persisted** (v1.0.27) — `trade_source` column added to `barter_trade_records` and `barter_trade_records_archive` (MySQL + SQLite schemas). ALTER TABLE migration applied at startup for existing installs (idempotent — SQLException = already applied). `TradeRecordDTO` gains `String tradeSource` field; compact constructor normalizes null → `"UNKNOWN"`. `TradeEngine.logTrade()` now wires `source.name()` into the record. `TradeServiceImpl.serializeItem()` marked `@Deprecated` (dead code — never called by trade flow). Files: schema/mysql_schema.sql, schema/sqlite_schema.sql, dto/TradeRecordDTO.java, trade/TradeEngine.java, repository/impl/TradeRepositoryImpl.java, repository/impl/ConnectionProviderImpl.java, service/impl/TradeServiceImpl.java
+
+- ✅ **feat: 30-day trade archive scheduler** (v1.0.28) — `RetentionManager` registers a Bukkit async repeating task (6000 tick / 5-min startup delay; 1,728,000 tick / 24-hr period). Reads `retention.active-days` at construction; calls `ITradeRepository.archiveOlderThan(Timestamp)` which INSERT-SELECTs explicit column list into archive table then deletes from active. `config.yml` gains `retention:` section (`enabled`, `active-days: 30`, `action: archive`). ConfigManager adds three getters. Future stubs documented: daily/monthly summaries, archive pruning, per-status retention periods. Files: data/RetentionManager.java (new), config/ConfigManager.java, BarterShops.java, src/main/resources/config.yml
+
+- ✅ **feat: /shop trade admin force-trade** (v1.0.28) — `ShopTradeSubCommand` (`/shop trade <player> <shopId> [qty]`): console-capable, requires `bartershops.admin.trade`. Validates player online, shopId, qty is positive multiple of base offering, shop has stock. Calls `tradeEngine.executeDirectTrade()` with `null` payment and `TradeSource.ADMIN_OVERRIDE`. Result returned to sender on main thread. 20th registered subcommand. Files: command/sub/ShopTradeSubCommand.java (new), command/ShopCommand.java
+
+- ✅ **fix: sign debounce prevents feedback flash on single-payment BARTER** (v1.0.29) — Root cause: `PURCHASE_DEBOUNCE_MS = 1000ms` (< 3000ms feedback window) AND debounce check came AFTER null/air item check. After payment block consumed, second left-click at t=1s-2.9s hit null check first and overwrote "Purchased" with "Hold payment item". Fix 1: `PURCHASE_DEBOUNCE_MS = STATUS_DISPLAY_TICKS * 50L` (now 3000ms, self-documenting coupling). Fix 2: debounce check moved to top of `handleCustomerLeftClick()`, before null/air check; two duplicate debounce calls in BARTER and BUY/SELL branches removed. Files: sign/SignInteraction.java
+
+**Archon Status**: PR #1 merged to master; parent submodule updated to v1.0.29
+
+---
 
 ## February 16, 2026 Status: Auto-Exchange System Fixed (bug-41)
 

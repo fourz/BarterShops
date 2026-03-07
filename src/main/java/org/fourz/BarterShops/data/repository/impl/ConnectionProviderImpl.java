@@ -42,6 +42,8 @@ public class ConnectionProviderImpl implements IConnectionProvider {
     private static final String TABLE_TRADE_RECORDS_ARCHIVE = "trade_records_archive";
     private static final String TABLE_SHOP_METADATA = "shop_metadata";
     private static final String TABLE_SHOP_RATINGS = "shop_ratings";
+    private static final String TABLE_TRADE_DAILY_SUMMARY  = "trade_daily_summary";
+    private static final String TABLE_TRADE_MONTHLY_SUMMARY = "trade_monthly_summary";
 
     /**
      * Creates a new ConnectionProviderImpl.
@@ -157,10 +159,10 @@ public class ConnectionProviderImpl implements IConnectionProvider {
      * Each migration is idempotent — errors from already-applied changes are silently skipped.
      */
     private void runMigrations(Connection conn) {
-        // v1.0.27: add trade_source column to active and archive tables
+        // v1.0.27: add trade_source column to active and archive tables (IF NOT EXISTS = idempotent on reload)
         for (String tableName : new String[]{ table(TABLE_TRADE_RECORDS), table(TABLE_TRADE_RECORDS_ARCHIVE) }) {
             String alterSql = "mysql".equals(databaseType)
-                ? "ALTER TABLE " + tableName + " ADD COLUMN trade_source VARCHAR(32) NOT NULL DEFAULT 'UNKNOWN'"
+                ? "ALTER TABLE " + tableName + " ADD COLUMN IF NOT EXISTS trade_source VARCHAR(32) NOT NULL DEFAULT 'UNKNOWN'"
                 : "ALTER TABLE " + tableName + " ADD COLUMN trade_source TEXT NOT NULL DEFAULT 'UNKNOWN'";
             try (PreparedStatement s = conn.prepareStatement(alterSql)) {
                 s.execute();
@@ -169,6 +171,29 @@ public class ConnectionProviderImpl implements IConnectionProvider {
                 // Expected on repeat runs (column already exists) — silently skip
                 logger.debug("Migration skip (already applied or table absent): " + tableName + " — " + e.getMessage());
             }
+        }
+
+        // #191: add item_type column to active and archive tables (IF NOT EXISTS = idempotent on reload)
+        for (String tableName : new String[]{ table(TABLE_TRADE_RECORDS), table(TABLE_TRADE_RECORDS_ARCHIVE) }) {
+            String alterSql = "mysql".equals(databaseType)
+                ? "ALTER TABLE " + tableName + " ADD COLUMN IF NOT EXISTS item_type VARCHAR(64)"
+                : "ALTER TABLE " + tableName + " ADD COLUMN item_type TEXT";
+            try (PreparedStatement s = conn.prepareStatement(alterSql)) {
+                s.execute();
+                logger.info("Migration applied: added item_type to " + tableName);
+            } catch (SQLException e) {
+                logger.debug("Migration skip (already applied or table absent): " + tableName + " — " + e.getMessage());
+            }
+        }
+
+        // #191: index for per-item analytics on active table (CREATE INDEX IF NOT EXISTS = idempotent)
+        String idxSql = "CREATE INDEX IF NOT EXISTS idx_" + getTablePrefix() + "trade_records_item_type ON "
+                + table(TABLE_TRADE_RECORDS) + "(item_type)";
+        try (PreparedStatement s = conn.prepareStatement(idxSql)) {
+            s.execute();
+            logger.info("Migration applied: item_type index on " + table(TABLE_TRADE_RECORDS));
+        } catch (SQLException e) {
+            logger.debug("Migration skip (index already exists): " + e.getMessage());
         }
     }
 
@@ -226,12 +251,14 @@ public class ConnectionProviderImpl implements IConnectionProvider {
                 "price_paid INT NOT NULL DEFAULT 0, " +
                 "status VARCHAR(16) NOT NULL DEFAULT 'COMPLETED', " +
                 "trade_source VARCHAR(32) NOT NULL DEFAULT 'UNKNOWN', " +
+                "item_type VARCHAR(64), " +
                 "completed_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP, " +
                 "INDEX idx_" + p + "buyer (buyer_uuid), " +
                 "INDEX idx_" + p + "seller (seller_uuid), " +
                 "INDEX idx_" + p + "shop_trade (shop_id), " +
                 "INDEX idx_" + p + "status (status), " +
-                "INDEX idx_" + p + "completed (completed_at)" +
+                "INDEX idx_" + p + "completed (completed_at), " +
+                "INDEX idx_" + p + "item_type (item_type)" +
                 ") ENGINE=InnoDB DEFAULT CHARSET=utf8mb4");
 
         stmt.execute("CREATE TABLE IF NOT EXISTS " + tradeRecordsArchive + " (" +
@@ -245,6 +272,7 @@ public class ConnectionProviderImpl implements IConnectionProvider {
                 "price_paid INT NOT NULL DEFAULT 0, " +
                 "status VARCHAR(16) NOT NULL DEFAULT 'COMPLETED', " +
                 "trade_source VARCHAR(32) NOT NULL DEFAULT 'UNKNOWN', " +
+                "item_type VARCHAR(64), " +
                 "completed_at TIMESTAMP NOT NULL, " +
                 "archived_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP, " +
                 "INDEX idx_" + p + "archive_completed (completed_at), " +
@@ -269,6 +297,33 @@ public class ConnectionProviderImpl implements IConnectionProvider {
                 "UNIQUE KEY uq_" + p + "shop_rater (shop_id, rater_uuid), " +
                 "FOREIGN KEY (shop_id) REFERENCES " + shops + "(shop_id) ON DELETE CASCADE, " +
                 "INDEX idx_" + p + "ratings_shop (shop_id)" +
+                ") ENGINE=InnoDB DEFAULT CHARSET=utf8mb4");
+
+        String dailySummary = table(TABLE_TRADE_DAILY_SUMMARY);
+        String monthlySummary = table(TABLE_TRADE_MONTHLY_SUMMARY);
+
+        stmt.execute("CREATE TABLE IF NOT EXISTS " + dailySummary + " (" +
+                "summary_id INT AUTO_INCREMENT PRIMARY KEY, " +
+                "shop_id INT NOT NULL, " +
+                "summary_date DATE NOT NULL, " +
+                "trade_count INT NOT NULL DEFAULT 0, " +
+                "total_qty INT NOT NULL DEFAULT 0, " +
+                "unique_buyers INT NOT NULL DEFAULT 0, " +
+                "UNIQUE KEY uq_" + p + "daily_shop_date (shop_id, summary_date), " +
+                "INDEX idx_" + p + "daily_date (summary_date), " +
+                "INDEX idx_" + p + "daily_shop (shop_id)" +
+                ") ENGINE=InnoDB DEFAULT CHARSET=utf8mb4");
+
+        stmt.execute("CREATE TABLE IF NOT EXISTS " + monthlySummary + " (" +
+                "summary_id INT AUTO_INCREMENT PRIMARY KEY, " +
+                "shop_id INT NOT NULL, " +
+                "summary_month DATE NOT NULL, " +
+                "trade_count INT NOT NULL DEFAULT 0, " +
+                "total_qty INT NOT NULL DEFAULT 0, " +
+                "unique_buyers INT NOT NULL DEFAULT 0, " +
+                "UNIQUE KEY uq_" + p + "monthly_shop_month (shop_id, summary_month), " +
+                "INDEX idx_" + p + "monthly_month (summary_month), " +
+                "INDEX idx_" + p + "monthly_shop (shop_id)" +
                 ") ENGINE=InnoDB DEFAULT CHARSET=utf8mb4");
     }
 
@@ -328,6 +383,7 @@ public class ConnectionProviderImpl implements IConnectionProvider {
                 "price_paid INTEGER NOT NULL DEFAULT 0, " +
                 "status TEXT NOT NULL DEFAULT 'COMPLETED', " +
                 "trade_source TEXT NOT NULL DEFAULT 'UNKNOWN', " +
+                "item_type TEXT, " +
                 "completed_at TEXT DEFAULT CURRENT_TIMESTAMP, " +
                 "FOREIGN KEY (shop_id) REFERENCES " + shops + "(shop_id) ON DELETE CASCADE" +
                 ")");
@@ -335,6 +391,7 @@ public class ConnectionProviderImpl implements IConnectionProvider {
         stmt.execute("CREATE INDEX IF NOT EXISTS idx_" + p + "trade_records_buyer ON " + tradeRecords + "(buyer_uuid)");
         stmt.execute("CREATE INDEX IF NOT EXISTS idx_" + p + "trade_records_seller ON " + tradeRecords + "(seller_uuid)");
         stmt.execute("CREATE INDEX IF NOT EXISTS idx_" + p + "trade_records_shop ON " + tradeRecords + "(shop_id)");
+        stmt.execute("CREATE INDEX IF NOT EXISTS idx_" + p + "trade_records_item_type ON " + tradeRecords + "(item_type)");
 
         stmt.execute("CREATE TABLE IF NOT EXISTS " + tradeRecordsArchive + " (" +
                 "transaction_id TEXT PRIMARY KEY, " +
@@ -347,6 +404,7 @@ public class ConnectionProviderImpl implements IConnectionProvider {
                 "price_paid INTEGER NOT NULL DEFAULT 0, " +
                 "status TEXT NOT NULL DEFAULT 'COMPLETED', " +
                 "trade_source TEXT NOT NULL DEFAULT 'UNKNOWN', " +
+                "item_type TEXT, " +
                 "completed_at TEXT NOT NULL, " +
                 "archived_at TEXT DEFAULT CURRENT_TIMESTAMP" +
                 ")");
@@ -374,6 +432,33 @@ public class ConnectionProviderImpl implements IConnectionProvider {
                 ")");
 
         stmt.execute("CREATE INDEX IF NOT EXISTS idx_" + p + "shop_ratings_shop_id ON " + shopRatings + "(shop_id)");
+
+        String dailySummary = table(TABLE_TRADE_DAILY_SUMMARY);
+        String monthlySummary = table(TABLE_TRADE_MONTHLY_SUMMARY);
+
+        stmt.execute("CREATE TABLE IF NOT EXISTS " + dailySummary + " (" +
+                "summary_id INTEGER PRIMARY KEY AUTOINCREMENT, " +
+                "shop_id INTEGER NOT NULL, " +
+                "summary_date TEXT NOT NULL, " +
+                "trade_count INTEGER NOT NULL DEFAULT 0, " +
+                "total_qty INTEGER NOT NULL DEFAULT 0, " +
+                "unique_buyers INTEGER NOT NULL DEFAULT 0, " +
+                "UNIQUE(shop_id, summary_date)" +
+                ")");
+        stmt.execute("CREATE INDEX IF NOT EXISTS idx_" + p + "daily_date ON " + dailySummary + "(summary_date)");
+        stmt.execute("CREATE INDEX IF NOT EXISTS idx_" + p + "daily_shop ON " + dailySummary + "(shop_id)");
+
+        stmt.execute("CREATE TABLE IF NOT EXISTS " + monthlySummary + " (" +
+                "summary_id INTEGER PRIMARY KEY AUTOINCREMENT, " +
+                "shop_id INTEGER NOT NULL, " +
+                "summary_month TEXT NOT NULL, " +
+                "trade_count INTEGER NOT NULL DEFAULT 0, " +
+                "total_qty INTEGER NOT NULL DEFAULT 0, " +
+                "unique_buyers INTEGER NOT NULL DEFAULT 0, " +
+                "UNIQUE(shop_id, summary_month)" +
+                ")");
+        stmt.execute("CREATE INDEX IF NOT EXISTS idx_" + p + "monthly_month ON " + monthlySummary + "(summary_month)");
+        stmt.execute("CREATE INDEX IF NOT EXISTS idx_" + p + "monthly_shop ON " + monthlySummary + "(shop_id)");
     }
 
     @Override
@@ -402,6 +487,14 @@ public class ConnectionProviderImpl implements IConnectionProvider {
             dataSource.close();
             logger.info("Database connection pool shut down successfully");
         }
+    }
+
+    @Override
+    public void reload() throws SQLException {
+        logger.info("Reloading database connection pool (" + databaseType + ")...");
+        shutdown();
+        initialize();
+        logger.info("Database connection pool reloaded successfully");
     }
 
     @Override

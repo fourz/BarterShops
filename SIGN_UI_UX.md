@@ -1,7 +1,7 @@
 # BarterShops Sign UI/UX Guide
 
-**Last Updated**: February 13, 2026
-**Status**: Complete (Phases 8-13 implemented)
+**Last Updated**: March 3, 2026
+**Status**: Complete (Phases 8-13 implemented, renderer architecture refactored)
 **Minecraft Version**: Paper 1.20+
 
 ## Table of Contents
@@ -459,23 +459,62 @@ Sign: Returns to owner summary view
 ## Architecture References
 
 ### Implementation Files
-- **SignDisplay.java**: Rendering logic with router pattern
-- **SignInteraction.java**: Player interaction handling
-- **BarterSign.java**: Data model (session-only pagination state)
-- **ShopMode.java**: Mode enumeration and rotation logic
+
+| File | Package | Purpose |
+|------|---------|---------|
+| `SignDisplay.java` | `sign` | Thin dispatcher: routes to `ISignModeRenderer` via `EnumMap<ShopMode>` |
+| `ISignModeRenderer.java` | `sign.renderer` | Interface: `void render(SignSide, BarterSign, boolean isCustomerView)` |
+| `BoardModeRenderer.java` | `sign.renderer` | BOARD mode rendering (customer pagination, owner summary, dual-wrap) |
+| `SetupModeRenderer.java` | `sign.renderer` | SETUP mode rendering (step 1 offering, step 2 payment config) |
+| `TypeModeRenderer.java` | `sign.renderer` | TYPE mode rendering (shop type cycling, lock status) |
+| `DeleteModeRenderer.java` | `sign.renderer` | DELETE mode rendering (confirmation prompt) |
+| `HelpModeRenderer.java` | `sign.renderer` | HELP mode rendering (owner instructions) |
+| `SignRenderUtil.java` | `sign.renderer` | Shared rendering helpers (see Key Methods below) |
+| `SignLayoutFactory.java` | `sign.factory` | Legacy layout builders; defines `MAX_LINE_LENGTH = 15` |
+| `SignInteraction.java` | `sign` | Player click event handling, preview mode toggle |
+| `BarterSign.java` | `sign` | Data model: session-only pagination state (`ownerPreviewMode`, `currentPaymentPage`) |
+| `ShopMode.java` | `shop` | Mode enum and rotation logic (`SETUP → TYPE → BOARD → DELETE → SETUP`) |
 
 ### Key Methods
-- `displayCustomerPaymentPage()`: Customer view with pagination
-- `displayOwnerBoardView()`: Owner view with summary
-- `displayOfferingWithWrapping()`: Handle long offering names
-- `displayPaymentWithWrapping()`: Handle long payment names
-- `displayDualWrapMode()`: Conditional header removal for dual-wrap
+
+**SignDisplay (dispatcher)**
+- `updateSign(Sign, BarterSign, boolean isCustomerView)` — routes to registered renderer; `isCustomerView=true` for customers and owner preview mode
+- `updateSign(Sign, BarterSign)` — backward-compatible overload; resolves `isCustomerView` from `barterSign.isOwnerPreviewMode()`
+- `displayTemporaryMessage(Sign, String line1, String line2)` — flash a 2-line status message (keeps [Barter Shop] header)
+- `displayDeleteConfirmation(Sign)` — render the "L-Click AGAIN / (5s timeout)" confirmation state
+- `displayTypeConfirmation(Sign, SignType nextType)` — render type-change confirmation state
+
+**SignRenderUtil (shared helpers)**
+- `getTypeHeader(SignType)` — returns coloured header: `§2[Barter]`, `§e[We Buy]`, `§a[We Sell]`
+- `formatItemName(ItemStack)` — custom display name if set; otherwise title-cases the material enum (e.g. `DIAMOND_SWORD` → "Diamond Sword")
+- `computeNameSplit(String name, int prefixLength)` — last-space word-break within available chars; hard split at char limit when no space found
+- `displayOfferingWithWrapping(SignSide, ItemStack, int startLine)` — writes "Qx Name" across `startLine` and `startLine+1` if name overflows; returns `true` if wrapped
+- `displayOfferingWithWrapping(SignSide, ItemStack)` — overload defaulting `startLine=1`
+- `displayPaymentWithWrapping(SignSide, ItemStack, int startLine)` — writes "for: Qx Name" across two lines if overflow; returns `true` if wrapped
+- `displayDualWrapMode(SignSide, ItemStack offering, ItemStack payment)` — header-free layout using all 4 lines: lines 0-1 for offering, lines 2-3 for payment
+- `applyLayoutToSign(SignSide, String[] layout)` — writes a 4-element array to lines 0–3
+
+**SignLayoutFactory (legacy builders)**
+- `truncateForSign(String text, int maxLength)` — truncates with "..." suffix
+- `createSetupLayout(BarterSign)` — SETUP mode: step 1 (set offering) or step 2 (configure payment/price)
+- `createBoardOwnerSummaryLayout(BarterSign)` — BOARD owner: offering + payment count
+- `createBoardCustomerPageLayout(BarterSign, int pageIndex)` — BOARD customer: paginated payment display
+- `createTypeLayout(BarterSign)` — TYPE mode: [barter] header + formatted type
+- `createDeleteLayout()` — DELETE mode: [DELETE?] + confirm/remove text
+- `createHelpLayout()` — HELP mode: owner instruction text
+- `createNotConfiguredLayout(BarterSign)` — fallback for unconfigured shops
+
+**BarterSign (data model - session-only fields)**
+- `isOwnerPreviewMode()` / `setOwnerPreviewMode(boolean)` — tracks preview toggle; not persisted
+- `getCurrentPaymentPage()` / `setCurrentPaymentPage(int)` — 0-based page index with `Math.floorMod` wraparound; not persisted
+- `incrementPaymentPage()` — advances page by 1 with wraparound
+- `resetCustomerViewState()` — resets both preview mode and page to defaults on config change
 
 ### Design Patterns
-- **Router Pattern**: BOARD mode display delegates to customer/owner views
-- **Session-Only State**: Pagination fields don't persist to database
-- **Wrapping Algorithm**: Consistent 15-char threshold across item types
-- **Conditional Header Removal**: Only when both items exceed threshold
+- **OCP Renderer Pattern**: Each `ShopMode` has its own `ISignModeRenderer` implementation. `SignDisplay` owns only the `EnumMap` dispatch table and two ad-hoc helpers.
+- **Session-Only State**: `ownerPreviewMode` and `currentPaymentPage` live in `BarterSign` but are never persisted to the database.
+- **Wrapping Algorithm**: Consistent 15-character threshold (`MAX_LINE_LENGTH`) across all item types and all callers.
+- **Conditional Header Removal**: Dual-wrap mode removes the type header only when both offering AND payment overflow, and only for single-payment BARTER shops.
 
 ---
 
@@ -515,6 +554,6 @@ A: BARTER requires no economy plugin (item-for-item only). BUY/SELL require Vaul
 
 ---
 
-**Last Updated**: February 13, 2026
-**Current Version**: 1.0.1
+**Last Updated**: March 3, 2026
+**Current Version**: 1.0.29 (sign UI phases complete since v1.0.1)
 **Deployment Status**: Active on RVNK Dev

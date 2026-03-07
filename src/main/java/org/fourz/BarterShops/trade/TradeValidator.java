@@ -112,6 +112,8 @@ public class TradeValidator {
 
     /**
      * Validates shop has items in stock.
+     * Uses session's pre-resolved inventory if available to avoid async thread-safety
+     * issues with Paper's double-chest adjacency detection in CraftChest.getInventory().
      */
     private List<String> validateShopStock(BarterSign shop, TradeSession session) {
         List<String> errors = new ArrayList<>();
@@ -124,28 +126,26 @@ public class TradeValidator {
             return errors;
         }
 
-        // Check shop container for stock
-        // Use wrapper if available (Phase 2), otherwise fallback to plain container
-        org.fourz.BarterShops.container.ShopContainer wrapper = shop.getShopContainerWrapper();
-        if (wrapper != null) {
-            Inventory shopInv = wrapper.getInventory();
-            int stock = countItems(shopInv, offered);
-
-            if (stock < offeredAmount) {
-                errors.add(String.format("Shop out of stock: need %d %s, have %d",
-                        offeredAmount, getItemName(offered), stock));
+        // Prefer pre-resolved inventory (resolved on main thread, safe for double chests).
+        // Fallback to wrapper/container only when no pre-resolved inventory is set.
+        Inventory shopInv = session.getPreResolvedShopInventory();
+        if (shopInv == null) {
+            org.fourz.BarterShops.container.ShopContainer wrapper = shop.getShopContainerWrapper();
+            if (wrapper != null) {
+                shopInv = wrapper.getInventory();
+            } else if (shop.getShopContainer() != null) {
+                shopInv = shop.getShopContainer().getInventory();
             }
-        } else if (shop.getShopContainer() != null) {
-            // Fallback to plain container (backward compat)
-            Inventory shopInv = shop.getShopContainer().getInventory();
-            int stock = countItems(shopInv, offered);
+        }
 
+        if (shopInv != null) {
+            int stock = countItems(shopInv, offered);
             if (stock < offeredAmount) {
                 errors.add(String.format("Shop out of stock: need %d %s, have %d",
                         offeredAmount, getItemName(offered), stock));
             }
         }
-        // If no container, assume admin shop with unlimited stock
+        // If no inventory, assume admin shop with unlimited stock
 
         return errors;
     }

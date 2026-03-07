@@ -128,7 +128,7 @@ public class ShopInfoDisplayHelper {
         }
 
         // Info-viewer - limited view
-        if (player.hasPermission("bartershops.command.info")) {
+        if (player.hasPermission("bartershops.use")) {
             return ShopInfoView.LIMITED_VIEW;
         }
 
