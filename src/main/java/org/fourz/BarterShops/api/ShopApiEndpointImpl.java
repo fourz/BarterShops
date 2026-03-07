@@ -112,7 +112,7 @@ public class ShopApiEndpointImpl implements IBarterShopsApiService {
                     ApiResponse.error("INVALID_REQUEST", "Invalid player UUID format"));
             }
         } else {
-            futureTrades = databaseService.getRecentTrades(effectiveLimit);
+            futureTrades = tradeService.getRecentTrades(effectiveLimit);
         }
 
         return futureTrades
@@ -130,7 +130,7 @@ public class ShopApiEndpointImpl implements IBarterShopsApiService {
                 ApiResponse.error("INVALID_REQUEST", "Transaction ID is required"));
         }
 
-        return databaseService.getTradeByTransactionId(transactionId)
+        return tradeService.getTradeByTransactionId(transactionId)
             .<ApiResponse<?>>handle((optionalTrade, ex) -> {
                 if (ex != null) return ApiResponse.error("INTERNAL_ERROR",
                     "Failed to retrieve trade: " + ex.getMessage());

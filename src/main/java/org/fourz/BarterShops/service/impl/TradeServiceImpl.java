@@ -119,6 +119,22 @@ public class TradeServiceImpl implements ITradeService {
     }
 
     @Override
+    public CompletableFuture<List<TradeRecordDTO>> getRecentTrades(int limit) {
+        if (isInFallbackMode()) {
+            return CompletableFuture.completedFuture(List.of());
+        }
+        return tradeRepository.findRecent(limit);
+    }
+
+    @Override
+    public CompletableFuture<java.util.Optional<TradeRecordDTO>> getTradeByTransactionId(String transactionId) {
+        if (isInFallbackMode()) {
+            return CompletableFuture.completedFuture(java.util.Optional.empty());
+        }
+        return tradeRepository.findByTransactionId(transactionId);
+    }
+
+    @Override
     public CompletableFuture<Long> getTotalTradeCount() {
         if (isInFallbackMode()) {
             return CompletableFuture.completedFuture(0L);
@@ -166,16 +182,6 @@ public class TradeServiceImpl implements ITradeService {
                 fallbackTracker.recordFailure("Trade persistence: " + ex.getMessage());
                 return record;
             });
-    }
-
-    /**
-     * Gets recent trades across all shops.
-     */
-    public CompletableFuture<List<TradeRecordDTO>> getRecentTrades(int limit) {
-        if (isInFallbackMode()) {
-            return CompletableFuture.completedFuture(List.of());
-        }
-        return tradeRepository.findRecent(limit);
     }
 
     // ========================================================
