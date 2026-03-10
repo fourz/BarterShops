@@ -23,10 +23,15 @@ import org.bukkit.event.player.PlayerQuitEvent;
 import org.bukkit.event.HandlerList;
 import org.bukkit.inventory.ItemStack;
 
+import java.util.ArrayList;
 import java.util.Collections;
+import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 
+import org.bukkit.Bukkit;
+import org.bukkit.World;
+import org.bukkit.event.world.WorldLoadEvent;
 import org.fourz.BarterShops.BarterShops;
 import org.fourz.BarterShops.container.ShopContainer;
 import org.fourz.BarterShops.container.factory.ShopContainerFactory;
@@ -45,6 +50,8 @@ public class SignManager implements Listener {
     private final Map<Location, BarterSign> barterSigns = new ConcurrentHashMap<>();
     private final SignInteraction signInteraction;
     private final ShopConfigManager configManager;
+    // Shops deferred because their world wasn't loaded at startup (world name -> list of DTOs)
+    private final Map<String, List<ShopDataDTO>> deferredShops = new ConcurrentHashMap<>();
 
     public SignManager(BarterShops plugin) {
         this.plugin = plugin;
@@ -78,67 +85,83 @@ public class SignManager implements Listener {
             // runs on main thread (required for Bukkit API safety)
             java.util.List<ShopDataDTO> shops = plugin.getShopRepository().findAllActive().join();
             int loaded = 0;
-            int skippedNoLocation = 0;
             int skippedNoSign = 0;
+            int deferred = 0;
+            deferredShops.clear();
             for (ShopDataDTO shop : shops) {
                 Location signLoc = shop.getSignLocation();
                 if (signLoc == null || signLoc.getWorld() == null) {
-                    skippedNoLocation++;
+                    // World not loaded — defer for later hydration via WorldLoadEvent
+                    if (shop.locationWorld() != null) {
+                        deferredShops.computeIfAbsent(shop.locationWorld(), k -> new ArrayList<>()).add(shop);
+                        deferred++;
+                    }
                     continue;
                 }
 
-                Block block = signLoc.getBlock();
-                if (!(block.getState() instanceof Sign)) {
+                if (hydrateShop(shop, signLoc)) {
+                    loaded++;
+                } else {
                     skippedNoSign++;
-                    continue;
                 }
-
-                Sign sign = (Sign) block.getState();
-
-                // Unwax signs that may have been incorrectly waxed (restore interaction)
-                if (sign.isWaxed()) {
-                    sign.setWaxed(false);
-                    sign.update();
-                    logger.debug("Unwaxed shop " + shop.shopId() + " sign for interaction");
-                }
-
-                Container container = findAssociatedContainer(sign);
-
-                BarterSign barterSign = new BarterSign.Builder()
-                    .id(shop.getShopIdString())
-                    .owner(shop.ownerUuid())
-                    .signLocation(signLoc)
-                    .container(container)
-                    .mode(ShopMode.BOARD)
-                    .type(SignType.BARTER)
-                    .signSideDisplayFront(sign.getSide(org.bukkit.block.sign.Side.FRONT))
-                    .signSideDisplayBack(sign.getSide(org.bukkit.block.sign.Side.BACK))
-                    .build();
-
-                // Set shop ID for database reference
-                barterSign.setShopId(shop.shopId());
-
-                // Load persisted configuration
-                configManager.loadSignConfiguration(barterSign, shop);
-
-                // INTEGRATION POINT 2: Register ShopContainer from persisted configuration
-                if (container != null) {
-                    // Create stable UUID from numeric shop ID (database compatibility)
-                    UUID shopUuid = UUID.nameUUIDFromBytes(("bartershop:" + shop.shopId()).getBytes());
-                    ShopContainer shopContainer = createShopContainerFromBarterSign(barterSign, container, shopUuid);
-                    plugin.getContainerManager().getValidationListener().registerContainer(shopContainer);
-                    barterSign.setShopContainerWrapper(shopContainer); // CRITICAL: Set on BarterSign for TradeValidator access
-                }
-
-                barterSigns.put(signLoc, barterSign);
-                loaded++;
             }
             logger.info("Hydrated " + loaded + "/" + shops.size() + " barter signs from database"
-                + (skippedNoLocation > 0 ? " (skipped " + skippedNoLocation + " no location)" : "")
+                + (deferred > 0 ? " (deferred " + deferred + " in unloaded worlds: " + String.join(", ", deferredShops.keySet()) + ")" : "")
                 + (skippedNoSign > 0 ? " (skipped " + skippedNoSign + " no sign block)" : ""));
         } catch (Exception ex) {
             logger.error("Failed to load signs from database", ex);
         }
+    }
+
+    /**
+     * Hydrates a single shop from its DTO into the in-memory map.
+     * @return true if successfully hydrated, false if sign block not found
+     */
+    private boolean hydrateShop(ShopDataDTO shop, Location signLoc) {
+        Block block = signLoc.getBlock();
+        if (!(block.getState() instanceof Sign)) {
+            return false;
+        }
+
+        Sign sign = (Sign) block.getState();
+
+        // Unwax signs that may have been incorrectly waxed (restore interaction)
+        if (sign.isWaxed()) {
+            sign.setWaxed(false);
+            sign.update();
+            logger.debug("Unwaxed shop " + shop.shopId() + " sign for interaction");
+        }
+
+        Container container = findAssociatedContainer(sign);
+
+        BarterSign barterSign = new BarterSign.Builder()
+            .id(shop.getShopIdString())
+            .owner(shop.ownerUuid())
+            .signLocation(signLoc)
+            .container(container)
+            .mode(ShopMode.BOARD)
+            .type(SignType.BARTER)
+            .signSideDisplayFront(sign.getSide(org.bukkit.block.sign.Side.FRONT))
+            .signSideDisplayBack(sign.getSide(org.bukkit.block.sign.Side.BACK))
+            .build();
+
+        // Set shop ID for database reference
+        barterSign.setShopId(shop.shopId());
+
+        // Load persisted configuration
+        configManager.loadSignConfiguration(barterSign, shop);
+
+        // INTEGRATION POINT 2: Register ShopContainer from persisted configuration
+        if (container != null) {
+            // Create stable UUID from numeric shop ID (database compatibility)
+            UUID shopUuid = UUID.nameUUIDFromBytes(("bartershop:" + shop.shopId()).getBytes());
+            ShopContainer shopContainer = createShopContainerFromBarterSign(barterSign, container, shopUuid);
+            plugin.getContainerManager().getValidationListener().registerContainer(shopContainer);
+            barterSign.setShopContainerWrapper(shopContainer); // CRITICAL: Set on BarterSign for TradeValidator access
+        }
+
+        barterSigns.put(signLoc, barterSign);
+        return true;
     }
 
     private void createBarterSign(Player player, Sign sign, Container container) {
@@ -620,6 +643,100 @@ public class SignManager implements Listener {
         // UNIFIED: Set bidirectional reference for user-aware validation context
         shopContainer.setBarterSign(barterSign);
         return shopContainer;
+    }
+
+    // ========== World Load Listener (multi-world support) ==========
+
+    @EventHandler
+    public void onWorldLoad(WorldLoadEvent event) {
+        String worldName = event.getWorld().getName();
+        List<ShopDataDTO> shops = deferredShops.remove(worldName);
+        if (shops == null || shops.isEmpty()) return;
+
+        // Hydrate deferred shops now that their world is loaded
+        // Must run on main thread (Bukkit block access) — WorldLoadEvent is already on main thread
+        int loaded = 0;
+        int skipped = 0;
+        for (ShopDataDTO shop : shops) {
+            Location signLoc = shop.getSignLocation();
+            if (signLoc == null || signLoc.getWorld() == null) {
+                skipped++;
+                continue;
+            }
+            if (hydrateShop(shop, signLoc)) {
+                loaded++;
+            } else {
+                skipped++;
+            }
+        }
+        if (loaded > 0 || skipped > 0) {
+            logger.info("World '" + worldName + "' loaded: hydrated " + loaded + "/" + shops.size()
+                + " deferred barter signs" + (skipped > 0 ? " (skipped " + skipped + ")" : ""));
+        }
+    }
+
+    // ========== Admin Cleanup ==========
+
+    /**
+     * Lists active shops that cannot be hydrated (orphans).
+     * A shop is orphaned if its world is not loaded and not deferred,
+     * or if its sign block no longer exists.
+     *
+     * @return list of orphaned ShopDataDTOs
+     */
+    public List<ShopDataDTO> findOrphanedShops() {
+        if (plugin.getShopRepository() == null) return List.of();
+
+        try {
+            List<ShopDataDTO> shops = plugin.getShopRepository().findAllActive().join();
+            List<ShopDataDTO> orphans = new ArrayList<>();
+
+            for (ShopDataDTO shop : shops) {
+                Location signLoc = shop.getSignLocation();
+                if (signLoc == null || signLoc.getWorld() == null) {
+                    // World not loaded — check if it's a known deferred world or truly orphaned
+                    if (shop.locationWorld() != null && Bukkit.getWorld(shop.locationWorld()) == null) {
+                        // World exists in config but not loaded — not orphaned, just deferred
+                        continue;
+                    }
+                    // Null world name or world that doesn't exist at all
+                    orphans.add(shop);
+                    continue;
+                }
+                // World is loaded but sign block is gone
+                Block block = signLoc.getBlock();
+                if (!(block.getState() instanceof Sign)) {
+                    orphans.add(shop);
+                }
+            }
+            return orphans;
+        } catch (Exception e) {
+            logger.error("Failed to scan for orphaned shops", e);
+            return List.of();
+        }
+    }
+
+    /**
+     * Deactivates an orphaned shop in the database.
+     * @param shopId the shop ID to deactivate
+     */
+    public void deactivateShop(int shopId) {
+        if (plugin.getShopRepository() == null) return;
+        plugin.getShopRepository().deactivate(shopId)
+            .thenRun(() -> logger.info("Deactivated orphaned shop " + shopId))
+            .exceptionally(ex -> {
+                logger.error("Failed to deactivate shop " + shopId, ex);
+                return null;
+            });
+    }
+
+    /**
+     * Gets the count of deferred shops still waiting for their world to load.
+     */
+    public Map<String, Integer> getDeferredShopCounts() {
+        Map<String, Integer> counts = new java.util.LinkedHashMap<>();
+        deferredShops.forEach((world, shops) -> counts.put(world, shops.size()));
+        return counts;
     }
 
     public void cleanup() {

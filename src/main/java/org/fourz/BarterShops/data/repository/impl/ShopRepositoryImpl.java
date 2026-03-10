@@ -202,6 +202,31 @@ public class ShopRepositoryImpl implements IShopRepository {
     }
 
     @Override
+    public CompletableFuture<Boolean> deactivate(int shopId) {
+        if (fallbackTracker.isInFallbackMode()) {
+            return CompletableFuture.completedFuture(false);
+        }
+
+        return CompletableFuture.supplyAsync(() -> {
+            String sql = "UPDATE " + t("shops") + " SET is_active = FALSE, last_modified = CURRENT_TIMESTAMP WHERE shop_id = ?";
+
+            try (Connection conn = connectionProvider.getConnection();
+                 PreparedStatement stmt = conn.prepareStatement(sql)) {
+
+                stmt.setInt(1, shopId);
+                int affected = stmt.executeUpdate();
+                fallbackTracker.recordSuccess();
+                return affected > 0;
+
+            } catch (SQLException e) {
+                fallbackTracker.recordFailure("Deactivate shop failed: " + e.getMessage());
+                logger.error("Failed to deactivate shop: " + e.getMessage());
+                return false;
+            }
+        }, executor);
+    }
+
+    @Override
     public CompletableFuture<Boolean> existsById(int shopId) {
         if (fallbackTracker.isInFallbackMode()) {
             return CompletableFuture.completedFuture(false);

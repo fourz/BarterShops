@@ -60,6 +60,15 @@ public interface IShopRepository {
     CompletableFuture<Boolean> deleteById(int shopId);
 
     /**
+     * Deactivates a shop by setting is_active = false.
+     * Used for orphan cleanup — preserves the record for audit.
+     *
+     * @param shopId The shop ID to deactivate
+     * @return CompletableFuture with true if deactivated
+     */
+    CompletableFuture<Boolean> deactivate(int shopId);
+
+    /**
      * Checks if a shop exists.
      *
      * @param shopId The shop ID to check
