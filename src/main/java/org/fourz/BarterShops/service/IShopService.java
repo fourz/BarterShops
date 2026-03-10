@@ -75,6 +75,19 @@ public interface IShopService {
      */
     CompletableFuture<List<ShopDataDTO>> getShopsNearby(Location center, double radius);
 
+    /**
+     * Gets shops within a radius of a location by world name (no Bukkit World required).
+     * Queries the database directly — works for unloaded worlds.
+     *
+     * @param world The world name
+     * @param x Center X coordinate
+     * @param y Center Y coordinate
+     * @param z Center Z coordinate
+     * @param radius The search radius in blocks
+     * @return CompletableFuture containing list of shops within the radius
+     */
+    CompletableFuture<List<ShopDataDTO>> getShopsNearby(String world, double x, double y, double z, double radius);
+
     // ========================================================
     // Shop Management
     // ========================================================

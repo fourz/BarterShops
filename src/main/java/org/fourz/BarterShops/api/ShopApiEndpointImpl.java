@@ -77,15 +77,9 @@ public class ShopApiEndpointImpl implements IBarterShopsApiService {
                 ApiResponse.error("INVALID_REQUEST", "World parameter is required"));
         }
 
-        if (Bukkit.getWorld(world) == null) {
-            return CompletableFuture.completedFuture(
-                ApiResponse.error("NOT_FOUND", "World '" + world + "' not found"));
-        }
-
         double effectiveRadius = Math.min(radius, 500.0);
-        Location center = new Location(Bukkit.getWorld(world), x, y, z);
 
-        return shopService.getShopsNearby(center, effectiveRadius)
+        return shopService.getShopsNearby(world, x, y, z, effectiveRadius)
             .<ApiResponse<?>>handle((shops, ex) -> {
                 if (ex != null) return ApiResponse.error("INTERNAL_ERROR",
                     "Failed to find nearby shops: " + ex.getMessage());
