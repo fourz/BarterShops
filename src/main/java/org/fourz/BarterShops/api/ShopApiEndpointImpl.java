@@ -51,18 +51,25 @@ public class ShopApiEndpointImpl implements IBarterShopsApiService {
                 int page = ApiUtils.parseIntOrDefault(filters.get("page"), 1);
                 int limit = Math.min(ApiUtils.parseIntOrDefault(filters.get("limit"), 20), 100);
                 List<ShopDataDTO> paginated = applyPagination(sorted, page, limit);
-                return ApiResponse.success(paginated, page, limit, sorted.size());
+                List<ShopDataDTO> clean = paginated.stream().map(ShopApiEndpointImpl::sanitizeMetadata).toList();
+                return ApiResponse.success(clean, page, limit, sorted.size());
             });
     }
 
     @Override
     public CompletableFuture<ApiResponse<?>> getShopById(String shopId) {
+        try {
+            Integer.parseInt(shopId);
+        } catch (NumberFormatException e) {
+            return CompletableFuture.completedFuture(
+                ApiResponse.error("INVALID_REQUEST", "Invalid shop ID: must be numeric"));
+        }
         return shopService.getShopById(shopId)
             .<ApiResponse<?>>handle((optionalShop, ex) -> {
                 if (ex != null) return ApiResponse.error("INTERNAL_ERROR",
                     "Failed to retrieve shop: " + ex.getMessage());
                 return optionalShop
-                    .map(ApiResponse::success)
+                    .map(shop -> ApiResponse.success(sanitizeMetadata(shop)))
                     .orElse(ApiResponse.error("NOT_FOUND",
                         "Shop with ID " + shopId + " not found"));
             });
@@ -83,7 +90,8 @@ public class ShopApiEndpointImpl implements IBarterShopsApiService {
             .<ApiResponse<?>>handle((shops, ex) -> {
                 if (ex != null) return ApiResponse.error("INTERNAL_ERROR",
                     "Failed to find nearby shops: " + ex.getMessage());
-                return ApiResponse.success(shops);
+                List<ShopDataDTO> clean = shops.stream().map(ShopApiEndpointImpl::sanitizeMetadata).toList();
+                return ApiResponse.success(clean);
             });
     }
 
@@ -122,6 +130,12 @@ public class ShopApiEndpointImpl implements IBarterShopsApiService {
         if (transactionId == null || transactionId.isEmpty()) {
             return CompletableFuture.completedFuture(
                 ApiResponse.error("INVALID_REQUEST", "Transaction ID is required"));
+        }
+        try {
+            UUID.fromString(transactionId);
+        } catch (IllegalArgumentException e) {
+            return CompletableFuture.completedFuture(
+                ApiResponse.error("INVALID_REQUEST", "Invalid transaction ID: must be a valid UUID"));
         }
 
         return tradeService.getTradeByTransactionId(transactionId)
@@ -191,7 +205,8 @@ public class ShopApiEndpointImpl implements IBarterShopsApiService {
                         stats.put("ownerUuid", shop.ownerUuid().toString());
                         stats.put("totalTrades", trades.size());
                         stats.put("isActive", shop.isActive());
-                        stats.put("createdAt", shop.createdAt().toString());
+                        stats.put("createdAt", shop.createdAt() != null
+                            ? shop.createdAt().toInstant().toString() : null);
                         return ApiResponse.success(stats);
                     });
             })
@@ -289,5 +304,34 @@ public class ShopApiEndpointImpl implements IBarterShopsApiService {
         }
 
         return shops.subList(startIndex, endIndex);
+    }
+
+    /**
+     * Sanitize metadata JSON strings by removing trailing commas before } and ].
+     * Fixes invalid JSON produced by older ShopConfigSerializer versions.
+     */
+    private static String sanitizeJson(String json) {
+        if (json == null) return null;
+        return json.replaceAll(",\\s*}", "}").replaceAll(",\\s*]", "]");
+    }
+
+    /**
+     * Return a copy of the shop DTO with sanitized metadata values.
+     */
+    private static ShopDataDTO sanitizeMetadata(ShopDataDTO shop) {
+        Map<String, String> meta = shop.metadata();
+        if (meta == null || meta.isEmpty()) return shop;
+
+        Map<String, String> sanitized = new HashMap<>();
+        for (Map.Entry<String, String> entry : meta.entrySet()) {
+            sanitized.put(entry.getKey(), sanitizeJson(entry.getValue()));
+        }
+
+        return new ShopDataDTO(
+            shop.shopId(), shop.ownerUuid(), shop.shopName(), shop.shopType(),
+            shop.locationWorld(), shop.locationX(), shop.locationY(), shop.locationZ(),
+            shop.chestLocationWorld(), shop.chestLocationX(), shop.chestLocationY(), shop.chestLocationZ(),
+            shop.isActive(), shop.createdAt(), shop.lastModified(), sanitized
+        );
     }
 }
