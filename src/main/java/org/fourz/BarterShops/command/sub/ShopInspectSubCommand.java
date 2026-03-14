@@ -169,8 +169,7 @@ public class ShopInspectSubCommand implements SubCommand {
 
     @Override
     public String getPermission() {
-        // No specific permission - preference management is available to all players
-        return "";
+        return "bartershops.admin";
     }
 
     @Override

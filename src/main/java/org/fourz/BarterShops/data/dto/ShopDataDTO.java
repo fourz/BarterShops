@@ -122,21 +122,6 @@ public record ShopDataDTO(
     }
 
     /**
-     * Get locked item type from metadata (for stackable shops).
-     *
-     * @return Material if set, null otherwise
-     */
-    public Material getLockedItemType() {
-        String typeStr = metadata.get("shop_config_locked_item_type");
-        if (typeStr == null || typeStr.isEmpty()) return null;
-        try {
-            return Material.valueOf(typeStr);
-        } catch (IllegalArgumentException e) {
-            return null;
-        }
-    }
-
-    /**
      * Get accepted payment options from metadata (BARTER mode).
      *
      * @return List of ItemStacks, empty if not set

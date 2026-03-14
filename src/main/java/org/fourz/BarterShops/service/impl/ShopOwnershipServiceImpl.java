@@ -149,12 +149,7 @@ public class ShopOwnershipServiceImpl implements IShopOwnershipService {
     public CompletableFuture<Boolean> canChangeOwner(CommandSender sender, int shopId) {
         return CompletableFuture.supplyAsync(() -> {
             // Check permission node
-            if (sender.hasPermission("bartershops.admin.changeowner")) {
-                return true;
-            }
-
-            // Bypass permission (for automation/scripts)
-            if (sender.hasPermission("bartershops.admin.changeowner.bypass")) {
+            if (sender.hasPermission("bartershops.admin")) {
                 return true;
             }
 

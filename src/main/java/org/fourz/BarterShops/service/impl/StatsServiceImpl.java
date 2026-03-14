@@ -455,7 +455,7 @@ public class StatsServiceImpl implements IStatsService {
         return trades.stream()
             .filter(t -> t.itemStackData() != null)
             .collect(Collectors.groupingBy(
-                t -> t.itemStackData().contains(":") ? t.itemStackData().split(":")[0] : t.itemStackData(),
+                t -> extractItemType(t.itemStackData()),
                 Collectors.summingInt(TradeRecordDTO::quantity)
             ));
     }
@@ -467,9 +467,34 @@ public class StatsServiceImpl implements IStatsService {
         return trades.stream()
             .filter(t -> t.itemStackData() != null)
             .collect(Collectors.groupingBy(
-                t -> t.itemStackData().contains(":") ? t.itemStackData().split(":")[0] : t.itemStackData(),
+                t -> extractItemType(t.itemStackData()),
                 Collectors.summingInt(TradeRecordDTO::quantity)
             ));
+    }
+
+    /**
+     * Extracts a display-friendly material name from item stack data.
+     * Handles both MySQL format (namespace:TYPE) and SQLite JSON format ({"type":"TYPE",...}).
+     */
+    private String extractItemType(String itemStackData) {
+        if (itemStackData == null || itemStackData.isEmpty()) return "UNKNOWN";
+        if (itemStackData.startsWith("{")) {
+            // SQLite JSON serialization — extract the "type" field value
+            int typeIdx = itemStackData.indexOf("\"type\"");
+            if (typeIdx >= 0) {
+                int colon = itemStackData.indexOf(':', typeIdx);
+                if (colon >= 0) {
+                    int start = itemStackData.indexOf('"', colon + 1);
+                    int end = itemStackData.indexOf('"', start + 1);
+                    if (start >= 0 && end > start) {
+                        return itemStackData.substring(start + 1, end);
+                    }
+                }
+            }
+            return itemStackData; // fallback: return raw if JSON parse fails
+        }
+        // MySQL format: MATERIAL:extra_data — return material name (first segment)
+        return itemStackData.contains(":") ? itemStackData.split(":")[0] : itemStackData;
     }
 
     // ========================================================

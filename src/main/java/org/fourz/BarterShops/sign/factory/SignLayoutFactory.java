@@ -33,21 +33,23 @@ public class SignLayoutFactory {
     }
 
     /**
-     * Creates a TYPE mode sign layout showing the shop type.
-     * Format: [barter]
-     *         Shop Type
-     *         (empty)
-     *         (empty)
+     * Creates a TYPE mode sign layout for shop type selection.
+     * Format: [Shop Type]
+     *         L-Click to cycle
+     *         Type: BARTER
+     *         (Inv: STACK|UNIQ) if type detected, else empty
      *
      * @param barterSign The barter sign
      * @return 4-line sign layout
      */
     public static String[] createTypeLayout(BarterSign barterSign) {
         String[] layout = new String[4];
-        layout[0] = "\u00a7f[barter]"; // White [barter]
-        layout[1] = formatType(barterSign.getType());
-        layout[2] = "";
-        layout[3] = "";
+        layout[0] = "\u00a7e[Shop Type]";
+        layout[1] = "\u00a7eL-Click to cycle";
+        layout[2] = "\u00a7bType: " + barterSign.getType().name();
+        layout[3] = barterSign.isTypeDetected()
+                ? "\u00a76(Inv: " + (barterSign.getShopStackableMode() ? "STACK" : "UNIQ") + ")"
+                : "";
         return layout;
     }
 
@@ -294,8 +296,8 @@ public class SignLayoutFactory {
             case SELL -> "\u00a7a[We Sell]";
         };
         layout[0] = header;
-        layout[1] = "\u00a77Not configured";
-        layout[2] = "\u00a77Ask owner";
+        layout[1] = "\u00a7eNot configured";
+        layout[2] = "\u00a7eAsk owner";
         layout[3] = "";
         return layout;
     }

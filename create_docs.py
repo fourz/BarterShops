@@ -1,7 +1,7 @@
 import os
 
 # Create docs directory
-docs_dir = r"C:\tools\_PROJECTS\Ravenkaft Dev\repos\BarterShops\docs"
+docs_dir = r"C:\tools\_PROJECTS\Ravenkraft-Dev\repos\BarterShops\docs"
 os.makedirs(docs_dir, exist_ok=True)
 
 print(f"Created directory: {docs_dir}")

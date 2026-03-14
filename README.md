@@ -61,6 +61,14 @@ BarterShops is a modern, feature-rich trading plugin for Minecraft servers. Crea
 - **Customizable**: Per-channel and per-type settings
 - **Low Stock Alerts**: Notify owners when inventory runs low
 
+### Sign UI Enhancements (v1.0.1+)
+
+- **Multi-Page Payment Browsing** (Phase 8): BARTER shops with multiple accepted payments paginate across sign pages. Customers right-click to cycle through a summary page followed by one payment option per page. Chat feedback reports the current page: "Payment option 2/4: 3x Emerald".
+- **Owner Preview Mode** (Phase 8): Shop owners can sneak+right-click in BOARD mode to toggle customer view. The sign temporarily renders the customer-facing pagination layout. Sneak+right-click again to return to the owner summary.
+- **Offering Name Wrapping** (Phase 9): Item offering names longer than 15 characters are automatically word-split across two sign lines. The split point uses the last space before position 15, falling back to a hard split at character 15 when no space exists.
+- **Payment Name Wrapping** (Phase 8.5): Long payment names on paginated pages are wrapped using the same 15-character threshold. Each page shows a single payment option for maximum readability.
+- **Dual-Wrap Mode for Single-Payment BARTER** (Phases 10–13): When both the offering name and the payment name exceed 15 characters, the [Barter] header is removed and all four sign lines are dedicated to content (two lines each for offering and payment). Shops with short names, or multi-payment shops, are not affected.
+
 ### Performance & Compatibility
 - **Async Operations**: Non-blocking database operations with CompletableFuture
 - **Database Support**: MySQL (production) and SQLite (development/small servers)
@@ -336,5 +344,5 @@ This project is licensed under the MIT License. See [LICENSE](LICENSE) for detai
 
 ---
 
-**Version**: 1.0-SNAPSHOT
-**Last Updated**: February 1, 2026
+**Version**: 1.0.29 (sign UI v1.0.1+)
+**Last Updated**: March 3, 2026

@@ -104,4 +104,15 @@ public interface IConnectionProvider {
      * @return The prefixed table name (e.g., "barter_shops")
      */
     String table(String baseName);
+
+    /**
+     * Closes the current connection pool and re-initializes it with fresh config settings.
+     * Use this to apply credential or pool-size changes without a server restart.
+     * Only valid when the database backend type has not changed.
+     *
+     * @throws Exception if re-initialization fails
+     */
+    default void reload() throws Exception {
+        throw new UnsupportedOperationException("reload() not implemented by this provider");
+    }
 }

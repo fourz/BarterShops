@@ -23,6 +23,7 @@ import org.fourz.BarterShops.service.IShopService;
 import org.fourz.BarterShops.service.IRatingService;
 import org.fourz.BarterShops.service.IStatsService;
 import org.fourz.BarterShops.service.ITradeService;
+import org.fourz.BarterShops.service.ITransactionLogger;
 import org.fourz.BarterShops.service.impl.RatingServiceImpl;
 import org.fourz.BarterShops.service.impl.StatsServiceImpl;
 import org.fourz.BarterShops.service.impl.TradeServiceImpl;
@@ -69,12 +70,15 @@ public class BarterShops extends JavaPlugin {
     private TradeServiceImpl tradeService;
     private RetentionManager retentionManager;
 
+    private ITransactionLogger transactionLogger;
+
     // Plugin lifecycle tracking
     private long startTime;
 
     // RVNKCore integration
     private boolean rvnkCoreAvailable = false;
     private Object rvnkCoreInstance = null;
+    // shopApiInitializer removed — API routing handled by RVNKCore's BarterShopsController
 
     @Override
     public void onEnable() {
@@ -85,8 +89,6 @@ public class BarterShops extends JavaPlugin {
         logger.info("BarterShops v" + this.getDescription().getVersion() + " - Enabling");
 
         this.configManager = new ConfigManager(this);
-        LogManager.setPluginLogLevel(this, configManager.getLogLevel());
-        logger.info("Log level set to: " + configManager.getLogLevel());
         this.notificationManager = new NotificationManager(this);
         this.templateManager = new TemplateManager(this);
         this.protectionManager = new ProtectionManager(this);
@@ -147,6 +149,11 @@ public class BarterShops extends JavaPlugin {
         // Initialize PlayerLookup (after RVNKCore registration so PlayerService is available)
         this.playerLookup = new PlayerLookup(this).enableMojangAPI();
         this.playerLookup.preloadFromDatabase(); // async, non-blocking
+
+        // Apply configured log level to all BarterShops instances now that all managers are created.
+        // Use setPluginLogLevel (not setGlobalLogLevel) to avoid resetting other plugins' log levels.
+        LogManager.setPluginLogLevel(this, configManager.getLogLevel());
+        logger.info("Log level set to: " + configManager.getLogLevel());
 
         logger.info("BarterShops has been loaded");
     }
@@ -309,6 +316,18 @@ public class BarterShops extends JavaPlugin {
                 logger.info("Registered ITradeService with RVNKCore");
             }
 
+            // Register IBarterShopsApiService for RVNKCore's BarterShopsController
+            Object shopServiceForApi = createShopService();
+            org.fourz.BarterShops.api.ShopApiEndpointImpl apiService =
+                new org.fourz.BarterShops.api.ShopApiEndpointImpl(
+                    shopServiceForApi != null ? (IShopService) shopServiceForApi : null,
+                    tradeService,
+                    null  // IShopDatabaseService - impl pending
+                );
+            Class<?> apiServiceInterface = Class.forName("org.fourz.rvnkcore.api.service.IBarterShopsApiService");
+            registerMethod.invoke(serviceRegistry, apiServiceInterface, apiService);
+            logger.info("Registered IBarterShopsApiService with RVNKCore");
+
             rvnkCoreAvailable = true;
             rvnkCoreInstance = coreInstance;
             logger.info("RVNKCore integration enabled - services registered");
@@ -427,11 +446,14 @@ public class BarterShops extends JavaPlugin {
             java.lang.reflect.Method unregisterMethod = registryClass.getMethod("unregisterService", Class.class);
 
             // Unregister services in reverse order
+            try {
+                Class<?> apiServiceInterface = Class.forName("org.fourz.rvnkcore.api.service.IBarterShopsApiService");
+                unregisterMethod.invoke(serviceRegistry, apiServiceInterface);
+            } catch (ClassNotFoundException ignored) {}
             unregisterMethod.invoke(serviceRegistry, IStatsService.class);
             unregisterMethod.invoke(serviceRegistry, IShopService.class);
             unregisterMethod.invoke(serviceRegistry, IRatingService.class);
             unregisterMethod.invoke(serviceRegistry, ITradeService.class);
-            // unregisterMethod.invoke(serviceRegistry, IShopDatabaseService.class);
 
             logger.info("Services unregistered from RVNKCore");
 
@@ -680,5 +702,13 @@ public class BarterShops extends JavaPlugin {
      */
     public org.fourz.BarterShops.service.IShopOwnershipService getOwnershipService() {
         return ownershipService;
+    }
+
+    public ITransactionLogger getTransactionLogger() {
+        return transactionLogger;
+    }
+
+    public void setTransactionLogger(ITransactionLogger logger) {
+        this.transactionLogger = logger;
     }
 }

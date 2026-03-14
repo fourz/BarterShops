@@ -179,7 +179,7 @@ public class ShopRateSubCommand implements SubCommand {
 
     @Override
     public String getPermission() {
-        return "bartershops.command.rate";
+        return "bartershops.use";
     }
 
     @Override

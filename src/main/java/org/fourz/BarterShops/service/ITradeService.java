@@ -106,31 +106,27 @@ public interface ITradeService {
     CompletableFuture<List<TradeRecordDTO>> getShopTradeHistory(String shopId, int limit);
 
     /**
+     * Gets recent trades across all shops.
+     *
+     * @param limit Maximum number of trades to return
+     * @return CompletableFuture containing list of recent trade records
+     */
+    CompletableFuture<List<TradeRecordDTO>> getRecentTrades(int limit);
+
+    /**
+     * Gets a trade record by transaction ID.
+     *
+     * @param transactionId The transaction ID
+     * @return CompletableFuture containing the trade record, or empty if not found
+     */
+    CompletableFuture<Optional<TradeRecordDTO>> getTradeByTransactionId(String transactionId);
+
+    /**
      * Gets total trade count for statistics.
      *
      * @return CompletableFuture containing the total trade count
      */
     CompletableFuture<Long> getTotalTradeCount();
-
-    // ========================================================
-    // Item Utilities
-    // ========================================================
-
-    /**
-     * Serializes an ItemStack to a string for storage.
-     *
-     * @param item The item to serialize
-     * @return The serialized item string
-     */
-    String serializeItem(ItemStack item);
-
-    /**
-     * Deserializes a string back to an ItemStack.
-     *
-     * @param serialized The serialized item string
-     * @return The deserialized ItemStack, or null if invalid
-     */
-    ItemStack deserializeItem(String serialized);
 
     // ========================================================
     // Fallback Mode

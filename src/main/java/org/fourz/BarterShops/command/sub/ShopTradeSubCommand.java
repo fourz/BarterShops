@@ -206,7 +206,7 @@ public class ShopTradeSubCommand implements SubCommand {
 
     @Override
     public String getPermission() {
-        return "bartershops.admin.trade";
+        return "bartershops.admin";
     }
 
     @Override

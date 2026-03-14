@@ -7,6 +7,7 @@ import org.fourz.rvnkcore.util.log.LogManager;
 import java.sql.Timestamp;
 import java.time.Instant;
 import java.time.temporal.ChronoUnit;
+import java.util.concurrent.CompletableFuture;
 
 /**
  * Schedules periodic archiving of trade records older than the configured retention window.
@@ -15,12 +16,6 @@ import java.time.temporal.ChronoUnit;
  * avoid adding load during server startup. Only active when
  * {@code retention.enabled: true} in config.yml.</p>
  *
- * <p>Future stubs (not yet implemented):</p>
- * <ul>
- *   <li>Daily/monthly summary table aggregation before archive</li>
- *   <li>Archive table pruning after N months (configurable)</li>
- *   <li>Separate retention periods per trade status (FAILED/REFUNDED)</li>
- * </ul>
  */
 public class RetentionManager {
 
@@ -63,7 +58,7 @@ public class RetentionManager {
     }
 
     /**
-     * Executes one retention cycle: archive records older than the configured threshold.
+     * Executes one retention cycle: aggregate summaries, archive, then prune archive.
      */
     private void runRetention() {
         Timestamp threshold = Timestamp.from(Instant.now().minus(activeDays, ChronoUnit.DAYS));
@@ -71,22 +66,32 @@ public class RetentionManager {
 
         String action = plugin.getConfigManager().getRetentionAction();
         if ("archive".equalsIgnoreCase(action)) {
-            tradeRepository.archiveOlderThan(threshold)
-                    .thenAccept(archived -> {
-                        if (archived > 0) {
-                            logger.info("Retention: archived " + archived + " trade records older than " + activeDays + " days");
+            tradeRepository.populateDailySummaries(threshold)
+                    .thenCompose(d -> tradeRepository.rollupMonthlySummaries(threshold))
+                    .thenCompose(m -> tradeRepository.archiveOlderThan(threshold))
+                    .thenCompose(archiveCount -> {
+                        if (archiveCount > 0) {
+                            logger.info("Retention: archived " + archiveCount + " trade records older than " + activeDays + " days");
                         } else {
                             logger.debug("Retention: no records to archive");
                         }
-                        // Future stub: aggregate daily summary before archive
-                        // Future stub: pruneArchive(olderThan) when archive pruning is implemented
+                        int archiveDays = plugin.getConfigManager().getRetentionArchiveDays();
+                        if (archiveDays > 0) {
+                            Timestamp pruneThreshold = Timestamp.from(
+                                Instant.now().minus(archiveDays, ChronoUnit.DAYS));
+                            return tradeRepository.pruneArchive(pruneThreshold)
+                                .thenApply(pruned -> {
+                                    if (pruned > 0) logger.info("Pruned " + pruned + " records from archive");
+                                    return archiveCount;
+                                });
+                        }
+                        return CompletableFuture.completedFuture(archiveCount);
                     })
                     .exceptionally(ex -> {
                         logger.error("Retention archival failed: " + ex.getMessage());
                         return null;
                     });
         } else {
-            // Future stub: direct delete action
             logger.debug("Retention action '" + action + "' is not yet implemented; skipping");
         }
     }

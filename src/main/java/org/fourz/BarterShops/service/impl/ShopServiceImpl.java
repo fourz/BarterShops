@@ -187,6 +187,12 @@ public class ShopServiceImpl implements IShopService {
         );
     }
 
+    @Override
+    public CompletableFuture<List<ShopDataDTO>> getShopsNearby(String world, double x, double y, double z, double radius) {
+        logger.debug("Getting shops within " + radius + " blocks in world " + world);
+        return repository.findNearby(world, x, y, z, radius);
+    }
+
     // ========================================================
     // Shop Management
     // ========================================================

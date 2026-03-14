@@ -5,6 +5,7 @@ import org.bukkit.command.CommandSender;
 import org.fourz.BarterShops.BarterShops;
 import org.fourz.BarterShops.command.SeedSubCommand;
 import org.fourz.BarterShops.command.SubCommand;
+import org.fourz.BarterShops.data.dto.ShopDataDTO;
 
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -33,6 +34,7 @@ public class ShopAdminSubCommand implements SubCommand {
         adminActions.put("reload", this::executeReload);
         adminActions.put("debug", this::executeDebug);
         adminActions.put("stats", this::executeStats);
+        adminActions.put("cleanup", this::executeCleanup);
         adminActions.put("seed", (sender, args) -> seedSubCommand.execute(sender, args));
     }
 
@@ -67,6 +69,8 @@ public class ShopAdminSubCommand implements SubCommand {
                 ChatColor.WHITE + " - Toggle debug mode");
         sender.sendMessage(ChatColor.YELLOW + "/shop admin stats" +
                 ChatColor.WHITE + " - Show plugin statistics");
+        sender.sendMessage(ChatColor.YELLOW + "/shop admin cleanup [confirm]" +
+                ChatColor.WHITE + " - List/prune orphaned shops");
         sender.sendMessage(ChatColor.YELLOW + "/shop admin seed <action>" +
                 ChatColor.WHITE + " - Seed test data");
     }
@@ -108,6 +112,48 @@ public class ShopAdminSubCommand implements SubCommand {
             sender.sendMessage(ChatColor.YELLOW + "Debug mode is currently " +
                     (currentDebug ? ChatColor.GREEN + "enabled" : ChatColor.RED + "disabled"));
             sender.sendMessage(ChatColor.GRAY + "Use /shop admin debug <on|off> to toggle");
+        }
+
+        return true;
+    }
+
+    private boolean executeCleanup(CommandSender sender, String[] args) {
+        if (plugin.getSignManager() == null) {
+            sender.sendMessage(ChatColor.RED + "SignManager not available.");
+            return true;
+        }
+
+        // Show deferred shops (waiting for world load)
+        Map<String, Integer> deferred = plugin.getSignManager().getDeferredShopCounts();
+        if (!deferred.isEmpty()) {
+            sender.sendMessage(ChatColor.GOLD + "Deferred shops (world not loaded):");
+            deferred.forEach((world, count) ->
+                sender.sendMessage(ChatColor.GRAY + "  " + world + ": " + ChatColor.WHITE + count + " shop(s)"));
+        }
+
+        // Find orphans
+        List<ShopDataDTO> orphans = plugin.getSignManager().findOrphanedShops();
+        if (orphans.isEmpty()) {
+            sender.sendMessage(ChatColor.GREEN + "No orphaned shops found.");
+            return true;
+        }
+
+        sender.sendMessage(ChatColor.YELLOW + "Found " + orphans.size() + " orphaned shop(s):");
+        for (ShopDataDTO orphan : orphans) {
+            sender.sendMessage(ChatColor.GRAY + "  ID " + orphan.shopId()
+                + " | world=" + (orphan.locationWorld() != null ? orphan.locationWorld() : "null")
+                + " | pos=" + (int) orphan.locationX() + "," + (int) orphan.locationY() + "," + (int) orphan.locationZ()
+                + " | owner=" + orphan.ownerUuid());
+        }
+
+        if (args.length > 0 && args[0].equalsIgnoreCase("confirm")) {
+            for (ShopDataDTO orphan : orphans) {
+                plugin.getSignManager().deactivateShop(orphan.shopId());
+            }
+            sender.sendMessage(ChatColor.GREEN + "Deactivated " + orphans.size() + " orphaned shop(s).");
+        } else {
+            sender.sendMessage(ChatColor.YELLOW + "Run " + ChatColor.WHITE + "/shop admin cleanup confirm"
+                + ChatColor.YELLOW + " to deactivate these shops.");
         }
 
         return true;
@@ -166,6 +212,11 @@ public class ShopAdminSubCommand implements SubCommand {
             }
         } else if (args.length >= 2 && args[0].equalsIgnoreCase("seed")) {
             return seedSubCommand.getTabCompletions(sender, Arrays.copyOfRange(args, 1, args.length));
+        } else if (args.length == 2 && args[0].equalsIgnoreCase("cleanup")) {
+            String partial = args[1].toLowerCase();
+            if ("confirm".startsWith(partial)) {
+                completions.add("confirm");
+            }
         } else if (args.length == 2 && args[0].equalsIgnoreCase("debug")) {
             String partial = args[1].toLowerCase();
             for (String option : List.of("on", "off")) {

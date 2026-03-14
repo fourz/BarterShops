@@ -179,4 +179,29 @@ public interface ITradeRepository {
      * @return CompletableFuture containing number of archived records
      */
     CompletableFuture<Integer> archiveOlderThan(Timestamp before);
+
+    /**
+     * Populates daily summary aggregates for trade records older than the threshold.
+     * Groups by (shop_id, date) using INSERT...ON DUPLICATE KEY UPDATE / INSERT OR REPLACE.
+     *
+     * @param olderThan Include records with completed_at before this timestamp
+     * @return CompletableFuture containing number of summary rows written
+     */
+    CompletableFuture<Integer> populateDailySummaries(Timestamp olderThan);
+
+    /**
+     * Rolls up daily summaries into monthly summaries for rows older than the threshold.
+     *
+     * @param olderThan Include daily rows with summary_date before this timestamp
+     * @return CompletableFuture containing number of summary rows written
+     */
+    CompletableFuture<Integer> rollupMonthlySummaries(Timestamp olderThan);
+
+    /**
+     * Deletes records from the archive table older than the specified timestamp.
+     *
+     * @param olderThan Delete archive records with completed_at before this timestamp
+     * @return CompletableFuture containing number of deleted records
+     */
+    CompletableFuture<Integer> pruneArchive(Timestamp olderThan);
 }

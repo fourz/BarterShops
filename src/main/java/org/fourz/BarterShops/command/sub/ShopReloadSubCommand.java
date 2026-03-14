@@ -30,8 +30,22 @@ public class ShopReloadSubCommand implements SubCommand {
         try {
             long startTime = System.currentTimeMillis();
 
+            // Capture storage backend BEFORE reload to detect changes requiring restart
+            String previousStorageType = plugin.getConfigManager().getStorageType();
+
             // Reload configuration
             plugin.getConfigManager().reloadConfig();
+
+            // Reload or warn based on whether the backend type changed
+            String newStorageType = plugin.getConfigManager().getStorageType();
+            if (!previousStorageType.equalsIgnoreCase(newStorageType)) {
+                sender.sendMessage(ChatColor.translateAlternateColorCodes('&',
+                    "&e⚠ Database backend change requires server restart to apply. " +
+                    "Current backend: &f" + previousStorageType + "&e is still active."));
+            } else {
+                plugin.getConnectionProvider().reload();
+                logger.debug("Database connection pool reloaded");
+            }
 
             // Reload economy manager
             plugin.getEconomyManager().reloadConfiguration();
@@ -91,7 +105,7 @@ public class ShopReloadSubCommand implements SubCommand {
 
     @Override
     public String getPermission() {
-        return "bartershops.admin.reload";
+        return "bartershops.admin";
     }
 
     @Override

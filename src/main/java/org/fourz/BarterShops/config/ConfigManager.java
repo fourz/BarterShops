@@ -155,6 +155,10 @@ public class ConfigManager {
         return getConfig().getString("retention.action", "archive");
     }
 
+    public int getRetentionArchiveDays() {
+        return getConfig().getInt("retention.archive-days", 0);
+    }
+
     /**
      * Checks if a specific ShopType is enabled in configuration.
      * @param shopType The ShopType to check

@@ -40,15 +40,35 @@ public class ContainerManager implements Listener {
 
     @EventHandler
     public void onContainerOpen(InventoryOpenEvent event) {
+        if (!(event.getPlayer() instanceof Player player)) return;
+
         InventoryHolder holder = event.getInventory().getHolder();
-        if (!(event.getPlayer() instanceof Player)) return;
-        
-        if (holder instanceof Container || holder instanceof DoubleChest) {
-            if (isShopContainer(holder)) {
-                handleShopContainerAccess((Player) event.getPlayer(), holder);
-                event.setCancelled(true);
+        if (!(holder instanceof Container || holder instanceof DoubleChest)) return;
+
+        // Use SignManager lookup (same as onContainerBreak) rather than PDC-based isShopContainer().
+        // PDC tags can linger on chests from deleted/re-configured shops, causing the
+        // "Use the sign to trade" message to fire on non-shop containers.
+        BarterSign shopSign = null;
+        if (holder instanceof Container c) {
+            shopSign = plugin.getSignManager().findSignByContainerLocation(c.getLocation());
+        } else if (holder instanceof DoubleChest dc) {
+            if (dc.getLeftSide() instanceof Container left) {
+                shopSign = plugin.getSignManager().findSignByContainerLocation(left.getLocation());
+            }
+            if (shopSign == null && dc.getRightSide() instanceof Container right) {
+                shopSign = plugin.getSignManager().findSignByContainerLocation(right.getLocation());
             }
         }
+
+        if (shopSign == null) return;
+
+        // Owners may open their shop chest directly (e.g. to restock).
+        // InventoryValidationListener handles per-action permissions once the chest is open.
+        if (shopSign.getOwner().equals(player.getUniqueId())) return;
+        if (player.hasPermission("bartershops.admin")) return;
+
+        handleShopContainerAccess(player, holder);
+        event.setCancelled(true);
     }
 
     @EventHandler(priority = EventPriority.HIGH, ignoreCancelled = true)

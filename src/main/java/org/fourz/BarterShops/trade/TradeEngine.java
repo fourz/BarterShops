@@ -9,6 +9,7 @@ import org.fourz.BarterShops.BarterShops;
 import org.fourz.rvnkcore.data.FallbackTracker;
 import org.fourz.BarterShops.data.dto.TradeRecordDTO;
 import org.fourz.BarterShops.service.ITradeService.TradeResultDTO;
+import org.fourz.BarterShops.service.ITransactionLogger;
 import org.fourz.BarterShops.sign.BarterSign;
 import org.fourz.rvnkcore.util.log.LogManager;
 
@@ -183,40 +184,72 @@ public class TradeEngine {
         int paymentQty,
         TradeSource source
     ) {
-        return CompletableFuture.supplyAsync(() -> {
-            if (buyer == null || shop == null) {
-                return TradeResultDTO.failure("Invalid trade parameters");
+        return executeDirectTrade(buyer, shop, offering, offeredQty, payment, paymentQty, source, null);
+    }
+
+    /**
+     * Executes a direct trade with a pre-resolved shop inventory.
+     * Use this overload when calling from the main thread — pass the inventory resolved there
+     * to avoid Paper's async double-chest adjacency detection issue.
+     *
+     * @param preResolvedShopInv Inventory resolved on the main thread, or null to auto-resolve.
+     */
+    public CompletableFuture<TradeResultDTO> executeDirectTrade(
+        Player buyer,
+        BarterSign shop,
+        ItemStack offering,
+        int offeredQty,
+        ItemStack payment,
+        int paymentQty,
+        TradeSource source,
+        Inventory preResolvedShopInv
+    ) {
+        // Run all inventory operations on the main thread — Bukkit inventory APIs are not
+        // thread-safe from ForkJoinPool (supplyAsync) threads. Using runTask guarantees that
+        // getInventory(), removeItems(), and giveItems() execute on the server tick thread.
+        CompletableFuture<TradeResultDTO> future = new CompletableFuture<>();
+        plugin.getServer().getScheduler().runTask(plugin, () -> {
+            try {
+                if (buyer == null || shop == null) {
+                    future.complete(TradeResultDTO.failure("Invalid trade parameters"));
+                    return;
+                }
+
+                // Prevent owner from trading with own shop
+                if (shop.getOwner().equals(buyer.getUniqueId())) {
+                    future.complete(TradeResultDTO.failure("Cannot trade with own shop"));
+                    return;
+                }
+
+                // Create temporary session for validation and execution
+                TradeSession tempSession = new TradeSession(buyer.getUniqueId(), shop);
+                tempSession.setOfferedItem(offering, offeredQty);
+                tempSession.setRequestedItem(payment, paymentQty);
+                if (preResolvedShopInv != null) {
+                    tempSession.setPreResolvedShopInventory(preResolvedShopInv);
+                }
+
+                // Validate the trade
+                tempSession.setState(TradeSession.TradeState.VALIDATING);
+                TradeValidator.ValidationResult validation = validator.validate(tempSession, buyer);
+
+                if (!validation.valid()) {
+                    tempSession.setState(TradeSession.TradeState.FAILED);
+                    String errors = String.join(", ", validation.errors());
+                    future.complete(TradeResultDTO.failure(errors));
+                    return;
+                }
+
+                // Execute the item exchange
+                tempSession.setState(TradeSession.TradeState.PROCESSING);
+                future.complete(executeItemExchange(tempSession, buyer, source));
+            } catch (Exception ex) {
+                logger.error("Direct trade execution failed: " + ex.getMessage());
+                fallbackTracker.recordFailure("Direct trade: " + ex.getMessage());
+                future.complete(TradeResultDTO.failure("Internal error: " + ex.getMessage()));
             }
-
-            // Prevent owner from trading with own shop
-            if (shop.getOwner().equals(buyer.getUniqueId())) {
-                return TradeResultDTO.failure("Cannot trade with own shop");
-            }
-
-            // Create temporary session for validation and execution
-            TradeSession tempSession = new TradeSession(buyer.getUniqueId(), shop);
-            tempSession.setOfferedItem(offering, offeredQty);
-            tempSession.setRequestedItem(payment, paymentQty);
-
-            // Validate the trade
-            tempSession.setState(TradeSession.TradeState.VALIDATING);
-            TradeValidator.ValidationResult validation = validator.validate(tempSession, buyer);
-
-            if (!validation.valid()) {
-                tempSession.setState(TradeSession.TradeState.FAILED);
-                String errors = String.join(", ", validation.errors());
-                return TradeResultDTO.failure(errors);
-            }
-
-            // Execute the item exchange
-            tempSession.setState(TradeSession.TradeState.PROCESSING);
-            return executeItemExchange(tempSession, buyer, source);
-
-        }).exceptionally(ex -> {
-            logger.error("Direct trade execution failed: " + ex.getMessage());
-            fallbackTracker.recordFailure("Direct trade: " + ex.getMessage());
-            return TradeResultDTO.failure("Internal error: " + ex.getMessage());
         });
+        return future;
     }
 
     /**
@@ -234,24 +267,24 @@ public class TradeEngine {
         ItemStack requested = session.getRequestedItem();
         int requestedQty = session.getRequestedQuantity();
 
-        // Step 1: Create snapshots BEFORE any modifications (wrapper-aware)
-        InventorySnapshot buyerSnapshot = new InventorySnapshot(buyer.getInventory());
-        InventorySnapshot shopSnapshot = null;
-        org.fourz.BarterShops.container.ShopContainer snapshotWrapper = shop.getShopContainerWrapper();
-        if (snapshotWrapper != null) {
-            shopSnapshot = new InventorySnapshot(snapshotWrapper.getInventory());
-        } else if (shop.getShopContainer() != null) {
-            shopSnapshot = new InventorySnapshot(shop.getShopContainer().getInventory());
+        // Step 1: Resolve shop inventory.
+        // Use pre-resolved inventory from session if available — this is set by callers that
+        // obtain the inventory on the main thread (e.g. handlePaymentDeposit). This avoids
+        // Paper's CraftChest.getInventory() adjacency check running on an async ForkJoinPool
+        // thread, which can fail to detect double chests and return only 27 slots instead of 54.
+        Inventory shopInv = session.getPreResolvedShopInventory();
+        if (shopInv == null) {
+            org.fourz.BarterShops.container.ShopContainer wrapper = shop.getShopContainerWrapper();
+            if (wrapper != null) {
+                shopInv = wrapper.getInventory();
+            } else if (shop.getShopContainer() != null) {
+                shopInv = shop.getShopContainer().getInventory();
+            }
         }
 
-        // Resolve shop inventory once (wrapper-aware) - used for trade + rollback
-        Inventory shopInv = null;
-        org.fourz.BarterShops.container.ShopContainer wrapper = shop.getShopContainerWrapper();
-        if (wrapper != null) {
-            shopInv = wrapper.getInventory();
-        } else if (shop.getShopContainer() != null) {
-            shopInv = shop.getShopContainer().getInventory();
-        }
+        // Step 1b: Create snapshots BEFORE any modifications
+        InventorySnapshot buyerSnapshot = new InventorySnapshot(buyer.getInventory());
+        InventorySnapshot shopSnapshot = shopInv != null ? new InventorySnapshot(shopInv) : null;
 
         try {
             // Step 2: Remove payment from buyer
@@ -437,9 +470,13 @@ public class TradeEngine {
         TradeServiceImpl tradeService = plugin.getTradeService();
         if (tradeService != null) {
             tradeService.saveTrade(record)
+                .thenAccept(saved -> {
+                    ITransactionLogger txLogger = plugin.getTransactionLogger();
+                    if (txLogger != null) txLogger.log(saved);
+                })
                 .exceptionally(ex -> {
                     logger.error("Failed to persist trade record: " + ex.getMessage());
-                    return record;
+                    return null;
                 });
         } else {
             logger.debug("Trade logged (no persistence — TradeServiceImpl not available): " + transactionId);
@@ -522,6 +559,109 @@ public class TradeEngine {
 
         logger.info("Invalidated " + invalidated + " active trade sessions for shop " + shopId);
         return invalidated;
+    }
+
+    /**
+     * Executes a withdrawal trade: takes payment from the buyer and deposits it into
+     * the shop chest. Does NOT deliver the offering to the buyer — the buyer has already
+     * received it by taking it directly from the chest (the Bukkit event handled delivery).
+     *
+     * <p>This is the correct execution path for {@link TradeSource#WITHDRAWAL_EXCHANGE}.
+     * Using {@link #executeDirectTrade} for withdrawal would double-deliver the offering
+     * (once via the event, once via Step 5 of {@link #executeItemExchange}).
+     *
+     * @param buyer       The buying player
+     * @param shop        The shop being traded with
+     * @param offering    The offering item (used for trade logging only)
+     * @param offeredQty  The quantity taken (used for logging only)
+     * @param payment     Payment item the buyer owes
+     * @param paymentQty  Total payment quantity
+     * @param source      Trade source
+     * @return CompletableFuture with the trade result
+     */
+    public CompletableFuture<TradeResultDTO> executeWithdrawalTrade(
+        Player buyer,
+        BarterSign shop,
+        ItemStack offering,
+        int offeredQty,
+        ItemStack payment,
+        int paymentQty,
+        TradeSource source
+    ) {
+        // Run all inventory operations on the main thread (same rationale as executeDirectTrade).
+        CompletableFuture<TradeResultDTO> future = new CompletableFuture<>();
+        plugin.getServer().getScheduler().runTask(plugin, () -> {
+            // Declare before try so catch blocks can roll back if needed.
+            Inventory shopInv = null;
+            InventorySnapshot buyerSnapshot = null;
+            InventorySnapshot shopSnapshot = null;
+            TradeSession tempSession = null;
+            try {
+                if (buyer == null || shop == null) {
+                    future.complete(TradeResultDTO.failure("Invalid trade parameters"));
+                    return;
+                }
+                if (shop.getOwner().equals(buyer.getUniqueId())) {
+                    future.complete(TradeResultDTO.failure("Cannot trade with own shop"));
+                    return;
+                }
+
+                // Resolve shop inventory (wrapper-aware, same pattern as executeItemExchange)
+                org.fourz.BarterShops.container.ShopContainer wrapper = shop.getShopContainerWrapper();
+                if (wrapper != null) {
+                    shopInv = wrapper.getInventory();
+                } else if (shop.getShopContainer() != null) {
+                    shopInv = shop.getShopContainer().getInventory();
+                }
+
+                buyerSnapshot = new InventorySnapshot(buyer.getInventory());
+                shopSnapshot = shopInv != null ? new InventorySnapshot(shopInv) : null;
+
+                tempSession = new TradeSession(buyer.getUniqueId(), shop);
+                tempSession.setOfferedItem(offering, offeredQty);
+                tempSession.setRequestedItem(payment, paymentQty);
+                tempSession.setState(TradeSession.TradeState.PROCESSING);
+
+                // Step 1: Remove payment from buyer
+                if (payment != null && paymentQty > 0) {
+                    if (!removeItems(buyer.getInventory(), payment, paymentQty)) {
+                        throw new TradeException("Insufficient payment");
+                    }
+                }
+
+                // Step 2: Deposit payment into shop chest
+                if (shopInv != null && payment != null && paymentQty > 0) {
+                    int deposited = giveItems(shopInv, payment, paymentQty);
+                    if (deposited < paymentQty) {
+                        throw new TradeException("Shop inventory full - cannot accept payment");
+                    }
+                }
+
+                // Log and complete
+                tempSession.setState(TradeSession.TradeState.COMPLETED);
+                String transactionId = UUID.randomUUID().toString();
+                logTrade(tempSession, transactionId, source);
+                fallbackTracker.recordSuccess();
+                logger.info("Withdrawal trade completed (" + source + "): " + transactionId + " for " + buyer.getName());
+                future.complete(TradeResultDTO.success(transactionId));
+
+            } catch (TradeException e) {
+                logger.error("Withdrawal trade failed, rolling back: " + e.getMessage());
+                if (buyerSnapshot != null) buyerSnapshot.restore(buyer.getInventory());
+                if (shopSnapshot != null && shopInv != null) shopSnapshot.restore(shopInv);
+                if (tempSession != null) tempSession.setState(TradeSession.TradeState.FAILED);
+                future.complete(TradeResultDTO.failure(e.getMessage()));
+
+            } catch (Exception e) {
+                logger.error("Unexpected error in withdrawal trade: " + e.getMessage());
+                if (buyerSnapshot != null) buyerSnapshot.restore(buyer.getInventory());
+                if (shopSnapshot != null && shopInv != null) shopSnapshot.restore(shopInv);
+                if (tempSession != null) tempSession.setState(TradeSession.TradeState.FAILED);
+                fallbackTracker.recordFailure("Withdrawal trade: " + e.getMessage());
+                future.complete(TradeResultDTO.failure("Internal error: " + e.getMessage()));
+            }
+        });
+        return future;
     }
 
     /**
