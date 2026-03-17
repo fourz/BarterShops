@@ -78,6 +78,7 @@ public class BarterShops extends JavaPlugin {
     // RVNKCore integration
     private boolean rvnkCoreAvailable = false;
     private Object rvnkCoreInstance = null;
+    private org.fourz.rvnkcore.service.registry.ServiceRegistry rvnkServiceRegistry;
     // shopApiInitializer removed — API routing handled by RVNKCore's BarterShopsController
 
     @Override
@@ -330,7 +331,13 @@ public class BarterShops extends JavaPlugin {
 
             rvnkCoreAvailable = true;
             rvnkCoreInstance = coreInstance;
+            rvnkServiceRegistry = (org.fourz.rvnkcore.service.registry.ServiceRegistry) serviceRegistry;
             logger.info("RVNKCore integration enabled - services registered");
+
+            // Pass ServiceRegistry to TradeEngine for webhook notifications
+            if (tradeEngine != null) {
+                tradeEngine.setServiceRegistry(rvnkServiceRegistry);
+            }
 
             // Register notification types with PlayerPreferencesService
             registerNotificationTypes();
@@ -402,17 +409,22 @@ public class BarterShops extends JavaPlugin {
      */
     private Object createShopService() {
         try {
-            // Try to instantiate ShopServiceImpl if it exists
+            // Try to instantiate ShopServiceImpl with ServiceRegistry for webhook support
             Class<?> implClass = Class.forName("org.fourz.BarterShops.service.impl.ShopServiceImpl");
-            // Pass plugin and repository to constructor
-            return implClass.getConstructor(BarterShops.class, IShopRepository.class)
-                    .newInstance(this, shopRepository);
+            try {
+                return implClass.getConstructor(BarterShops.class, IShopRepository.class,
+                        org.fourz.rvnkcore.service.registry.ServiceRegistry.class)
+                        .newInstance(this, shopRepository, rvnkServiceRegistry);
+            } catch (NoSuchMethodException e) {
+                // Fall back to 2-arg constructor
+                return implClass.getConstructor(BarterShops.class, IShopRepository.class)
+                        .newInstance(this, shopRepository);
+            }
         } catch (ClassNotFoundException e) {
-            // ShopServiceImpl not yet implemented - this is expected during development
             logger.debug("ShopServiceImpl not found - impl-11 pending");
             return null;
         } catch (NoSuchMethodException e) {
-            // Fall back to plugin-only constructor if repository constructor not available
+            // Fall back to plugin-only constructor
             try {
                 Class<?> implClass = Class.forName("org.fourz.BarterShops.service.impl.ShopServiceImpl");
                 return implClass.getConstructor(BarterShops.class).newInstance(this);

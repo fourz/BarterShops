@@ -4,7 +4,6 @@ import org.fourz.BarterShops.BarterShops;
 import org.fourz.rvnkcore.data.FallbackTracker;
 import org.fourz.BarterShops.data.IConnectionProvider;
 import org.fourz.BarterShops.data.dto.ShopDataDTO;
-import org.fourz.BarterShops.data.dto.TradeItemDTO;
 import org.fourz.rvnkcore.util.log.LogManager;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
@@ -349,40 +348,6 @@ class ShopRepositoryImplTest {
             when(fallbackTracker.isInFallbackMode()).thenReturn(true);
 
             Boolean result = getFutureResult(repository.removeMetadata(1, "key"));
-
-            assertFalse(result);
-            verify(connectionProvider, never()).getConnection();
-        }
-    }
-
-    @Nested
-    @DisplayName("Trade Items Operations")
-    class TradeItemsTests {
-
-        @BeforeEach
-        void setUpTradeItems() throws SQLException {
-            // Use lenient stubbing since some tests override with fallback mode
-            lenient().when(fallbackTracker.isInFallbackMode()).thenReturn(false);
-            lenient().when(connectionProvider.getConnection()).thenReturn(connection);
-        }
-
-        @Test
-        @DisplayName("findTradeItems() should return empty in fallback mode")
-        void findTradeItemsShouldReturnEmptyInFallbackMode() throws Exception {
-            when(fallbackTracker.isInFallbackMode()).thenReturn(true);
-
-            var result = getFutureResult(repository.findTradeItems(1));
-
-            assertTrue(result.isEmpty());
-            verify(connectionProvider, never()).getConnection();
-        }
-
-        @Test
-        @DisplayName("deleteTradeItem() should return false in fallback mode")
-        void deleteTradeItemShouldReturnFalseInFallbackMode() throws Exception {
-            when(fallbackTracker.isInFallbackMode()).thenReturn(true);
-
-            Boolean result = getFutureResult(repository.deleteTradeItem(1));
 
             assertFalse(result);
             verify(connectionProvider, never()).getConnection();

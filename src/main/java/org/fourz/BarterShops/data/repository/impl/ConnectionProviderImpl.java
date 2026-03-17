@@ -37,7 +37,6 @@ public class ConnectionProviderImpl implements IConnectionProvider {
 
     // Table name constants (base names without prefix)
     private static final String TABLE_SHOPS = "shops";
-    private static final String TABLE_TRADE_ITEMS = "trade_items";
     private static final String TABLE_TRADE_RECORDS = "trade_records";
     private static final String TABLE_TRADE_RECORDS_ARCHIVE = "trade_records_archive";
     private static final String TABLE_SHOP_METADATA = "shop_metadata";
@@ -199,7 +198,6 @@ public class ConnectionProviderImpl implements IConnectionProvider {
 
     private void createMySQLSchema(Statement stmt) throws SQLException {
         String shops = table(TABLE_SHOPS);
-        String tradeItems = table(TABLE_TRADE_ITEMS);
         String tradeRecords = table(TABLE_TRADE_RECORDS);
         String tradeRecordsArchive = table(TABLE_TRADE_RECORDS_ARCHIVE);
         String shopMetadata = table(TABLE_SHOP_METADATA);
@@ -225,19 +223,6 @@ public class ConnectionProviderImpl implements IConnectionProvider {
                 "INDEX idx_" + p + "owner (owner_uuid), " +
                 "INDEX idx_" + p + "location (location_world, location_x, location_y, location_z), " +
                 "INDEX idx_" + p + "active (is_active)" +
-                ") ENGINE=InnoDB DEFAULT CHARSET=utf8mb4");
-
-        stmt.execute("CREATE TABLE IF NOT EXISTS " + tradeItems + " (" +
-                "trade_item_id INT AUTO_INCREMENT PRIMARY KEY, " +
-                "shop_id INT NOT NULL, " +
-                "item_stack_data TEXT NOT NULL, " +
-                "currency_material VARCHAR(64), " +
-                "price_amount INT NOT NULL DEFAULT 0, " +
-                "stock_quantity INT NOT NULL DEFAULT 0, " +
-                "is_offering BOOLEAN NOT NULL DEFAULT TRUE, " +
-                "created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP, " +
-                "FOREIGN KEY (shop_id) REFERENCES " + shops + "(shop_id) ON DELETE CASCADE, " +
-                "INDEX idx_" + p + "shop (shop_id)" +
                 ") ENGINE=InnoDB DEFAULT CHARSET=utf8mb4");
 
         stmt.execute("CREATE TABLE IF NOT EXISTS " + tradeRecords + " (" +
@@ -329,7 +314,6 @@ public class ConnectionProviderImpl implements IConnectionProvider {
 
     private void createSQLiteSchema(Statement stmt) throws SQLException {
         String shops = table(TABLE_SHOPS);
-        String tradeItems = table(TABLE_TRADE_ITEMS);
         String tradeRecords = table(TABLE_TRADE_RECORDS);
         String tradeRecordsArchive = table(TABLE_TRADE_RECORDS_ARCHIVE);
         String shopMetadata = table(TABLE_SHOP_METADATA);
@@ -357,20 +341,6 @@ public class ConnectionProviderImpl implements IConnectionProvider {
         stmt.execute("CREATE INDEX IF NOT EXISTS idx_" + p + "shops_owner ON " + shops + "(owner_uuid)");
         stmt.execute("CREATE INDEX IF NOT EXISTS idx_" + p + "shops_location ON " + shops + "(location_world, location_x, location_y, location_z)");
         stmt.execute("CREATE INDEX IF NOT EXISTS idx_" + p + "shops_active ON " + shops + "(is_active)");
-
-        stmt.execute("CREATE TABLE IF NOT EXISTS " + tradeItems + " (" +
-                "trade_item_id INTEGER PRIMARY KEY AUTOINCREMENT, " +
-                "shop_id INTEGER NOT NULL, " +
-                "item_stack_data TEXT NOT NULL, " +
-                "currency_material TEXT, " +
-                "price_amount INTEGER NOT NULL DEFAULT 0, " +
-                "stock_quantity INTEGER NOT NULL DEFAULT 0, " +
-                "is_offering INTEGER NOT NULL DEFAULT 1, " +
-                "created_at TEXT DEFAULT CURRENT_TIMESTAMP, " +
-                "FOREIGN KEY (shop_id) REFERENCES " + shops + "(shop_id) ON DELETE CASCADE" +
-                ")");
-
-        stmt.execute("CREATE INDEX IF NOT EXISTS idx_" + p + "trade_items_shop ON " + tradeItems + "(shop_id)");
 
         stmt.execute("CREATE TABLE IF NOT EXISTS " + tradeRecords + " (" +
                 "transaction_id TEXT PRIMARY KEY, " +

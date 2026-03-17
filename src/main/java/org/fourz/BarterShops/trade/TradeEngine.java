@@ -11,6 +11,8 @@ import org.fourz.BarterShops.data.dto.TradeRecordDTO;
 import org.fourz.BarterShops.service.ITradeService.TradeResultDTO;
 import org.fourz.BarterShops.service.ITransactionLogger;
 import org.fourz.BarterShops.sign.BarterSign;
+import org.fourz.rvnkcore.api.webhook.WebhookNotifier;
+import org.fourz.rvnkcore.service.registry.ServiceRegistry;
 import org.fourz.rvnkcore.util.log.LogManager;
 
 import org.fourz.BarterShops.service.impl.TradeServiceImpl;
@@ -31,6 +33,7 @@ public class TradeEngine {
     private final LogManager logger;
     private final TradeValidator validator;
     private final FallbackTracker fallbackTracker;
+    private ServiceRegistry serviceRegistry;
 
     /** Active trade sessions by session ID */
     private final Map<String, TradeSession> activeSessions = new ConcurrentHashMap<>();
@@ -46,6 +49,16 @@ public class TradeEngine {
                 plugin.getConfigManager().getInt("database.max-failures", 3),
                 plugin.getConfigManager().getLong("database.recovery-time-ms", 30000L),
                 LogManager.getInstance(plugin, "FallbackTracker"));
+    }
+
+    /**
+     * Sets the ServiceRegistry for webhook notification on trade completions.
+     * Called after RVNKCore registration since TradeEngine is constructed earlier.
+     *
+     * @param serviceRegistry The RVNKCore ServiceRegistry
+     */
+    public void setServiceRegistry(ServiceRegistry serviceRegistry) {
+        this.serviceRegistry = serviceRegistry;
     }
 
     /**
@@ -473,6 +486,7 @@ public class TradeEngine {
                 .thenAccept(saved -> {
                     ITransactionLogger txLogger = plugin.getTransactionLogger();
                     if (txLogger != null) txLogger.log(saved);
+                    notifyWebhook();
                 })
                 .exceptionally(ex -> {
                     logger.error("Failed to persist trade record: " + ex.getMessage());
@@ -480,6 +494,7 @@ public class TradeEngine {
                 });
         } else {
             logger.debug("Trade logged (no persistence — TradeServiceImpl not available): " + transactionId);
+            notifyWebhook();
         }
     }
 
@@ -704,6 +719,18 @@ public class TradeEngine {
             }
             return false;
         });
+    }
+
+    /**
+     * Notifies the webhook of a shop change (trade completed) if configured.
+     * Resolves WebhookNotifier lazily from ServiceRegistry.
+     */
+    private void notifyWebhook() {
+        if (serviceRegistry == null) return;
+        WebhookNotifier notifier = serviceRegistry.getService(WebhookNotifier.class);
+        if (notifier != null) {
+            notifier.notifyShopChange();
+        }
     }
 
     /**

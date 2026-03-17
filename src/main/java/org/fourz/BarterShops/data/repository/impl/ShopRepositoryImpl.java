@@ -4,7 +4,6 @@ import org.fourz.BarterShops.BarterShops;
 import org.fourz.rvnkcore.data.FallbackTracker;
 import org.fourz.BarterShops.data.IConnectionProvider;
 import org.fourz.BarterShops.data.dto.ShopDataDTO;
-import org.fourz.BarterShops.data.dto.TradeItemDTO;
 import org.fourz.BarterShops.data.repository.IShopRepository;
 import org.fourz.rvnkcore.util.log.LogManager;
 
@@ -448,157 +447,6 @@ public class ShopRepositoryImpl implements IShopRepository {
     }
 
     // ========================================================
-    // Trade Items (Shop Inventory)
-    // ========================================================
-
-    @Override
-    public CompletableFuture<List<TradeItemDTO>> findTradeItems(int shopId) {
-        if (fallbackTracker.isInFallbackMode()) {
-            return CompletableFuture.completedFuture(List.of());
-        }
-
-        return CompletableFuture.supplyAsync(() -> {
-            String sql = "SELECT * FROM " + t("trade_items") + " WHERE shop_id = ?";
-            List<TradeItemDTO> items = new ArrayList<>();
-
-            try (Connection conn = connectionProvider.getConnection();
-                 PreparedStatement stmt = conn.prepareStatement(sql)) {
-
-                stmt.setInt(1, shopId);
-
-                try (ResultSet rs = stmt.executeQuery()) {
-                    while (rs.next()) {
-                        items.add(mapRowToTradeItem(rs));
-                    }
-                }
-
-                fallbackTracker.recordSuccess();
-                return items;
-
-            } catch (SQLException e) {
-                fallbackTracker.recordFailure("Find trade items failed: " + e.getMessage());
-                logger.error("Failed to find trade items: " + e.getMessage());
-                return items;
-            }
-        }, executor);
-    }
-
-    @Override
-    public CompletableFuture<TradeItemDTO> saveTradeItem(TradeItemDTO item) {
-        if (fallbackTracker.isInFallbackMode()) {
-            return CompletableFuture.completedFuture(item);
-        }
-
-        return CompletableFuture.supplyAsync(() -> {
-            String sql;
-            boolean isInsert = item.tradeItemId() <= 0;
-
-            if (isInsert) {
-                sql = "INSERT INTO " + t("trade_items") + " (shop_id, item_stack_data, currency_material, " +
-                    "price_amount, stock_quantity, is_offering) " +
-                    "VALUES (?, ?, ?, ?, ?, ?)";
-            } else {
-                sql = "UPDATE " + t("trade_items") + " SET shop_id = ?, item_stack_data = ?, currency_material = ?, " +
-                    "price_amount = ?, stock_quantity = ?, is_offering = ? " +
-                    "WHERE trade_item_id = ?";
-            }
-
-            try (Connection conn = connectionProvider.getConnection();
-                 PreparedStatement stmt = conn.prepareStatement(sql, Statement.RETURN_GENERATED_KEYS)) {
-
-                stmt.setInt(1, item.shopId());
-                stmt.setString(2, item.itemStackData());
-                stmt.setString(3, item.currencyMaterial());
-                stmt.setInt(4, item.priceAmount());
-                stmt.setInt(5, item.stockQuantity());
-                stmt.setBoolean(6, item.isOffering());
-
-                if (!isInsert) {
-                    stmt.setInt(7, item.tradeItemId());
-                }
-
-                stmt.executeUpdate();
-                fallbackTracker.recordSuccess();
-
-                if (isInsert) {
-                    try (ResultSet keys = stmt.getGeneratedKeys()) {
-                        if (keys.next()) {
-                            return TradeItemDTO.builder()
-                                    .tradeItemId(keys.getInt(1))
-                                    .shopId(item.shopId())
-                                    .itemStackData(item.itemStackData())
-                                    .currencyMaterial(item.currencyMaterial())
-                                    .priceAmount(item.priceAmount())
-                                    .stockQuantity(item.stockQuantity())
-                                    .isOffering(item.isOffering())
-                                    .createdAt(item.createdAt())
-                                    .build();
-                        }
-                    }
-                }
-
-                return item;
-
-            } catch (SQLException e) {
-                fallbackTracker.recordFailure("Save trade item failed: " + e.getMessage());
-                logger.error("Failed to save trade item: " + e.getMessage());
-                throw new RuntimeException("Failed to save trade item", e);
-            }
-        }, executor);
-    }
-
-    @Override
-    public CompletableFuture<Boolean> deleteTradeItem(int tradeItemId) {
-        if (fallbackTracker.isInFallbackMode()) {
-            return CompletableFuture.completedFuture(false);
-        }
-
-        return CompletableFuture.supplyAsync(() -> {
-            String sql = "DELETE FROM " + t("trade_items") + " WHERE trade_item_id = ?";
-
-            try (Connection conn = connectionProvider.getConnection();
-                 PreparedStatement stmt = conn.prepareStatement(sql)) {
-
-                stmt.setInt(1, tradeItemId);
-                int affected = stmt.executeUpdate();
-                fallbackTracker.recordSuccess();
-                return affected > 0;
-
-            } catch (SQLException e) {
-                fallbackTracker.recordFailure("Delete trade item failed: " + e.getMessage());
-                logger.error("Failed to delete trade item: " + e.getMessage());
-                return false;
-            }
-        }, executor);
-    }
-
-    @Override
-    public CompletableFuture<Boolean> updateStock(int tradeItemId, int newQuantity) {
-        if (fallbackTracker.isInFallbackMode()) {
-            return CompletableFuture.completedFuture(false);
-        }
-
-        return CompletableFuture.supplyAsync(() -> {
-            String sql = "UPDATE " + t("trade_items") + " SET stock_quantity = ? WHERE trade_item_id = ?";
-
-            try (Connection conn = connectionProvider.getConnection();
-                 PreparedStatement stmt = conn.prepareStatement(sql)) {
-
-                stmt.setInt(1, newQuantity);
-                stmt.setInt(2, tradeItemId);
-                int affected = stmt.executeUpdate();
-                fallbackTracker.recordSuccess();
-                return affected > 0;
-
-            } catch (SQLException e) {
-                fallbackTracker.recordFailure("Update stock failed: " + e.getMessage());
-                logger.error("Failed to update stock: " + e.getMessage());
-                return false;
-            }
-        }, executor);
-    }
-
-    // ========================================================
     // Statistics
     // ========================================================
 
@@ -796,19 +644,6 @@ public class ShopRepositoryImpl implements IShopRepository {
                 .createdAt(rs.getTimestamp("created_at"))
                 .lastModified(rs.getTimestamp("last_modified"))
                 .metadata(metadata)
-                .build();
-    }
-
-    private TradeItemDTO mapRowToTradeItem(ResultSet rs) throws SQLException {
-        return TradeItemDTO.builder()
-                .tradeItemId(rs.getInt("trade_item_id"))
-                .shopId(rs.getInt("shop_id"))
-                .itemStackData(rs.getString("item_stack_data"))
-                .currencyMaterial(rs.getString("currency_material"))
-                .priceAmount(rs.getInt("price_amount"))
-                .stockQuantity(rs.getInt("stock_quantity"))
-                .isOffering(rs.getBoolean("is_offering"))
-                .createdAt(rs.getTimestamp("created_at"))
                 .build();
     }
 
