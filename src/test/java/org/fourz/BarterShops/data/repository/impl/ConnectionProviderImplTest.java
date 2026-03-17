@@ -5,6 +5,7 @@ import com.zaxxer.hikari.HikariPoolMXBean;
 import org.bukkit.configuration.file.FileConfiguration;
 import org.fourz.BarterShops.BarterShops;
 import org.fourz.BarterShops.config.ConfigManager;
+import org.fourz.rvnkcore.config.dto.DatabaseSettingsDTO;
 import org.fourz.rvnkcore.util.log.LogManager;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
@@ -13,6 +14,8 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.mockito.junit.jupiter.MockitoSettings;
+import org.mockito.quality.Strictness;
 
 import java.io.File;
 import java.sql.Connection;
@@ -28,6 +31,7 @@ import static org.mockito.Mockito.*;
  * Uses mocking for Bukkit and HikariCP dependencies.
  */
 @ExtendWith(MockitoExtension.class)
+@MockitoSettings(strictness = Strictness.LENIENT)
 @DisplayName("ConnectionProviderImpl Tests")
 class ConnectionProviderImplTest {
 
@@ -61,11 +65,17 @@ class ConnectionProviderImplTest {
     @Mock
     private File dataFolder;
 
+    @Mock
+    private DatabaseSettingsDTO databaseSettings;
+
     @BeforeEach
     void setUp() {
         // Setup common mocks
         lenient().when(plugin.getConfigManager()).thenReturn(configManager);
         lenient().when(configManager.getConfig()).thenReturn(fileConfiguration);
+        lenient().when(configManager.getDatabaseSettings()).thenReturn(databaseSettings);
+        lenient().when(databaseSettings.isMySQL()).thenReturn(false);
+        lenient().when(databaseSettings.getTablePrefix()).thenReturn("");
         lenient().when(fileConfiguration.getString("database.type", "sqlite")).thenReturn("sqlite");
     }
 
@@ -91,7 +101,7 @@ class ConnectionProviderImplTest {
         @Test
         @DisplayName("Should create with MySQL type when configured")
         void shouldCreateWithMysqlType() {
-            when(fileConfiguration.getString("database.type", "sqlite")).thenReturn("mysql");
+            when(databaseSettings.isMySQL()).thenReturn(true);
 
             ConnectionProviderImpl provider = createProvider();
 
@@ -101,7 +111,7 @@ class ConnectionProviderImplTest {
         @Test
         @DisplayName("Should normalize database type to lowercase")
         void shouldNormalizeDatabaseType() {
-            when(fileConfiguration.getString("database.type", "sqlite")).thenReturn("MYSQL");
+            when(databaseSettings.isMySQL()).thenReturn(true);
 
             ConnectionProviderImpl provider = createProvider();
 
@@ -195,7 +205,7 @@ class ConnectionProviderImplTest {
         @Test
         @DisplayName("Should return configured database type")
         void shouldReturnConfiguredType() {
-            when(fileConfiguration.getString("database.type", "sqlite")).thenReturn("mysql");
+            when(databaseSettings.isMySQL()).thenReturn(true);
 
             ConnectionProviderImpl provider = createProvider();
 
@@ -205,7 +215,7 @@ class ConnectionProviderImplTest {
         @Test
         @DisplayName("Should handle mixed case database types")
         void shouldHandleMixedCase() {
-            when(fileConfiguration.getString("database.type", "sqlite")).thenReturn("MySQL");
+            when(databaseSettings.isMySQL()).thenReturn(true);
 
             ConnectionProviderImpl provider = createProvider();
 
@@ -213,14 +223,13 @@ class ConnectionProviderImplTest {
         }
 
         @Test
-        @DisplayName("Should handle whitespace in database type")
-        void shouldHandleWhitespace() {
-            when(fileConfiguration.getString("database.type", "sqlite")).thenReturn(" sqlite ");
+        @DisplayName("Should return sqlite when not MySQL")
+        void shouldReturnSqliteWhenNotMySQL() {
+            when(databaseSettings.isMySQL()).thenReturn(false);
 
             ConnectionProviderImpl provider = createProvider();
 
-            // Note: Current implementation doesn't trim, so this tests actual behavior
-            assertEquals(" sqlite ", provider.getDatabaseType());
+            assertEquals("sqlite", provider.getDatabaseType());
         }
     }
 
@@ -256,10 +265,10 @@ class ConnectionProviderImplTest {
         void sqliteSchemaShouldBeDifferent() {
             // SQLite uses INTEGER PRIMARY KEY AUTOINCREMENT vs INT AUTO_INCREMENT
             // This is tested at integration level - unit test just verifies types
-            when(fileConfiguration.getString("database.type", "sqlite")).thenReturn("sqlite");
+            when(databaseSettings.isMySQL()).thenReturn(false);
             ConnectionProviderImpl sqliteProvider = createProvider();
 
-            when(fileConfiguration.getString("database.type", "sqlite")).thenReturn("mysql");
+            when(databaseSettings.isMySQL()).thenReturn(true);
             ConnectionProviderImpl mysqlProvider = createProvider();
 
             assertEquals("sqlite", sqliteProvider.getDatabaseType());

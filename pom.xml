@@ -74,7 +74,7 @@
         <dependency>
             <groupId>org.fourz</groupId>
             <artifactId>rvnkcore</artifactId>
-            <version>1.3.5-alpha</version>
+            <version>1.4.0-alpha</version>
             <scope>provided</scope>
         </dependency>
         <!-- HikariCP - High-performance JDBC connection pool -->

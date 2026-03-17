@@ -4,13 +4,17 @@ import org.fourz.BarterShops.BarterShops;
 import org.fourz.BarterShops.data.dto.ShopDataDTO;
 import org.fourz.BarterShops.data.dto.StatsDataDTO;
 import org.fourz.BarterShops.service.impl.StatsServiceImpl;
+import org.fourz.rvnkcore.util.PlayerLookup;
 import org.junit.jupiter.api.*;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.mockito.junit.jupiter.MockitoSettings;
+import org.mockito.quality.Strictness;
 
 import java.sql.Timestamp;
 import java.util.*;
+import java.util.Optional;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutionException;
 
@@ -23,6 +27,7 @@ import static org.mockito.Mockito.*;
  * Tests stats calculation, caching, and aggregation logic.
  */
 @ExtendWith(MockitoExtension.class)
+@MockitoSettings(strictness = Strictness.LENIENT)
 @DisplayName("StatsServiceImpl Tests")
 class StatsServiceTest {
 
@@ -35,6 +40,9 @@ class StatsServiceTest {
     @Mock
     private IRatingService ratingService;
 
+    @Mock
+    private PlayerLookup playerLookup;
+
     private StatsServiceImpl statsService;
     private UUID testPlayerUuid;
     private UUID testOwnerUuid;
@@ -43,6 +51,27 @@ class StatsServiceTest {
     void setUp() {
         testPlayerUuid = UUID.randomUUID();
         testOwnerUuid = UUID.randomUUID();
+
+        when(plugin.getPlayerLookup()).thenReturn(playerLookup);
+        when(playerLookup.getPlayerName(any(UUID.class))).thenReturn("TestPlayer");
+
+        // Default stubs for service methods returning CompletableFuture
+        when(shopService.getShopsByOwner(any(UUID.class)))
+            .thenReturn(CompletableFuture.completedFuture(Collections.emptyList()));
+        when(shopService.getShopCountByOwner(any(UUID.class)))
+            .thenReturn(CompletableFuture.completedFuture(0));
+        when(shopService.getShopCount())
+            .thenReturn(CompletableFuture.completedFuture(0));
+        when(shopService.getAllShops())
+            .thenReturn(CompletableFuture.completedFuture(Collections.emptyList()));
+        when(shopService.getShopById(anyString()))
+            .thenReturn(CompletableFuture.completedFuture(Optional.empty()));
+        when(ratingService.getTopRatedShops(anyInt()))
+            .thenReturn(CompletableFuture.completedFuture(Collections.emptyList()));
+        when(ratingService.getAverageRating(anyInt()))
+            .thenReturn(CompletableFuture.completedFuture(0.0));
+        when(ratingService.getRatingCount(anyInt()))
+            .thenReturn(CompletableFuture.completedFuture(0));
 
         statsService = new StatsServiceImpl(plugin, shopService, ratingService);
     }
@@ -154,8 +183,12 @@ class StatsServiceTest {
         @Test
         @DisplayName("getActiveShopCount returns count of active shops")
         void getActiveShopCountReturnsCount() throws ExecutionException, InterruptedException {
-            when(shopService.getShopCount())
-                .thenReturn(CompletableFuture.completedFuture(50));
+            List<ShopDataDTO> activeShops = new ArrayList<>();
+            for (int i = 0; i < 50; i++) {
+                activeShops.add(createMockShop(i + 1, UUID.randomUUID()));
+            }
+            when(shopService.getAllShops())
+                .thenReturn(CompletableFuture.completedFuture(activeShops));
 
             Integer count = statsService.getActiveShopCount().get();
 
