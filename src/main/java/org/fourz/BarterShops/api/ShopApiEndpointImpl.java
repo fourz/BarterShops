@@ -10,6 +10,7 @@ import org.fourz.BarterShops.service.ITradeService;
 import org.fourz.rvnkcore.api.model.response.ApiResponse;
 import org.fourz.rvnkcore.api.service.IBarterShopsApiService;
 import org.fourz.rvnkcore.api.util.ApiUtils;
+import org.fourz.rvnkcore.util.PlayerLookup;
 
 import java.util.*;
 import java.util.concurrent.CompletableFuture;
@@ -25,16 +26,19 @@ public class ShopApiEndpointImpl implements IBarterShopsApiService {
     private final IShopService shopService;
     private final ITradeService tradeService;
     private final IShopDatabaseService databaseService;
+    private final PlayerLookup playerLookup;
     private final long startTime;
 
     public ShopApiEndpointImpl(
         IShopService shopService,
         ITradeService tradeService,
-        IShopDatabaseService databaseService
+        IShopDatabaseService databaseService,
+        PlayerLookup playerLookup
     ) {
         this.shopService = shopService;
         this.tradeService = tradeService;
         this.databaseService = databaseService;
+        this.playerLookup = playerLookup;
         this.startTime = System.currentTimeMillis();
     }
 
@@ -51,7 +55,7 @@ public class ShopApiEndpointImpl implements IBarterShopsApiService {
                 int page = ApiUtils.parseIntOrDefault(filters.get("page"), 1);
                 int limit = Math.min(ApiUtils.parseIntOrDefault(filters.get("limit"), 20), 100);
                 List<ShopDataDTO> paginated = applyPagination(sorted, page, limit);
-                List<ShopDataDTO> clean = paginated.stream().map(ShopApiEndpointImpl::sanitizeMetadata).toList();
+                List<ShopDataDTO> clean = paginated.stream().map(this::sanitizeMetadata).toList();
                 return ApiResponse.success(clean, page, limit, sorted.size());
             });
     }
@@ -69,7 +73,7 @@ public class ShopApiEndpointImpl implements IBarterShopsApiService {
                 if (ex != null) return ApiResponse.error("INTERNAL_ERROR",
                     "Failed to retrieve shop: " + ex.getMessage());
                 return optionalShop
-                    .map(shop -> ApiResponse.success(sanitizeMetadata(shop)))
+                    .map(shop -> ApiResponse.success(this.sanitizeMetadata(shop)))
                     .orElse(ApiResponse.error("NOT_FOUND",
                         "Shop with ID " + shopId + " not found"));
             });
@@ -90,7 +94,7 @@ public class ShopApiEndpointImpl implements IBarterShopsApiService {
             .<ApiResponse<?>>handle((shops, ex) -> {
                 if (ex != null) return ApiResponse.error("INTERNAL_ERROR",
                     "Failed to find nearby shops: " + ex.getMessage());
-                List<ShopDataDTO> clean = shops.stream().map(ShopApiEndpointImpl::sanitizeMetadata).toList();
+                List<ShopDataDTO> clean = shops.stream().map(this::sanitizeMetadata).toList();
                 return ApiResponse.success(clean);
             });
     }
@@ -121,7 +125,7 @@ public class ShopApiEndpointImpl implements IBarterShopsApiService {
             .<ApiResponse<?>>handle((trades, ex) -> {
                 if (ex != null) return ApiResponse.error("INTERNAL_ERROR",
                     "Failed to retrieve trade history: " + ex.getMessage());
-                return ApiResponse.success(trades);
+                return ApiResponse.success(enrichTrades(trades));
             });
     }
 
@@ -143,7 +147,7 @@ public class ShopApiEndpointImpl implements IBarterShopsApiService {
                 if (ex != null) return ApiResponse.error("INTERNAL_ERROR",
                     "Failed to retrieve trade: " + ex.getMessage());
                 return optionalTrade
-                    .map(ApiResponse::success)
+                    .map(trade -> ApiResponse.success(enrichTrades(List.of(trade)).get(0)))
                     .orElse(ApiResponse.error("NOT_FOUND",
                         "Trade with ID " + transactionId + " not found"));
             });
@@ -316,15 +320,22 @@ public class ShopApiEndpointImpl implements IBarterShopsApiService {
     }
 
     /**
-     * Return a copy of the shop DTO with sanitized metadata values.
+     * Return a copy of the shop DTO with sanitized metadata values and resolved ownerName.
      */
-    private static ShopDataDTO sanitizeMetadata(ShopDataDTO shop) {
+    private ShopDataDTO sanitizeMetadata(ShopDataDTO shop) {
         Map<String, String> meta = shop.metadata();
-        if (meta == null || meta.isEmpty()) return shop;
-
         Map<String, String> sanitized = new HashMap<>();
-        for (Map.Entry<String, String> entry : meta.entrySet()) {
-            sanitized.put(entry.getKey(), sanitizeJson(entry.getValue()));
+        if (meta != null) {
+            for (Map.Entry<String, String> entry : meta.entrySet()) {
+                sanitized.put(entry.getKey(), sanitizeJson(entry.getValue()));
+            }
+        }
+
+        // Inject resolved owner name into metadata
+        if (playerLookup != null) {
+            sanitized.put("ownerName", playerLookup.getPlayerName(shop.ownerUuid()));
+        } else {
+            sanitized.putIfAbsent("ownerName", shop.ownerUuid().toString().substring(0, 8));
         }
 
         return new ShopDataDTO(
@@ -333,5 +344,39 @@ public class ShopApiEndpointImpl implements IBarterShopsApiService {
             shop.chestLocationWorld(), shop.chestLocationX(), shop.chestLocationY(), shop.chestLocationZ(),
             shop.isActive(), shop.createdAt(), shop.lastModified(), sanitized
         );
+    }
+
+    /**
+     * Enrich trade records with resolved buyer/seller player names.
+     */
+    private List<Map<String, Object>> enrichTrades(List<TradeRecordDTO> trades) {
+        Set<UUID> uuids = new HashSet<>();
+        trades.forEach(t -> { uuids.add(t.buyerUuid()); uuids.add(t.sellerUuid()); });
+
+        Map<UUID, String> names = new HashMap<>();
+        uuids.forEach(u -> {
+            if (playerLookup != null) {
+                names.put(u, playerLookup.getPlayerName(u));
+            } else {
+                names.put(u, u.toString().substring(0, 8));
+            }
+        });
+
+        return trades.stream().map(t -> {
+            Map<String, Object> m = new LinkedHashMap<>();
+            m.put("transactionId", t.transactionId());
+            m.put("shopId", t.shopId());
+            m.put("buyerUuid", t.buyerUuid().toString());
+            m.put("sellerUuid", t.sellerUuid().toString());
+            m.put("buyerName", names.getOrDefault(t.buyerUuid(), t.buyerUuid().toString().substring(0, 8)));
+            m.put("sellerName", names.getOrDefault(t.sellerUuid(), t.sellerUuid().toString().substring(0, 8)));
+            m.put("itemStackData", t.itemStackData());
+            m.put("quantity", t.quantity());
+            m.put("pricePaid", t.pricePaid());
+            m.put("status", t.status().name());
+            m.put("tradeSource", t.tradeSource());
+            m.put("completedAt", t.completedAt() != null ? t.completedAt().toInstant().toString() : null);
+            return m;
+        }).toList();
     }
 }

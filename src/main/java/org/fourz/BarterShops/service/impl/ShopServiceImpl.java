@@ -235,13 +235,13 @@ public class ShopServiceImpl implements IShopService {
             fallbackShopsById.put(shopIdStr, shop);
             fallbackShopsByLocation.put(toLocationKey(location), shopIdStr);
             logger.info("Created shop (fallback): " + shopIdStr);
-            notifyWebhook();
+            notifyWebhook(shopIdStr);
             return CompletableFuture.completedFuture(shop);
         }
 
         return repository.save(shop).thenApply(savedShop -> {
             logger.info("Created shop: " + savedShop.shopId());
-            notifyWebhook();
+            notifyWebhook(String.valueOf(savedShop.shopId()));
             return savedShop;
         });
     }
@@ -259,7 +259,7 @@ public class ShopServiceImpl implements IShopService {
                         fallbackShopsByLocation.remove(toLocationKey(loc));
                     }
                     logger.info("Removed shop (fallback): " + shopId);
-                    notifyWebhook();
+                    notifyWebhook(shopId);
                     return true;
                 }
                 logger.debug("Shop not found for removal: " + shopId);
@@ -272,7 +272,7 @@ public class ShopServiceImpl implements IShopService {
             return repository.deleteById(id).thenApply(deleted -> {
                 if (deleted) {
                     logger.info("Removed shop: " + shopId);
-                    notifyWebhook();
+                    notifyWebhook(shopId);
                 } else {
                     logger.debug("Shop not found for removal: " + shopId);
                 }
@@ -298,7 +298,7 @@ public class ShopServiceImpl implements IShopService {
                 ShopDataDTO updated = buildUpdatedShop(existing, updates);
                 fallbackShopsById.put(shopId, updated);
                 logger.info("Updated shop (fallback): " + shopId);
-                notifyWebhook();
+                notifyWebhook(shopId);
                 return true;
             });
         }
@@ -316,7 +316,7 @@ public class ShopServiceImpl implements IShopService {
 
                 return repository.save(updated).thenApply(saved -> {
                     logger.info("Updated shop: " + shopId);
-                    notifyWebhook();
+                    notifyWebhook(shopId);
                     return true;
                 });
             });
@@ -402,12 +402,14 @@ public class ShopServiceImpl implements IShopService {
      * Notifies the webhook of a shop change if configured.
      * Resolves WebhookNotifier lazily from ServiceRegistry since it is
      * registered after core services during initialization.
+     *
+     * @param shopId The ID of the changed shop for targeted cache invalidation
      */
-    private void notifyWebhook() {
+    private void notifyWebhook(String shopId) {
         if (serviceRegistry == null) return;
         WebhookNotifier notifier = serviceRegistry.getService(WebhookNotifier.class);
         if (notifier != null) {
-            notifier.notifyShopChange();
+            notifier.notifyShopChange(shopId);
         }
     }
 

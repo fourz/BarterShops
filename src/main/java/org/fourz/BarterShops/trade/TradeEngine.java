@@ -466,9 +466,10 @@ public class TradeEngine {
      */
     private void logTrade(TradeSession session, String transactionId, TradeSource source) {
         // Build trade record DTO
+        int shopId = session.getShop().getShopId();
         TradeRecordDTO record = TradeRecordDTO.builder()
                 .transactionId(transactionId)
-                .shopId(session.getShop().getShopId())
+                .shopId(shopId)
                 .buyerUuid(session.getBuyerUuid())
                 .sellerUuid(session.getSellerUuid())
                 .itemStackData(serializeItem(session.getOfferedItem()))
@@ -479,6 +480,8 @@ public class TradeEngine {
                 .tradeSource(source != null ? source.name() : "UNKNOWN")
                 .build();
 
+        String shopIdStr = String.valueOf(shopId);
+
         // Persist via TradeServiceImpl if available
         TradeServiceImpl tradeService = plugin.getTradeService();
         if (tradeService != null) {
@@ -486,7 +489,7 @@ public class TradeEngine {
                 .thenAccept(saved -> {
                     ITransactionLogger txLogger = plugin.getTransactionLogger();
                     if (txLogger != null) txLogger.log(saved);
-                    notifyWebhook();
+                    notifyWebhook(shopIdStr);
                 })
                 .exceptionally(ex -> {
                     logger.error("Failed to persist trade record: " + ex.getMessage());
@@ -494,7 +497,7 @@ public class TradeEngine {
                 });
         } else {
             logger.debug("Trade logged (no persistence — TradeServiceImpl not available): " + transactionId);
-            notifyWebhook();
+            notifyWebhook(shopIdStr);
         }
     }
 
@@ -722,14 +725,17 @@ public class TradeEngine {
     }
 
     /**
-     * Notifies the webhook of a shop change (trade completed) if configured.
-     * Resolves WebhookNotifier lazily from ServiceRegistry.
+     * Notifies the webhook of a trade completion if configured.
+     * Uses the dedicated trade_complete event type with its own debounce,
+     * independent of shop CRUD events.
+     *
+     * @param shopId The ID of the shop where the trade occurred
      */
-    private void notifyWebhook() {
+    private void notifyWebhook(String shopId) {
         if (serviceRegistry == null) return;
         WebhookNotifier notifier = serviceRegistry.getService(WebhookNotifier.class);
         if (notifier != null) {
-            notifier.notifyShopChange();
+            notifier.notifyTradeComplete(shopId);
         }
     }
 

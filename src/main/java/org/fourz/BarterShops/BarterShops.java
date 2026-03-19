@@ -141,15 +141,18 @@ public class BarterShops extends JavaPlugin {
         // Initialize StatsService (requires ShopService + RatingService)
         initializeStatsService();
 
+        // Initialize PlayerLookup before RVNKCore registration so API endpoints can resolve names.
+        // PlayerLookup detects RVNKCore PlayerService lazily, so order with registerWithRVNKCore is safe.
+        this.playerLookup = new PlayerLookup(this).enableMojangAPI();
+
         // Register with RVNKCore ServiceRegistry if available
         registerWithRVNKCore();
 
+        // Pre-load player names from DB (async, non-blocking — runs after RVNKCore services are registered)
+        this.playerLookup.preloadFromDatabase();
+
         // CommandManager after services so conditional subcommands (rate/reviews/stats) register (bug-11)
         this.commandManager = new CommandManager(this);
-
-        // Initialize PlayerLookup (after RVNKCore registration so PlayerService is available)
-        this.playerLookup = new PlayerLookup(this).enableMojangAPI();
-        this.playerLookup.preloadFromDatabase(); // async, non-blocking
 
         // Apply configured log level to all BarterShops instances now that all managers are created.
         // Use setPluginLogLevel (not setGlobalLogLevel) to avoid resetting other plugins' log levels.
@@ -323,7 +326,8 @@ public class BarterShops extends JavaPlugin {
                 new org.fourz.BarterShops.api.ShopApiEndpointImpl(
                     shopServiceForApi != null ? (IShopService) shopServiceForApi : null,
                     tradeService,
-                    null  // IShopDatabaseService - impl pending
+                    null,  // IShopDatabaseService - impl pending
+                    this.playerLookup
                 );
             Class<?> apiServiceInterface = Class.forName("org.fourz.rvnkcore.api.service.IBarterShopsApiService");
             registerMethod.invoke(serviceRegistry, apiServiceInterface, apiService);
