@@ -193,6 +193,8 @@ class ShopRepositoryImplTest {
             when(resultSet.getBoolean("is_active")).thenReturn(true);
             when(resultSet.getTimestamp("created_at")).thenReturn(testTimestamp);
             when(resultSet.getTimestamp("last_modified")).thenReturn(testTimestamp);
+            when(resultSet.getInt("group_id")).thenReturn(0);
+            when(resultSet.wasNull()).thenReturn(true); // group_id is NULL
 
             Optional<ShopDataDTO> result = getFutureResult(repository.findById(1));
 

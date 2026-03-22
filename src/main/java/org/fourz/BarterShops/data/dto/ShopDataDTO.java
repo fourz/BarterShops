@@ -34,7 +34,8 @@ public record ShopDataDTO(
     boolean isActive,
     Timestamp createdAt,
     Timestamp lastModified,
-    Map<String, String> metadata
+    Map<String, String> metadata,
+    Integer groupId
 ) {
     /**
      * Compact constructor with validation and defensive copies.
@@ -206,6 +207,7 @@ public record ShopDataDTO(
         private Timestamp createdAt = new Timestamp(System.currentTimeMillis());
         private Timestamp lastModified = new Timestamp(System.currentTimeMillis());
         private Map<String, String> metadata = new HashMap<>();
+        private Integer groupId;
 
         public Builder shopId(int shopId) {
             this.shopId = shopId;
@@ -364,12 +366,17 @@ public record ShopDataDTO(
             return this;
         }
 
+        public Builder groupId(Integer groupId) {
+            this.groupId = groupId;
+            return this;
+        }
+
         public ShopDataDTO build() {
             return new ShopDataDTO(
                 shopId, ownerUuid, shopName, shopType,
                 locationWorld, locationX, locationY, locationZ,
                 chestLocationWorld, chestLocationX, chestLocationY, chestLocationZ,
-                isActive, createdAt, lastModified, metadata
+                isActive, createdAt, lastModified, metadata, groupId
             );
         }
     }

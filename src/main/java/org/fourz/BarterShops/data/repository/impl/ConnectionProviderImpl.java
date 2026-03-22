@@ -43,6 +43,8 @@ public class ConnectionProviderImpl implements IConnectionProvider {
     private static final String TABLE_SHOP_RATINGS = "shop_ratings";
     private static final String TABLE_TRADE_DAILY_SUMMARY  = "trade_daily_summary";
     private static final String TABLE_TRADE_MONTHLY_SUMMARY = "trade_monthly_summary";
+    private static final String TABLE_SHOP_GROUPS = "shop_groups";
+    private static final String TABLE_SHOP_GROUP_MEMBERS = "shop_group_members";
 
     /**
      * Creates a new ConnectionProviderImpl.
@@ -194,6 +196,26 @@ public class ConnectionProviderImpl implements IConnectionProvider {
         } catch (SQLException e) {
             logger.debug("Migration skip (index already exists): " + e.getMessage());
         }
+
+        // Shop grouping: add group_id column to shops table
+        String groupColSql = "mysql".equals(databaseType)
+            ? "ALTER TABLE " + table(TABLE_SHOPS) + " ADD COLUMN IF NOT EXISTS group_id INT DEFAULT NULL"
+            : "ALTER TABLE " + table(TABLE_SHOPS) + " ADD COLUMN group_id INTEGER DEFAULT NULL";
+        try (PreparedStatement s = conn.prepareStatement(groupColSql)) {
+            s.execute();
+            logger.info("Migration applied: added group_id to " + table(TABLE_SHOPS));
+        } catch (SQLException e) {
+            logger.debug("Migration skip (already applied): group_id — " + e.getMessage());
+        }
+
+        String groupIdxSql = "CREATE INDEX IF NOT EXISTS idx_" + getTablePrefix() + "shops_group ON "
+                + table(TABLE_SHOPS) + "(group_id)";
+        try (PreparedStatement s = conn.prepareStatement(groupIdxSql)) {
+            s.execute();
+            logger.info("Migration applied: group_id index on " + table(TABLE_SHOPS));
+        } catch (SQLException e) {
+            logger.debug("Migration skip (index already exists): " + e.getMessage());
+        }
     }
 
     private void createMySQLSchema(Statement stmt) throws SQLException {
@@ -309,6 +331,33 @@ public class ConnectionProviderImpl implements IConnectionProvider {
                 "UNIQUE KEY uq_" + p + "monthly_shop_month (shop_id, summary_month), " +
                 "INDEX idx_" + p + "monthly_month (summary_month), " +
                 "INDEX idx_" + p + "monthly_shop (shop_id)" +
+                ") ENGINE=InnoDB DEFAULT CHARSET=utf8mb4");
+
+        // Shop groups table
+        String shopGroups = table(TABLE_SHOP_GROUPS);
+        String shopGroupMembers = table(TABLE_SHOP_GROUP_MEMBERS);
+
+        stmt.execute("CREATE TABLE IF NOT EXISTS " + shopGroups + " (" +
+                "group_id INT AUTO_INCREMENT PRIMARY KEY, " +
+                "group_name VARCHAR(64) NOT NULL, " +
+                "owner_uuid VARCHAR(36) NOT NULL, " +
+                "world VARCHAR(64) NOT NULL, " +
+                "is_active TINYINT(1) NOT NULL DEFAULT 1, " +
+                "created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP, " +
+                "last_modified TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP, " +
+                "INDEX idx_" + p + "groups_owner (owner_uuid), " +
+                "INDEX idx_" + p + "groups_world (world), " +
+                "INDEX idx_" + p + "groups_owner_active (owner_uuid, is_active)" +
+                ") ENGINE=InnoDB DEFAULT CHARSET=utf8mb4");
+
+        stmt.execute("CREATE TABLE IF NOT EXISTS " + shopGroupMembers + " (" +
+                "group_id INT NOT NULL, " +
+                "member_uuid VARCHAR(36) NOT NULL, " +
+                "role VARCHAR(16) NOT NULL DEFAULT 'CO_OWNER', " +
+                "added_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP, " +
+                "PRIMARY KEY (group_id, member_uuid), " +
+                "INDEX idx_" + p + "group_members_member (member_uuid), " +
+                "FOREIGN KEY (group_id) REFERENCES " + shopGroups + "(group_id) ON DELETE CASCADE" +
                 ") ENGINE=InnoDB DEFAULT CHARSET=utf8mb4");
     }
 
@@ -429,6 +478,33 @@ public class ConnectionProviderImpl implements IConnectionProvider {
                 ")");
         stmt.execute("CREATE INDEX IF NOT EXISTS idx_" + p + "monthly_month ON " + monthlySummary + "(summary_month)");
         stmt.execute("CREATE INDEX IF NOT EXISTS idx_" + p + "monthly_shop ON " + monthlySummary + "(shop_id)");
+
+        // Shop groups table
+        String shopGroups = table(TABLE_SHOP_GROUPS);
+        String shopGroupMembers = table(TABLE_SHOP_GROUP_MEMBERS);
+
+        stmt.execute("CREATE TABLE IF NOT EXISTS " + shopGroups + " (" +
+                "group_id INTEGER PRIMARY KEY AUTOINCREMENT, " +
+                "group_name TEXT NOT NULL, " +
+                "owner_uuid TEXT NOT NULL, " +
+                "world TEXT NOT NULL, " +
+                "is_active INTEGER NOT NULL DEFAULT 1, " +
+                "created_at TEXT DEFAULT (datetime('now')), " +
+                "last_modified TEXT DEFAULT (datetime('now'))" +
+                ")");
+        stmt.execute("CREATE INDEX IF NOT EXISTS idx_" + p + "groups_owner ON " + shopGroups + "(owner_uuid)");
+        stmt.execute("CREATE INDEX IF NOT EXISTS idx_" + p + "groups_world ON " + shopGroups + "(world)");
+        stmt.execute("CREATE INDEX IF NOT EXISTS idx_" + p + "groups_owner_active ON " + shopGroups + "(owner_uuid, is_active)");
+
+        stmt.execute("CREATE TABLE IF NOT EXISTS " + shopGroupMembers + " (" +
+                "group_id INTEGER NOT NULL, " +
+                "member_uuid TEXT NOT NULL, " +
+                "role TEXT NOT NULL DEFAULT 'CO_OWNER', " +
+                "added_at TEXT DEFAULT (datetime('now')), " +
+                "PRIMARY KEY (group_id, member_uuid), " +
+                "FOREIGN KEY (group_id) REFERENCES " + shopGroups + "(group_id) ON DELETE CASCADE" +
+                ")");
+        stmt.execute("CREATE INDEX IF NOT EXISTS idx_" + p + "group_members_member ON " + shopGroupMembers + "(member_uuid)");
     }
 
     @Override

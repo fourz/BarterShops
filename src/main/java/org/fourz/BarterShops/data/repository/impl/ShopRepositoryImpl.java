@@ -625,6 +625,10 @@ public class ShopRepositoryImpl implements IShopRepository {
     }
 
     private ShopDataDTO mapRowToShop(ResultSet rs, Map<String, String> metadata) throws SQLException {
+        // Read group_id (nullable column)
+        int groupIdRaw = rs.getInt("group_id");
+        Integer groupId = rs.wasNull() ? null : groupIdRaw;
+
         return ShopDataDTO.builder()
                 .shopId(rs.getInt("shop_id"))
                 .ownerUuid(UUID.fromString(rs.getString("owner_uuid")))
@@ -644,6 +648,7 @@ public class ShopRepositoryImpl implements IShopRepository {
                 .createdAt(rs.getTimestamp("created_at"))
                 .lastModified(rs.getTimestamp("last_modified"))
                 .metadata(metadata)
+                .groupId(groupId)
                 .build();
     }
 
