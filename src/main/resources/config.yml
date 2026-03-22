@@ -74,6 +74,20 @@ economy:
     enabled: true
     min_currency: 1.0        # Minimum currency amount for mixed trades
 
+shop-groups:
+  # Enable automatic shop grouping by proximity
+  enabled: true
+  # Radius in blocks for auto-grouping (0 = every shop gets its own group)
+  auto-group-radius: 150
+  # Default group name template ({player} is replaced with owner name)
+  default-name-template: "{player}'s Shop"
+  # Maximum co-owners per group
+  max-co-owners: 5
+  # Maximum groups per player
+  max-groups-per-player: 10
+  # Auto-migrate existing shops into groups on first startup
+  migrate-existing: true
+
 protection:
   # Enable shop region protection system
   enabled: true

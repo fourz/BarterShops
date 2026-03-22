@@ -52,23 +52,27 @@ public class SignInteraction {
     public void handleLeftClick(Player player, Sign sign, BarterSign barterSign, PlayerInteractEvent event) {
         if (barterSign == null) return;
 
+        // Check if player is owner or co-owner (co-owners are NOT customers)
+        boolean isOwnerOrCoOwner = barterSign.getOwner().equals(player.getUniqueId()) ||
+                isCoOwner(barterSign, player.getUniqueId());
+
         // CUSTOMER LEFT-CLICK: Direct trade initiation
-        if (barterSign.isCustomer(player)) {
+        if (!isOwnerOrCoOwner && barterSign.isCustomer(player)) {
             handleCustomerLeftClick(player, sign, barterSign, event);
             return;
         }
 
-        // OWNER LEFT-CLICK: Configuration (requires permission)
+        // OWNER/CO-OWNER LEFT-CLICK: Configuration (requires permission)
         if (!player.hasPermission("bartershops.create")) {
             logger.debug("Left-click ignored - player lacks configure permission");
             return;
         }
 
-        if (!barterSign.getOwner().equals(player.getUniqueId())) {
-            return; // Not owner
+        if (!isOwnerOrCoOwner) {
+            return; // Not owner or co-owner
         }
 
-        logger.debug("Owner left-click detected - mode: " + barterSign.getMode());
+        logger.debug("Owner/co-owner left-click detected - mode: " + barterSign.getMode());
         // Don't cancel revert in DELETE or TYPE mode - let 10s countdown from right-click continue
         // Confirmation display is temporary (5s auto-clear), not a configuration interaction
         if (barterSign.getMode() != ShopMode.DELETE && barterSign.getMode() != ShopMode.TYPE) {
@@ -292,6 +296,12 @@ public class SignInteraction {
             }
 
             case DELETE -> {
+                // Co-owners CANNOT delete shops — only the direct owner can
+                if (isCoOwnerOnly(barterSign, player.getUniqueId())) {
+                    player.sendMessage(ChatColor.RED + "Only the shop owner can delete this shop.");
+                    return;
+                }
+
                 // Left-click in DELETE: Two-step confirmation with integrated auto-revert
                 String signId = barterSign.getId();
 
@@ -415,7 +425,8 @@ public class SignInteraction {
         logger.debug(String.format("Processing %s interaction in mode: %s",
             player.getName(), barterSign.getMode()));
 
-        if (barterSign.getOwner().equals(player.getUniqueId())) {
+        if (barterSign.getOwner().equals(player.getUniqueId()) ||
+                isCoOwner(barterSign, player.getUniqueId())) {
             handleOwnerRightClick(player, sign, barterSign);
         } else {
             handleCustomerRightClick(player, sign, barterSign);
@@ -1168,6 +1179,34 @@ public class SignInteraction {
      */
     public void cleanupPlayer(UUID playerUuid) {
         sessionManager.cleanupPlayer(playerUuid);
+    }
+
+    /**
+     * Checks if a player is a co-owner of the shop's group.
+     * Uses canManageShop from ShopGroupService with a short timeout.
+     * Returns false if group service is unavailable or shop is ungrouped.
+     */
+    private boolean isCoOwner(BarterSign barterSign, UUID playerUuid) {
+        if (barterSign.getGroupId() <= 0) return false;
+
+        org.fourz.BarterShops.service.IShopGroupService groupService = plugin.getShopGroupService();
+        if (groupService == null) return false;
+
+        try {
+            return groupService.canManageShop(barterSign.getShopId(), playerUuid)
+                .get(2, java.util.concurrent.TimeUnit.SECONDS);
+        } catch (Exception e) {
+            logger.debug("Co-owner check failed for shop " + barterSign.getShopId() + ": " + e.getMessage());
+            return false;
+        }
+    }
+
+    /**
+     * Checks if a player is a co-owner (not the direct owner) of the shop's group.
+     * Co-owners can configure and restock but CANNOT delete shops or transfer ownership.
+     */
+    private boolean isCoOwnerOnly(BarterSign barterSign, UUID playerUuid) {
+        return !barterSign.getOwner().equals(playerUuid) && isCoOwner(barterSign, playerUuid);
     }
 
     public void cleanup() {
