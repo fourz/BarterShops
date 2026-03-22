@@ -288,6 +288,9 @@ public class BarterShops extends JavaPlugin {
                 return;
             }
 
+            // Set rvnkServiceRegistry early so createShopService() can pass it to ShopServiceImpl
+            rvnkServiceRegistry = (org.fourz.rvnkcore.service.registry.ServiceRegistry) serviceRegistry;
+
             // Get the registerService method
             Class<?> registryClass = serviceRegistry.getClass();
             java.lang.reflect.Method registerMethod = registryClass.getMethod("registerService", Class.class, Object.class);
@@ -335,7 +338,6 @@ public class BarterShops extends JavaPlugin {
 
             rvnkCoreAvailable = true;
             rvnkCoreInstance = coreInstance;
-            rvnkServiceRegistry = (org.fourz.rvnkcore.service.registry.ServiceRegistry) serviceRegistry;
             logger.info("RVNKCore integration enabled - services registered");
 
             // Pass ServiceRegistry to TradeEngine for webhook notifications
