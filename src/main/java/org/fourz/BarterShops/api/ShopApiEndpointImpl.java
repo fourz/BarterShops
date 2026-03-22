@@ -3,8 +3,10 @@ package org.fourz.BarterShops.api;
 import org.bukkit.Bukkit;
 import org.bukkit.Location;
 import org.fourz.BarterShops.data.dto.ShopDataDTO;
+import org.fourz.BarterShops.data.dto.ShopGroupDTO;
 import org.fourz.BarterShops.data.dto.TradeRecordDTO;
 import org.fourz.BarterShops.service.IShopDatabaseService;
+import org.fourz.BarterShops.service.IShopGroupService;
 import org.fourz.BarterShops.service.IShopService;
 import org.fourz.BarterShops.service.ITradeService;
 import org.fourz.rvnkcore.api.model.response.ApiResponse;
@@ -26,6 +28,7 @@ public class ShopApiEndpointImpl implements IBarterShopsApiService {
     private final IShopService shopService;
     private final ITradeService tradeService;
     private final IShopDatabaseService databaseService;
+    private final IShopGroupService shopGroupService;
     private final PlayerLookup playerLookup;
     private final long startTime;
 
@@ -33,11 +36,13 @@ public class ShopApiEndpointImpl implements IBarterShopsApiService {
         IShopService shopService,
         ITradeService tradeService,
         IShopDatabaseService databaseService,
+        IShopGroupService shopGroupService,
         PlayerLookup playerLookup
     ) {
         this.shopService = shopService;
         this.tradeService = tradeService;
         this.databaseService = databaseService;
+        this.shopGroupService = shopGroupService;
         this.playerLookup = playerLookup;
         this.startTime = System.currentTimeMillis();
     }
@@ -239,9 +244,153 @@ public class ShopApiEndpointImpl implements IBarterShopsApiService {
         });
     }
 
+    @Override
+    public CompletableFuture<ApiResponse<?>> getGroups(Map<String, String> filters) {
+        if (shopGroupService == null) {
+            return CompletableFuture.completedFuture(
+                ApiResponse.error("SERVICE_UNAVAILABLE", "Shop group service is not available"));
+        }
+
+        String ownerFilter = filters.get("owner");
+        if (ownerFilter == null || ownerFilter.isEmpty()) {
+            return CompletableFuture.completedFuture(
+                ApiResponse.error("INVALID_REQUEST", "owner parameter is required"));
+        }
+
+        UUID ownerUuid;
+        try {
+            ownerUuid = UUID.fromString(ownerFilter);
+        } catch (IllegalArgumentException e) {
+            return CompletableFuture.completedFuture(
+                ApiResponse.error("INVALID_REQUEST", "Invalid owner UUID format"));
+        }
+
+        String worldFilter = filters.get("world");
+
+        return shopGroupService.getPlayerGroups(ownerUuid)
+            .<ApiResponse<?>>handle((groups, ex) -> {
+                if (ex != null) return ApiResponse.error("INTERNAL_ERROR",
+                    "Failed to retrieve groups: " + ex.getMessage());
+
+                List<ShopGroupDTO> filtered = groups;
+                if (worldFilter != null && !worldFilter.isEmpty()) {
+                    filtered = groups.stream()
+                        .filter(g -> worldFilter.equalsIgnoreCase(g.world()))
+                        .collect(Collectors.toList());
+                }
+
+                int page = ApiUtils.parseIntOrDefault(filters.get("page"), 1);
+                int limit = Math.min(ApiUtils.parseIntOrDefault(filters.get("limit"), 20), 100);
+                int total = filtered.size();
+                int startIndex = (page - 1) * limit;
+                int endIndex = Math.min(startIndex + limit, total);
+                List<ShopGroupDTO> paginated = startIndex >= total
+                    ? List.of() : filtered.subList(startIndex, endIndex);
+
+                List<Map<String, Object>> enriched = paginated.stream().map(group -> {
+                    Map<String, Object> m = new LinkedHashMap<>();
+                    m.put("groupId", group.groupId());
+                    m.put("groupName", group.groupName());
+                    m.put("ownerUuid", group.ownerUuid().toString());
+                    m.put("ownerName", resolvePlayerName(group.ownerUuid()));
+                    m.put("world", group.world());
+                    m.put("isActive", group.isActive());
+                    m.put("createdAt", group.createdAt() != null
+                        ? group.createdAt().toInstant().toString() : null);
+                    m.put("coOwners", group.coOwners().stream().map(uuid -> {
+                        Map<String, String> co = new LinkedHashMap<>();
+                        co.put("uuid", uuid.toString());
+                        co.put("name", resolvePlayerName(uuid));
+                        return co;
+                    }).toList());
+                    // Shop count fetched synchronously from the future (already completed by service layer)
+                    try {
+                        List<ShopDataDTO> shops = shopGroupService.getGroupShops(group.groupId()).join();
+                        m.put("shopCount", shops.size());
+                    } catch (Exception e) {
+                        m.put("shopCount", 0);
+                    }
+                    return m;
+                }).toList();
+
+                return ApiResponse.success(enriched, page, limit, total);
+            });
+    }
+
+    @Override
+    public CompletableFuture<ApiResponse<?>> getGroupById(String groupIdStr) {
+        if (shopGroupService == null) {
+            return CompletableFuture.completedFuture(
+                ApiResponse.error("SERVICE_UNAVAILABLE", "Shop group service is not available"));
+        }
+
+        int groupId;
+        try {
+            groupId = Integer.parseInt(groupIdStr);
+        } catch (NumberFormatException e) {
+            return CompletableFuture.completedFuture(
+                ApiResponse.error("INVALID_REQUEST", "Invalid group ID: must be numeric"));
+        }
+
+        return shopGroupService.getGroup(groupId)
+            .thenCompose(optionalGroup -> {
+                if (optionalGroup.isEmpty()) {
+                    return CompletableFuture.completedFuture(
+                        (ApiResponse<?>) ApiResponse.error("NOT_FOUND",
+                            "Group with ID " + groupId + " not found"));
+                }
+
+                ShopGroupDTO group = optionalGroup.get();
+
+                return shopGroupService.getGroupShops(groupId)
+                    .<ApiResponse<?>>handle((shops, ex) -> {
+                        if (ex != null) return ApiResponse.error("INTERNAL_ERROR",
+                            "Failed to retrieve group shops: " + ex.getMessage());
+
+                        Map<String, Object> result = new LinkedHashMap<>();
+                        result.put("groupId", group.groupId());
+                        result.put("groupName", group.groupName());
+                        result.put("ownerUuid", group.ownerUuid().toString());
+                        result.put("ownerName", resolvePlayerName(group.ownerUuid()));
+                        result.put("world", group.world());
+                        result.put("isActive", group.isActive());
+                        result.put("createdAt", group.createdAt() != null
+                            ? group.createdAt().toInstant().toString() : null);
+                        result.put("lastModified", group.lastModified() != null
+                            ? group.lastModified().toInstant().toString() : null);
+                        result.put("coOwners", group.coOwners().stream().map(uuid -> {
+                            Map<String, String> co = new LinkedHashMap<>();
+                            co.put("uuid", uuid.toString());
+                            co.put("name", resolvePlayerName(uuid));
+                            return co;
+                        }).toList());
+                        result.put("shops", shops.stream()
+                            .map(this::sanitizeMetadata).toList());
+                        result.put("shopCount", shops.size());
+
+                        return ApiResponse.success(result);
+                    });
+            })
+            .<ApiResponse<?>>handle((result, ex) -> {
+                if (ex != null) return ApiResponse.error("INTERNAL_ERROR",
+                    "Failed to retrieve group: " + ex.getMessage());
+                return result;
+            });
+    }
+
     // ========================================================
     // Helper Methods
     // ========================================================
+
+    /**
+     * Resolves a player UUID to a name via PlayerLookup.
+     */
+    private String resolvePlayerName(UUID uuid) {
+        if (playerLookup != null) {
+            return playerLookup.getPlayerName(uuid);
+        }
+        return uuid.toString().substring(0, 8);
+    }
 
     private List<ShopDataDTO> applyFilters(List<ShopDataDTO> shops, Map<String, String> filters) {
         List<ShopDataDTO> result = new ArrayList<>(shops);
@@ -342,7 +491,7 @@ public class ShopApiEndpointImpl implements IBarterShopsApiService {
             shop.shopId(), shop.ownerUuid(), shop.shopName(), shop.shopType(),
             shop.locationWorld(), shop.locationX(), shop.locationY(), shop.locationZ(),
             shop.chestLocationWorld(), shop.chestLocationX(), shop.chestLocationY(), shop.chestLocationZ(),
-            shop.isActive(), shop.createdAt(), shop.lastModified(), sanitized
+            shop.isActive(), shop.createdAt(), shop.lastModified(), sanitized, shop.groupId()
         );
     }
 

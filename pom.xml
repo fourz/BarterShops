@@ -6,7 +6,7 @@
 
     <groupId>org.fourz.BarterShops</groupId>
     <artifactId>BarterShops</artifactId>
-    <version>1.1.21</version>
+    <version>1.1.22</version>
 
     <name>BarterShops</name>
     <description></description>
@@ -74,7 +74,7 @@
         <dependency>
             <groupId>org.fourz</groupId>
             <artifactId>rvnkcore</artifactId>
-            <version>1.4.0-alpha</version>
+            <version>1.4.4-alpha</version>
             <scope>provided</scope>
         </dependency>
         <!-- HikariCP - High-performance JDBC connection pool -->

@@ -8,9 +8,13 @@ import org.fourz.BarterShops.config.ConfigManager;
 import org.fourz.BarterShops.config.TypeAvailabilityManager;
 import org.fourz.rvnkcore.data.FallbackTracker;
 import org.fourz.BarterShops.data.IConnectionProvider;
+import org.fourz.BarterShops.data.repository.IShopGroupRepository;
 import org.fourz.BarterShops.data.repository.IShopRepository;
 import org.fourz.BarterShops.data.repository.impl.ConnectionProviderImpl;
+import org.fourz.BarterShops.data.repository.impl.ShopGroupRepositoryImpl;
 import org.fourz.BarterShops.data.repository.impl.ShopRepositoryImpl;
+import org.fourz.BarterShops.service.IShopGroupService;
+import org.fourz.BarterShops.service.impl.ShopGroupServiceImpl;
 import org.fourz.BarterShops.economy.EconomyManager;
 import org.fourz.BarterShops.economy.ShopFeeCalculator;
 import org.fourz.BarterShops.notification.NotificationManager;
@@ -70,6 +74,8 @@ public class BarterShops extends JavaPlugin {
     private TradeServiceImpl tradeService;
     private RetentionManager retentionManager;
 
+    private IShopGroupRepository shopGroupRepository;
+    private IShopGroupService shopGroupService;
     private ITransactionLogger transactionLogger;
 
     // Plugin lifecycle tracking
@@ -120,6 +126,9 @@ public class BarterShops extends JavaPlugin {
         if (signManager != null && shopRepository != null) {
             signManager.loadSignsFromDatabase();
         }
+
+        // Initialize shop group service (after signManager + repositories)
+        initializeShopGroupService();
 
         // Initialize preference system
         this.preferenceManager = new ShopPreferenceManager(this);
@@ -197,6 +206,7 @@ public class BarterShops extends JavaPlugin {
             this.shopRepository = new ShopRepositoryImpl(this, connectionProvider, fallbackTracker);
             this.tradeRepository = new TradeRepositoryImpl(this, connectionProvider, fallbackTracker);
             this.tradeService = new TradeServiceImpl(this, tradeRepository, fallbackTracker);
+            this.shopGroupRepository = new ShopGroupRepositoryImpl(this, connectionProvider, fallbackTracker);
 
             logger.info("Database layer initialized successfully (" + connectionProvider.getDatabaseType() + ")");
         } catch (Exception e) {
@@ -259,6 +269,29 @@ public class BarterShops extends JavaPlugin {
      */
     public boolean isRVNKCoreAvailable() {
         return rvnkCoreAvailable;
+    }
+
+    /**
+     * Initializes the ShopGroupService for shop grouping and co-ownership.
+     */
+    private void initializeShopGroupService() {
+        if (shopGroupRepository == null || shopRepository == null) {
+            logger.info("ShopGroupService skipped — database layer not available");
+            return;
+        }
+        try {
+            this.shopGroupService = new ShopGroupServiceImpl(this, shopGroupRepository, shopRepository);
+            logger.info("ShopGroupService initialized");
+
+            // Run startup migration (async, non-blocking)
+            shopGroupService.migrateExistingShops()
+                .exceptionally(ex -> {
+                    logger.warning("Shop group migration failed: " + ex.getMessage());
+                    return null;
+                });
+        } catch (Exception e) {
+            logger.warning("Failed to initialize ShopGroupService: " + e.getMessage());
+        }
     }
 
     /**
@@ -330,6 +363,7 @@ public class BarterShops extends JavaPlugin {
                     shopServiceForApi != null ? (IShopService) shopServiceForApi : null,
                     tradeService,
                     null,  // IShopDatabaseService - impl pending
+                    shopGroupService,
                     this.playerLookup
                 );
             Class<?> apiServiceInterface = Class.forName("org.fourz.rvnkcore.api.service.IBarterShopsApiService");
@@ -589,6 +623,17 @@ public class BarterShops extends JavaPlugin {
             }
         });
 
+        cleanupManager("shopGroupService", () -> {
+            shopGroupService = null;
+        });
+
+        cleanupManager("shopGroupRepository", () -> {
+            if (shopGroupRepository != null && shopGroupRepository instanceof ShopGroupRepositoryImpl) {
+                ((ShopGroupRepositoryImpl) shopGroupRepository).shutdown();
+                shopGroupRepository = null;
+            }
+        });
+
         cleanupManager("shopRepository", () -> {
             if (shopRepository != null && shopRepository instanceof ShopRepositoryImpl) {
                 ((ShopRepositoryImpl) shopRepository).shutdown();
@@ -728,5 +773,13 @@ public class BarterShops extends JavaPlugin {
 
     public void setTransactionLogger(ITransactionLogger logger) {
         this.transactionLogger = logger;
+    }
+
+    public IShopGroupRepository getShopGroupRepository() {
+        return shopGroupRepository;
+    }
+
+    public IShopGroupService getShopGroupService() {
+        return shopGroupService;
     }
 }
