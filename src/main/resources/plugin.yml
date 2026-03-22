@@ -26,6 +26,34 @@ permissions:
   bartershops.economy.tax:
     description: View trade tax rates and calculate taxes (/shop tax)
     default: op
+  bartershops.group.*:
+    description: All shop group permissions
+    default: false
+    children:
+      bartershops.group.list: true
+      bartershops.group.info: true
+      bartershops.group.rename: true
+      bartershops.group.manage: true
+      bartershops.group.coowner: true
+      bartershops.group.transfer: true
+  bartershops.group.list:
+    description: List shop groups
+    default: false
+  bartershops.group.info:
+    description: View shop group details
+    default: false
+  bartershops.group.rename:
+    description: Rename shop groups
+    default: false
+  bartershops.group.manage:
+    description: Add/remove shops from groups, create/delete groups
+    default: false
+  bartershops.group.coowner:
+    description: Add/remove co-owners from shop groups
+    default: false
+  bartershops.group.transfer:
+    description: Transfer shop group ownership
+    default: false
   bartershops.admin:
     description: Full admin access — bypasses all shop restrictions
     default: op
