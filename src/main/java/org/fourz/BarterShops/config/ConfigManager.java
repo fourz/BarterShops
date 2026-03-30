@@ -139,6 +139,14 @@ public class ConfigManager {
         return getConfig().getBoolean(path, defaultValue);
     }
 
+    public double getDouble(String path, double defaultValue) {
+        return getConfig().getDouble(path, defaultValue);
+    }
+
+    public String getString(String path, String defaultValue) {
+        return getConfig().getString(path, defaultValue);
+    }
+
     // ========================================================
     // Retention configuration
     // ========================================================

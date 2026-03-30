@@ -66,6 +66,10 @@ public class ShopConfigSerializer {
             }
         }
 
+        // Remove trailing comma before closing brace
+        if (sb.length() > 1 && sb.charAt(sb.length() - 1) == ',') {
+            sb.setLength(sb.length() - 1);
+        }
         sb.append("}");
         return sb.toString();
     }

@@ -12,6 +12,8 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.mockito.junit.jupiter.MockitoSettings;
+import org.mockito.quality.Strictness;
 
 import java.sql.*;
 import java.util.Optional;
@@ -29,6 +31,7 @@ import static org.mockito.Mockito.*;
  * Tests async operations, fallback mode, and database interactions.
  */
 @ExtendWith(MockitoExtension.class)
+@MockitoSettings(strictness = Strictness.LENIENT)
 @DisplayName("TradeRepositoryImpl Tests")
 class TradeRepositoryImplTest {
 

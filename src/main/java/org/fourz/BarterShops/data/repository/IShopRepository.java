@@ -1,7 +1,6 @@
 package org.fourz.BarterShops.data.repository;
 
 import org.fourz.BarterShops.data.dto.ShopDataDTO;
-import org.fourz.BarterShops.data.dto.TradeItemDTO;
 
 import java.util.List;
 import java.util.Optional;
@@ -126,43 +125,6 @@ public interface IShopRepository {
      * @return CompletableFuture containing list of all shops
      */
     CompletableFuture<List<ShopDataDTO>> findAll();
-
-    // ========================================================
-    // Trade Items (Shop Inventory)
-    // ========================================================
-
-    /**
-     * Gets all trade items for a shop.
-     *
-     * @param shopId The shop ID
-     * @return CompletableFuture containing list of trade items
-     */
-    CompletableFuture<List<TradeItemDTO>> findTradeItems(int shopId);
-
-    /**
-     * Saves a trade item configuration.
-     *
-     * @param item The trade item to save
-     * @return CompletableFuture containing the saved item with generated ID
-     */
-    CompletableFuture<TradeItemDTO> saveTradeItem(TradeItemDTO item);
-
-    /**
-     * Deletes a trade item by ID.
-     *
-     * @param tradeItemId The trade item ID to delete
-     * @return CompletableFuture with true if deleted
-     */
-    CompletableFuture<Boolean> deleteTradeItem(int tradeItemId);
-
-    /**
-     * Updates stock quantity for a trade item.
-     *
-     * @param tradeItemId The trade item ID
-     * @param newQuantity The new stock quantity
-     * @return CompletableFuture with true if updated
-     */
-    CompletableFuture<Boolean> updateStock(int tradeItemId, int newQuantity);
 
     // ========================================================
     // Statistics

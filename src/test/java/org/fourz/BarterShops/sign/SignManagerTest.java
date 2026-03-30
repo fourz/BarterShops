@@ -105,6 +105,16 @@ class SignManagerTest {
         when(configManager.getInt(anyString(), anyInt())).thenAnswer(inv -> inv.getArgument(1));
         when(configManager.getLong(anyString(), anyLong())).thenAnswer(inv -> inv.getArgument(1));
 
+        // Mock ContainerManager chain for sign creation/deletion
+        var containerManager = mock(org.fourz.BarterShops.container.ContainerManager.class);
+        var validationListener = mock(org.fourz.BarterShops.container.listener.InventoryValidationListener.class);
+        when(plugin.getContainerManager()).thenReturn(containerManager);
+        when(containerManager.getValidationListener()).thenReturn(validationListener);
+
+        // Mock scheduler for sign display update scheduling
+        var scheduler = mock(org.bukkit.scheduler.BukkitScheduler.class);
+        when(server.getScheduler()).thenReturn(scheduler);
+
         // Setup player
         when(player.getUniqueId()).thenReturn(playerUuid);
         when(player.getName()).thenReturn("TestPlayer");
@@ -160,7 +170,7 @@ class SignManagerTest {
 
             signManager.onSignChange(signChangeEvent);
 
-            verify(player).sendMessage("Shop created successfully! Punch sign to configure.");
+            verify(player).sendMessage(org.bukkit.ChatColor.GREEN + "Shop created!");
             verify(signChangeEvent, never()).setCancelled(true);
 
             Map<Location, BarterSign> barterSigns = signManager.getBarterSigns();
@@ -182,7 +192,7 @@ class SignManagerTest {
 
             signManager.onSignChange(signChangeEvent);
 
-            verify(player).sendMessage("You do not have permission to create a shop!");
+            verify(player).sendMessage(org.bukkit.ChatColor.RED + "You don't have permission to create shops.");
             verify(signChangeEvent).setCancelled(true);
             assertTrue(signManager.getBarterSigns().isEmpty());
         }
@@ -203,7 +213,7 @@ class SignManagerTest {
 
             signManager.onSignChange(signChangeEvent);
 
-            verify(player).sendMessage("Invalid shop location! Place sign on or above a container.");
+            verify(player).sendMessage(org.bukkit.ChatColor.RED + "Invalid location! Place sign on or above a chest.");
             verify(signChangeEvent).setCancelled(true);
             assertTrue(signManager.getBarterSigns().isEmpty());
         }
@@ -227,8 +237,8 @@ class SignManagerTest {
         }
 
         @Test
-        @DisplayName("Left click delegates to SignInteraction")
-        void onSignClick_leftClick_delegatesToSignInteraction() {
+        @DisplayName("Left click on unregistered sign does nothing")
+        void onSignClick_leftClick_unregisteredSign_doesNothing() {
             when(interactEvent.getAction()).thenReturn(Action.LEFT_CLICK_BLOCK);
 
             try (MockedStatic<LogManager> logManagerStatic = mockStatic(LogManager.class)) {
@@ -238,12 +248,13 @@ class SignManagerTest {
 
             signManager.onSignClick(interactEvent);
 
-            verify(interactEvent).setCancelled(true);
+            // No registered barter sign at this location, so event passes through
+            verify(interactEvent, never()).setCancelled(anyBoolean());
         }
 
         @Test
-        @DisplayName("Right click delegates to SignInteraction")
-        void onSignClick_rightClick_delegatesToSignInteraction() {
+        @DisplayName("Right click on unregistered sign does nothing")
+        void onSignClick_rightClick_unregisteredSign_doesNothing() {
             when(interactEvent.getAction()).thenReturn(Action.RIGHT_CLICK_BLOCK);
 
             try (MockedStatic<LogManager> logManagerStatic = mockStatic(LogManager.class)) {
@@ -253,7 +264,8 @@ class SignManagerTest {
 
             signManager.onSignClick(interactEvent);
 
-            verify(interactEvent).setCancelled(true);
+            // No registered barter sign at this location, so event passes through
+            verify(interactEvent, never()).setCancelled(anyBoolean());
         }
 
         @Test
@@ -356,6 +368,11 @@ class SignManagerTest {
 
         @BeforeEach
         void setUpProtection() {
+            // Mock world.getBlockAt for the sign location so removeBarterSign can work
+            when(world.getBlockAt(any(Location.class))).thenReturn(signBlock);
+            when(world.getBlockAt(anyInt(), anyInt(), anyInt())).thenReturn(signBlock);
+            when(signBlock.getType()).thenReturn(org.bukkit.Material.OAK_WALL_SIGN);
+
             try (MockedStatic<LogManager> logManagerStatic = mockStatic(LogManager.class)) {
                 logManagerStatic.when(() -> LogManager.getInstance(any(), anyString())).thenReturn(logger);
                 signManager = new SignManager(plugin);

@@ -7,6 +7,8 @@ import org.fourz.BarterShops.data.dto.ShopDataDTO;
 import org.fourz.BarterShops.data.repository.IShopRepository;
 import org.fourz.BarterShops.data.repository.impl.ShopRepositoryImpl;
 import org.fourz.BarterShops.service.IShopService;
+import org.fourz.rvnkcore.api.webhook.WebhookNotifier;
+import org.fourz.rvnkcore.service.registry.ServiceRegistry;
 import org.fourz.rvnkcore.util.log.LogManager;
 
 import java.sql.Timestamp;
@@ -31,6 +33,7 @@ public class ShopServiceImpl implements IShopService {
     private final BarterShops plugin;
     private final LogManager logger;
     private final IShopRepository repository;
+    private final ServiceRegistry serviceRegistry;
 
     // In-memory fallback storage (used when repository is unavailable)
     private final Map<String, ShopDataDTO> fallbackShopsById;
@@ -38,15 +41,17 @@ public class ShopServiceImpl implements IShopService {
     private final AtomicInteger fallbackNextShopId;
 
     /**
-     * Creates a ShopServiceImpl with database repository support.
+     * Creates a ShopServiceImpl with database repository support and webhook notification.
      *
      * @param plugin The BarterShops plugin instance
      * @param repository The shop repository for database operations (can be null for in-memory mode)
+     * @param serviceRegistry ServiceRegistry for resolving WebhookNotifier lazily (may be null)
      */
-    public ShopServiceImpl(BarterShops plugin, IShopRepository repository) {
+    public ShopServiceImpl(BarterShops plugin, IShopRepository repository, ServiceRegistry serviceRegistry) {
         this.plugin = plugin;
         this.logger = LogManager.getInstance(plugin, CLASS_NAME);
         this.repository = repository;
+        this.serviceRegistry = serviceRegistry;
 
         // Initialize fallback storage (always available)
         this.fallbackShopsById = new ConcurrentHashMap<>();
@@ -61,13 +66,23 @@ public class ShopServiceImpl implements IShopService {
     }
 
     /**
+     * Creates a ShopServiceImpl with database repository support (no webhook).
+     *
+     * @param plugin The BarterShops plugin instance
+     * @param repository The shop repository for database operations (can be null for in-memory mode)
+     */
+    public ShopServiceImpl(BarterShops plugin, IShopRepository repository) {
+        this(plugin, repository, null);
+    }
+
+    /**
      * Legacy constructor for backwards compatibility.
      * Creates service in in-memory mode.
      *
      * @param plugin The BarterShops plugin instance
      */
     public ShopServiceImpl(BarterShops plugin) {
-        this(plugin, null);
+        this(plugin, null, null);
     }
 
     /**
@@ -220,11 +235,13 @@ public class ShopServiceImpl implements IShopService {
             fallbackShopsById.put(shopIdStr, shop);
             fallbackShopsByLocation.put(toLocationKey(location), shopIdStr);
             logger.info("Created shop (fallback): " + shopIdStr);
+            notifyWebhook(shopIdStr);
             return CompletableFuture.completedFuture(shop);
         }
 
         return repository.save(shop).thenApply(savedShop -> {
             logger.info("Created shop: " + savedShop.shopId());
+            notifyWebhook(String.valueOf(savedShop.shopId()));
             return savedShop;
         });
     }
@@ -242,6 +259,7 @@ public class ShopServiceImpl implements IShopService {
                         fallbackShopsByLocation.remove(toLocationKey(loc));
                     }
                     logger.info("Removed shop (fallback): " + shopId);
+                    notifyWebhook(shopId);
                     return true;
                 }
                 logger.debug("Shop not found for removal: " + shopId);
@@ -254,6 +272,7 @@ public class ShopServiceImpl implements IShopService {
             return repository.deleteById(id).thenApply(deleted -> {
                 if (deleted) {
                     logger.info("Removed shop: " + shopId);
+                    notifyWebhook(shopId);
                 } else {
                     logger.debug("Shop not found for removal: " + shopId);
                 }
@@ -279,6 +298,7 @@ public class ShopServiceImpl implements IShopService {
                 ShopDataDTO updated = buildUpdatedShop(existing, updates);
                 fallbackShopsById.put(shopId, updated);
                 logger.info("Updated shop (fallback): " + shopId);
+                notifyWebhook(shopId);
                 return true;
             });
         }
@@ -296,6 +316,7 @@ public class ShopServiceImpl implements IShopService {
 
                 return repository.save(updated).thenApply(saved -> {
                     logger.info("Updated shop: " + shopId);
+                    notifyWebhook(shopId);
                     return true;
                 });
             });
@@ -371,6 +392,25 @@ public class ShopServiceImpl implements IShopService {
     @Override
     public boolean isInFallbackMode() {
         return usesFallback();
+    }
+
+    // ========================================================
+    // Webhook Notification
+    // ========================================================
+
+    /**
+     * Notifies the webhook of a shop change if configured.
+     * Resolves WebhookNotifier lazily from ServiceRegistry since it is
+     * registered after core services during initialization.
+     *
+     * @param shopId The ID of the changed shop for targeted cache invalidation
+     */
+    private void notifyWebhook(String shopId) {
+        if (serviceRegistry == null) return;
+        WebhookNotifier notifier = serviceRegistry.getService(WebhookNotifier.class);
+        if (notifier != null) {
+            notifier.notifyShopChange(shopId);
+        }
     }
 
     // ========================================================

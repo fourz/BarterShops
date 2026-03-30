@@ -233,10 +233,29 @@ public class SignManager implements Listener {
 
         // Save asynchronously - don't block the sign creation event
         plugin.getShopRepository().save(shopDTO)
-            .thenAccept(savedDTO -> {
+            .thenCompose(savedDTO -> {
                 // CRITICAL: Update BarterSign with generated shop ID from database
                 barterSign.setShopId(savedDTO.shopId());
                 logger.debug("Barter sign persisted to database with shop ID: " + savedDTO.shopId());
+
+                // Auto-assign to shop group (non-blocking — grouping failure does not prevent shop creation)
+                org.fourz.BarterShops.service.IShopGroupService groupService = plugin.getShopGroupService();
+                if (groupService != null) {
+                    Location loc = barterSign.getSignLocation();
+                    return groupService.autoAssignGroup(
+                        barterSign.getOwner(), loc.getWorld().getName(),
+                        loc.getX(), loc.getY(), loc.getZ()
+                    ).thenCompose(optGroup -> {
+                        if (optGroup.isPresent()) {
+                            barterSign.setGroupId(optGroup.get().groupId());
+                            return plugin.getShopGroupRepository()
+                                .assignShopToGroup(savedDTO.shopId(), optGroup.get().groupId())
+                                .thenApply(ok -> savedDTO);
+                        }
+                        return java.util.concurrent.CompletableFuture.completedFuture(savedDTO);
+                    });
+                }
+                return java.util.concurrent.CompletableFuture.completedFuture(savedDTO);
             })
             .exceptionally(ex -> {
                 logger.error("Failed to persist barter sign: " + ex.getMessage());

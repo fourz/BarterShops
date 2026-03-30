@@ -158,25 +158,24 @@ class SignInteractionTest {
     class OwnerLeftClickTests {
 
         @Test
-        @DisplayName("Owner left click enters setup mode")
-        void handleLeftClick_owner_enterSetupMode() {
-            when(owner.hasPermission("bartershops.configure")).thenReturn(true);
+        @DisplayName("Owner left click in BOARD mode handles quantity adjustment")
+        void handleLeftClick_owner_boardMode() {
+            when(owner.hasPermission("bartershops.create")).thenReturn(true);
             barterSign.setMode(ShopMode.BOARD);
 
             try (MockedStatic<SignDisplay> signDisplayStatic = mockStatic(SignDisplay.class)) {
                 signInteraction.handleLeftClick(owner, sign, barterSign, interactEvent);
 
-                assertEquals(ShopMode.SETUP, barterSign.getMode());
-                verify(owner).sendMessage("Entering shop configuration mode");
+                // BOARD mode left-click delegates to owner board click handler, stays in BOARD
+                assertEquals(ShopMode.BOARD, barterSign.getMode());
                 verify(interactEvent).setCancelled(true);
-                signDisplayStatic.verify(() -> SignDisplay.updateSign(sign, barterSign));
             }
         }
 
         @Test
         @DisplayName("Non-owner left click does nothing")
         void handleLeftClick_notOwner_doesNothing() {
-            when(customer.hasPermission("bartershops.configure")).thenReturn(true);
+            when(customer.hasPermission("bartershops.create")).thenReturn(true);
             barterSign.setMode(ShopMode.BOARD);
 
             try (MockedStatic<SignDisplay> signDisplayStatic = mockStatic(SignDisplay.class)) {
@@ -205,50 +204,46 @@ class SignInteractionTest {
                 signInteraction.handleRightClick(owner, sign, barterSign);
 
                 assertEquals(ShopMode.TYPE, barterSign.getMode());
-                verify(owner).sendMessage("Click to toggle shop type");
-                signDisplayStatic.verify(() -> SignDisplay.updateSign(sign, barterSign));
+                signDisplayStatic.verify(() -> SignDisplay.updateSign(eq(sign), eq(barterSign), anyBoolean()));
             }
         }
 
         @Test
-        @DisplayName("Owner right click from TYPE advances to BOARD")
-        void handleRightClick_ownerFromType_advancesToBoard() {
+        @DisplayName("Owner right click from TYPE advances to DELETE")
+        void handleRightClick_ownerFromType_advancesToDelete() {
             barterSign.setMode(ShopMode.TYPE);
 
             try (MockedStatic<SignDisplay> signDisplayStatic = mockStatic(SignDisplay.class)) {
                 signInteraction.handleRightClick(owner, sign, barterSign);
 
-                assertEquals(ShopMode.BOARD, barterSign.getMode());
-                verify(owner).sendMessage("Click to edit the shop display");
-                signDisplayStatic.verify(() -> SignDisplay.updateSign(sign, barterSign));
+                assertEquals(ShopMode.DELETE, barterSign.getMode());
+                signDisplayStatic.verify(() -> SignDisplay.updateSign(eq(sign), eq(barterSign), anyBoolean()));
             }
         }
 
         @Test
-        @DisplayName("Owner right click from BOARD advances to DELETE")
-        void handleRightClick_ownerFromBoard_advancesToDelete() {
+        @DisplayName("Owner right click from BOARD advances to SETUP")
+        void handleRightClick_ownerFromBoard_advancesToSetup() {
             barterSign.setMode(ShopMode.BOARD);
 
             try (MockedStatic<SignDisplay> signDisplayStatic = mockStatic(SignDisplay.class)) {
                 signInteraction.handleRightClick(owner, sign, barterSign);
 
-                assertEquals(ShopMode.DELETE, barterSign.getMode());
-                verify(owner).sendMessage("Break sign to confirm deletion");
-                signDisplayStatic.verify(() -> SignDisplay.updateSign(sign, barterSign));
+                assertEquals(ShopMode.SETUP, barterSign.getMode());
+                signDisplayStatic.verify(() -> SignDisplay.updateSign(eq(sign), eq(barterSign), anyBoolean()));
             }
         }
 
         @Test
-        @DisplayName("Owner right click from DELETE wraps to SETUP")
-        void handleRightClick_ownerFromDelete_wrapsToSetup() {
+        @DisplayName("Owner right click from DELETE wraps to BOARD")
+        void handleRightClick_ownerFromDelete_wrapsToBoard() {
             barterSign.setMode(ShopMode.DELETE);
 
             try (MockedStatic<SignDisplay> signDisplayStatic = mockStatic(SignDisplay.class)) {
                 signInteraction.handleRightClick(owner, sign, barterSign);
 
-                assertEquals(ShopMode.SETUP, barterSign.getMode());
-                verify(owner).sendMessage("Right-click sign with payment item to configure");
-                signDisplayStatic.verify(() -> SignDisplay.updateSign(sign, barterSign));
+                assertEquals(ShopMode.BOARD, barterSign.getMode());
+                // BOARD mode doesn't schedule revert, so no SignDisplay verify needed
             }
         }
     }
@@ -294,13 +289,14 @@ class SignInteractionTest {
         }
 
         @Test
-        @DisplayName("Customer right click initiates trade")
-        void handleRightClick_customer_initiatesTrade() {
+        @DisplayName("Customer right click on single-payment BARTER does nothing (trade is left-click)")
+        void handleRightClick_customer_singlePayment_doesNothing() {
+            when(customer.hasPermission("bartershops.use")).thenReturn(true);
+
             signInteraction.handleRightClick(customer, sign, barterSign);
 
-            verify(tradeEngine).initiateTrade(customer, barterSign);
-            verify(tradeSession).setState(TradeSession.TradeState.AWAITING_BUYER_CONFIRM);
-            verify(confirmationGUI).openConfirmation(eq(customer), eq(tradeSession), any(), any());
+            // Single-payment BARTER: right-click does nothing — purchase is left-click only
+            verify(tradeEngine, never()).initiateTrade(any(), any());
         }
 
         @Test
@@ -375,9 +371,9 @@ class SignInteractionTest {
     class PermissionTests {
 
         @Test
-        @DisplayName("Left click without configure permission is blocked")
+        @DisplayName("Left click without create permission is blocked")
         void handleRightClick_noPermission_blocked() {
-            when(owner.hasPermission("bartershops.configure")).thenReturn(false);
+            when(owner.hasPermission("bartershops.create")).thenReturn(false);
 
             signInteraction.handleLeftClick(owner, sign, barterSign, interactEvent);
 

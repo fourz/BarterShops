@@ -23,7 +23,7 @@ public class BarterSign implements ISignData {
     private final String id;
     private final UUID owner;
     private final Location signLocation;
-    private String group;
+    private int groupId;
     private SignType type;
     private Container container;
     private Container shopContainer;
@@ -53,7 +53,7 @@ public class BarterSign implements ISignData {
         this.id = builder.id;
         this.owner = builder.owner;
         this.signLocation = builder.signLocation;
-        this.group = builder.group;
+        this.groupId = builder.groupId;
         this.type = builder.type;
         this.container = builder.container;
         this.shopContainer = builder.shopContainer;
@@ -66,7 +66,8 @@ public class BarterSign implements ISignData {
     public String getId() { return id; }
     public UUID getOwner() { return owner; }
     public Location getSignLocation() { return signLocation; }
-    public String getGroup() { return group; }
+    public int getGroupId() { return groupId; }
+    public void setGroupId(int groupId) { this.groupId = groupId; }
     public SignType getType() { return type; }
     public Container getContainer() { return container; }
     public Container getShopContainer() { return shopContainer; }
@@ -433,7 +434,7 @@ public class BarterSign implements ISignData {
         private String id;
         private UUID owner;
         private Location signLocation;
-        private String group;
+        private int groupId;
         private SignType type;
         private Container container;
         private Container shopContainer;
@@ -444,7 +445,7 @@ public class BarterSign implements ISignData {
         public Builder id(String id) { this.id = id; return this; }
         public Builder owner(UUID owner) { this.owner = owner; return this; }
         public Builder signLocation(Location signLocation) { this.signLocation = signLocation; return this; }
-        public Builder group(String group) { this.group = group; return this; }
+        public Builder groupId(int groupId) { this.groupId = groupId; return this; }
         public Builder type(SignType type) { this.type = type; return this; }
         public Builder container(Container container) {
             this.container = container;

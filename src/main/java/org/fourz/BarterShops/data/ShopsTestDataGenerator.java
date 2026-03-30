@@ -19,10 +19,9 @@ import java.util.logging.Logger;
 /**
  * Test data generator for BarterShops plugin.
  *
- * <p>Seeds 4 core tables with deterministic test data:
+ * <p>Seeds 3 core tables with deterministic test data:
  * <ul>
  *   <li>shops - N shops with locations</li>
- *   <li>trade_items - 3 items per shop</li>
  *   <li>trade_records - Transaction records</li>
  *   <li>shop_metadata - Key-value pairs</li>
  * </ul>
@@ -127,13 +126,10 @@ public class ShopsTestDataGenerator extends TestDataGenerator {
                     // 2. Get actual generated shop IDs (MySQL auto-increment may not start at 1)
                     int[] shopIds = getGeneratedShopIds(conn, category.getBaseCount());
 
-                    // 3. Seed trade items (3 per shop)
-                    totalRecords += seedTradeItems(conn, shopIds);
-
-                    // 4. Seed trade records
+                    // 3. Seed trade records
                     totalRecords += seedTradeRecords(conn, shopIds);
 
-                    // 5. Seed shop metadata (2-3 entries per shop)
+                    // 4. Seed shop metadata (2-3 entries per shop)
                     totalRecords += seedShopMetadata(conn, shopIds);
 
                     conn.commit();
@@ -218,46 +214,6 @@ public class ShopsTestDataGenerator extends TestDataGenerator {
                 return ids.stream().mapToInt(Integer::intValue).toArray();
             }
         }
-    }
-
-    private int seedTradeItems(Connection conn, int[] shopIds) throws SQLException {
-        // Schema columns: trade_item_id (auto), shop_id, item_stack_data,
-        // currency_material, price_amount, stock_quantity, is_offering, created_at
-        String sql = "INSERT INTO " + table("trade_items") +
-            " (shop_id, item_stack_data, currency_material, price_amount, stock_quantity, is_offering) " +
-            "VALUES (?, ?, ?, ?, ?, ?)";
-
-        int inserted = 0;
-        try (PreparedStatement stmt = conn.prepareStatement(sql)) {
-            for (int idx = 0; idx < shopIds.length; idx++) {
-                int shopId = shopIds[idx];
-                // 3 items per shop
-                for (int itemNum = 0; itemNum < 3; itemNum++) {
-                    String material = MATERIALS[(idx + itemNum) % MATERIALS.length];
-                    String itemData = "{\"type\":\"" + material + "\",\"amount\":" + (itemNum + 1) + "}";
-                    String currencyMaterial = MATERIALS[(idx + itemNum + 1) % MATERIALS.length];
-                    int price = (itemNum + 1) * 10;
-                    int stock = randomInt(1, 64);
-                    boolean isOffering = itemNum % 2 == 0;
-
-                    stmt.setInt(1, shopId);
-                    stmt.setString(2, itemData);
-                    stmt.setString(3, currencyMaterial);
-                    stmt.setInt(4, price);
-                    stmt.setInt(5, stock);
-                    stmt.setInt(6, isOffering ? 1 : 0);
-                    stmt.addBatch();
-                    inserted++;
-
-                    if (inserted % 100 == 0) {
-                        stmt.executeBatch();
-                    }
-                }
-            }
-            stmt.executeBatch();
-        }
-        logSeeded("trade_items", inserted);
-        return inserted;
     }
 
     private int seedTradeRecords(Connection conn, int[] shopIds) throws SQLException {
@@ -376,7 +332,6 @@ public class ShopsTestDataGenerator extends TestDataGenerator {
                     String[] tables = {
                         "trade_records",
                         "shop_metadata",
-                        "trade_items",
                         "shops"
                     };
 
@@ -426,8 +381,6 @@ public class ShopsTestDataGenerator extends TestDataGenerator {
     private String getTestDataCondition(String tableName) {
         return switch (tableName) {
             case "shops" -> "shop_name LIKE 'TestShop%'";
-            case "trade_items" -> "shop_id IN (SELECT shop_id FROM " +
-                table("shops") + " WHERE shop_name LIKE 'TestShop%')";
             case "trade_records" -> "shop_id IN (SELECT shop_id FROM " +
                 table("shops") + " WHERE shop_name LIKE 'TestShop%')";
             case "shop_metadata" -> "shop_id IN (SELECT shop_id FROM " + table("shops") +
@@ -451,15 +404,6 @@ public class ShopsTestDataGenerator extends TestDataGenerator {
                         " WHERE shop_id IN (SELECT shop_id FROM " + table("shops") +
                         " WHERE owner_uuid = ?)";
                     try (PreparedStatement stmt = conn.prepareStatement(metaSql)) {
-                        stmt.setString(1, playerUuid.toString());
-                        totalDeleted += stmt.executeUpdate();
-                    }
-
-                    // Delete trade items for player's shops
-                    String itemsSql = "DELETE FROM " + table("trade_items") +
-                        " WHERE shop_id IN (SELECT shop_id FROM " + table("shops") +
-                        " WHERE owner_uuid = ?)";
-                    try (PreparedStatement stmt = conn.prepareStatement(itemsSql)) {
                         stmt.setString(1, playerUuid.toString());
                         totalDeleted += stmt.executeUpdate();
                     }

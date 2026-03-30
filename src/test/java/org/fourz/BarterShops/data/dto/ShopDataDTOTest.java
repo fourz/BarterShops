@@ -45,7 +45,7 @@ class ShopDataDTOTest {
                 "world", 100.0, 64.0, 200.0,
                 "world", 101.0, 64.0, 200.0,
                 true, testTimestamp, testTimestamp,
-                Map.of("key", "value")
+                Map.of("key", "value"), null
             );
 
             assertEquals(1, dto.shopId());
@@ -63,10 +63,10 @@ class ShopDataDTOTest {
         @Test
         @DisplayName("Should throw on null ownerUuid")
         void shouldThrowOnNullOwner() {
-            assertThrows(NullPointerException.class, () -> 
+            assertThrows(NullPointerException.class, () ->
                 new ShopDataDTO(1, null, "Shop", ShopDataDTO.ShopType.BARTER,
                     "world", 0, 0, 0, "world", 0, 0, 0,
-                    true, testTimestamp, testTimestamp, Map.of())
+                    true, testTimestamp, testTimestamp, Map.of(), null)
             );
         }
 
@@ -76,7 +76,7 @@ class ShopDataDTOTest {
             ShopDataDTO dto = new ShopDataDTO(
                 1, testOwner, "Shop", null,
                 "world", 0, 0, 0, "world", 0, 0, 0,
-                true, testTimestamp, testTimestamp, Map.of()
+                true, testTimestamp, testTimestamp, Map.of(), null
             );
 
             assertEquals(ShopDataDTO.ShopType.BARTER, dto.shopType());
@@ -91,7 +91,7 @@ class ShopDataDTOTest {
             ShopDataDTO dto = new ShopDataDTO(
                 1, testOwner, "Shop", ShopDataDTO.ShopType.BARTER,
                 "world", 0, 0, 0, "world", 0, 0, 0,
-                true, testTimestamp, testTimestamp, mutableMap
+                true, testTimestamp, testTimestamp, mutableMap, null
             );
 
             // Modify original map
@@ -108,7 +108,7 @@ class ShopDataDTOTest {
             ShopDataDTO dto = new ShopDataDTO(
                 1, testOwner, "Shop", ShopDataDTO.ShopType.BARTER,
                 "world", 0, 0, 0, "world", 0, 0, 0,
-                true, testTimestamp, testTimestamp, null
+                true, testTimestamp, testTimestamp, null, null
             );
 
             assertNotNull(dto.metadata());
@@ -305,14 +305,14 @@ class ShopDataDTOTest {
                 1, testOwner, "Shop", ShopDataDTO.ShopType.BARTER,
                 "world", 100.0, 64.0, 200.0,
                 "world", 101.0, 64.0, 200.0,
-                true, testTimestamp, testTimestamp, Map.of()
+                true, testTimestamp, testTimestamp, Map.of(), null
             );
 
             ShopDataDTO dto2 = new ShopDataDTO(
                 1, testOwner, "Shop", ShopDataDTO.ShopType.BARTER,
                 "world", 100.0, 64.0, 200.0,
                 "world", 101.0, 64.0, 200.0,
-                true, testTimestamp, testTimestamp, Map.of()
+                true, testTimestamp, testTimestamp, Map.of(), null
             );
 
             assertEquals(dto1, dto2);

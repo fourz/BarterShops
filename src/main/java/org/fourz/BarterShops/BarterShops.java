@@ -8,9 +8,13 @@ import org.fourz.BarterShops.config.ConfigManager;
 import org.fourz.BarterShops.config.TypeAvailabilityManager;
 import org.fourz.rvnkcore.data.FallbackTracker;
 import org.fourz.BarterShops.data.IConnectionProvider;
+import org.fourz.BarterShops.data.repository.IShopGroupRepository;
 import org.fourz.BarterShops.data.repository.IShopRepository;
 import org.fourz.BarterShops.data.repository.impl.ConnectionProviderImpl;
+import org.fourz.BarterShops.data.repository.impl.ShopGroupRepositoryImpl;
 import org.fourz.BarterShops.data.repository.impl.ShopRepositoryImpl;
+import org.fourz.BarterShops.service.IShopGroupService;
+import org.fourz.BarterShops.service.impl.ShopGroupServiceImpl;
 import org.fourz.BarterShops.economy.EconomyManager;
 import org.fourz.BarterShops.economy.ShopFeeCalculator;
 import org.fourz.BarterShops.notification.NotificationManager;
@@ -70,6 +74,8 @@ public class BarterShops extends JavaPlugin {
     private TradeServiceImpl tradeService;
     private RetentionManager retentionManager;
 
+    private IShopGroupRepository shopGroupRepository;
+    private IShopGroupService shopGroupService;
     private ITransactionLogger transactionLogger;
 
     // Plugin lifecycle tracking
@@ -78,6 +84,7 @@ public class BarterShops extends JavaPlugin {
     // RVNKCore integration
     private boolean rvnkCoreAvailable = false;
     private Object rvnkCoreInstance = null;
+    private org.fourz.rvnkcore.service.registry.ServiceRegistry rvnkServiceRegistry;
     // shopApiInitializer removed — API routing handled by RVNKCore's BarterShopsController
 
     @Override
@@ -120,6 +127,9 @@ public class BarterShops extends JavaPlugin {
             signManager.loadSignsFromDatabase();
         }
 
+        // Initialize shop group service (after signManager + repositories)
+        initializeShopGroupService();
+
         // Initialize preference system
         this.preferenceManager = new ShopPreferenceManager(this);
         logger.info("Preference manager initialized");
@@ -140,15 +150,18 @@ public class BarterShops extends JavaPlugin {
         // Initialize StatsService (requires ShopService + RatingService)
         initializeStatsService();
 
+        // Initialize PlayerLookup before RVNKCore registration so API endpoints can resolve names.
+        // PlayerLookup detects RVNKCore PlayerService lazily, so order with registerWithRVNKCore is safe.
+        this.playerLookup = new PlayerLookup(this).enableMojangAPI();
+
         // Register with RVNKCore ServiceRegistry if available
         registerWithRVNKCore();
 
+        // Pre-load player names from DB (async, non-blocking — runs after RVNKCore services are registered)
+        this.playerLookup.preloadFromDatabase();
+
         // CommandManager after services so conditional subcommands (rate/reviews/stats) register (bug-11)
         this.commandManager = new CommandManager(this);
-
-        // Initialize PlayerLookup (after RVNKCore registration so PlayerService is available)
-        this.playerLookup = new PlayerLookup(this).enableMojangAPI();
-        this.playerLookup.preloadFromDatabase(); // async, non-blocking
 
         // Apply configured log level to all BarterShops instances now that all managers are created.
         // Use setPluginLogLevel (not setGlobalLogLevel) to avoid resetting other plugins' log levels.
@@ -193,6 +206,7 @@ public class BarterShops extends JavaPlugin {
             this.shopRepository = new ShopRepositoryImpl(this, connectionProvider, fallbackTracker);
             this.tradeRepository = new TradeRepositoryImpl(this, connectionProvider, fallbackTracker);
             this.tradeService = new TradeServiceImpl(this, tradeRepository, fallbackTracker);
+            this.shopGroupRepository = new ShopGroupRepositoryImpl(this, connectionProvider, fallbackTracker);
 
             logger.info("Database layer initialized successfully (" + connectionProvider.getDatabaseType() + ")");
         } catch (Exception e) {
@@ -258,6 +272,29 @@ public class BarterShops extends JavaPlugin {
     }
 
     /**
+     * Initializes the ShopGroupService for shop grouping and co-ownership.
+     */
+    private void initializeShopGroupService() {
+        if (shopGroupRepository == null || shopRepository == null) {
+            logger.info("ShopGroupService skipped — database layer not available");
+            return;
+        }
+        try {
+            this.shopGroupService = new ShopGroupServiceImpl(this, shopGroupRepository, shopRepository);
+            logger.info("ShopGroupService initialized");
+
+            // Run startup migration (async, non-blocking)
+            shopGroupService.migrateExistingShops()
+                .exceptionally(ex -> {
+                    logger.warning("Shop group migration failed: " + ex.getMessage());
+                    return null;
+                });
+        } catch (Exception e) {
+            logger.warning("Failed to initialize ShopGroupService: " + e.getMessage());
+        }
+    }
+
+    /**
      * Registers services with RVNKCore ServiceRegistry if available.
      * Uses reflection to avoid hard dependency on RVNKCore classes.
      */
@@ -283,6 +320,9 @@ public class BarterShops extends JavaPlugin {
                 logger.warning("RVNKCore ServiceRegistry is null - services not registered");
                 return;
             }
+
+            // Set rvnkServiceRegistry early so createShopService() can pass it to ShopServiceImpl
+            rvnkServiceRegistry = (org.fourz.rvnkcore.service.registry.ServiceRegistry) serviceRegistry;
 
             // Get the registerService method
             Class<?> registryClass = serviceRegistry.getClass();
@@ -322,7 +362,9 @@ public class BarterShops extends JavaPlugin {
                 new org.fourz.BarterShops.api.ShopApiEndpointImpl(
                     shopServiceForApi != null ? (IShopService) shopServiceForApi : null,
                     tradeService,
-                    null  // IShopDatabaseService - impl pending
+                    null,  // IShopDatabaseService - impl pending
+                    shopGroupService,
+                    this.playerLookup
                 );
             Class<?> apiServiceInterface = Class.forName("org.fourz.rvnkcore.api.service.IBarterShopsApiService");
             registerMethod.invoke(serviceRegistry, apiServiceInterface, apiService);
@@ -331,6 +373,11 @@ public class BarterShops extends JavaPlugin {
             rvnkCoreAvailable = true;
             rvnkCoreInstance = coreInstance;
             logger.info("RVNKCore integration enabled - services registered");
+
+            // Pass ServiceRegistry to TradeEngine for webhook notifications
+            if (tradeEngine != null) {
+                tradeEngine.setServiceRegistry(rvnkServiceRegistry);
+            }
 
             // Register notification types with PlayerPreferencesService
             registerNotificationTypes();
@@ -402,17 +449,22 @@ public class BarterShops extends JavaPlugin {
      */
     private Object createShopService() {
         try {
-            // Try to instantiate ShopServiceImpl if it exists
+            // Try to instantiate ShopServiceImpl with ServiceRegistry for webhook support
             Class<?> implClass = Class.forName("org.fourz.BarterShops.service.impl.ShopServiceImpl");
-            // Pass plugin and repository to constructor
-            return implClass.getConstructor(BarterShops.class, IShopRepository.class)
-                    .newInstance(this, shopRepository);
+            try {
+                return implClass.getConstructor(BarterShops.class, IShopRepository.class,
+                        org.fourz.rvnkcore.service.registry.ServiceRegistry.class)
+                        .newInstance(this, shopRepository, rvnkServiceRegistry);
+            } catch (NoSuchMethodException e) {
+                // Fall back to 2-arg constructor
+                return implClass.getConstructor(BarterShops.class, IShopRepository.class)
+                        .newInstance(this, shopRepository);
+            }
         } catch (ClassNotFoundException e) {
-            // ShopServiceImpl not yet implemented - this is expected during development
             logger.debug("ShopServiceImpl not found - impl-11 pending");
             return null;
         } catch (NoSuchMethodException e) {
-            // Fall back to plugin-only constructor if repository constructor not available
+            // Fall back to plugin-only constructor
             try {
                 Class<?> implClass = Class.forName("org.fourz.BarterShops.service.impl.ShopServiceImpl");
                 return implClass.getConstructor(BarterShops.class).newInstance(this);
@@ -571,6 +623,17 @@ public class BarterShops extends JavaPlugin {
             }
         });
 
+        cleanupManager("shopGroupService", () -> {
+            shopGroupService = null;
+        });
+
+        cleanupManager("shopGroupRepository", () -> {
+            if (shopGroupRepository != null && shopGroupRepository instanceof ShopGroupRepositoryImpl) {
+                ((ShopGroupRepositoryImpl) shopGroupRepository).shutdown();
+                shopGroupRepository = null;
+            }
+        });
+
         cleanupManager("shopRepository", () -> {
             if (shopRepository != null && shopRepository instanceof ShopRepositoryImpl) {
                 ((ShopRepositoryImpl) shopRepository).shutdown();
@@ -710,5 +773,13 @@ public class BarterShops extends JavaPlugin {
 
     public void setTransactionLogger(ITransactionLogger logger) {
         this.transactionLogger = logger;
+    }
+
+    public IShopGroupRepository getShopGroupRepository() {
+        return shopGroupRepository;
+    }
+
+    public IShopGroupService getShopGroupService() {
+        return shopGroupService;
     }
 }

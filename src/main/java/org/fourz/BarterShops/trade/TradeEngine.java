@@ -11,6 +11,8 @@ import org.fourz.BarterShops.data.dto.TradeRecordDTO;
 import org.fourz.BarterShops.service.ITradeService.TradeResultDTO;
 import org.fourz.BarterShops.service.ITransactionLogger;
 import org.fourz.BarterShops.sign.BarterSign;
+import org.fourz.rvnkcore.api.webhook.WebhookNotifier;
+import org.fourz.rvnkcore.service.registry.ServiceRegistry;
 import org.fourz.rvnkcore.util.log.LogManager;
 
 import org.fourz.BarterShops.service.impl.TradeServiceImpl;
@@ -31,6 +33,7 @@ public class TradeEngine {
     private final LogManager logger;
     private final TradeValidator validator;
     private final FallbackTracker fallbackTracker;
+    private ServiceRegistry serviceRegistry;
 
     /** Active trade sessions by session ID */
     private final Map<String, TradeSession> activeSessions = new ConcurrentHashMap<>();
@@ -46,6 +49,16 @@ public class TradeEngine {
                 plugin.getConfigManager().getInt("database.max-failures", 3),
                 plugin.getConfigManager().getLong("database.recovery-time-ms", 30000L),
                 LogManager.getInstance(plugin, "FallbackTracker"));
+    }
+
+    /**
+     * Sets the ServiceRegistry for webhook notification on trade completions.
+     * Called after RVNKCore registration since TradeEngine is constructed earlier.
+     *
+     * @param serviceRegistry The RVNKCore ServiceRegistry
+     */
+    public void setServiceRegistry(ServiceRegistry serviceRegistry) {
+        this.serviceRegistry = serviceRegistry;
     }
 
     /**
@@ -453,9 +466,10 @@ public class TradeEngine {
      */
     private void logTrade(TradeSession session, String transactionId, TradeSource source) {
         // Build trade record DTO
+        int shopId = session.getShop().getShopId();
         TradeRecordDTO record = TradeRecordDTO.builder()
                 .transactionId(transactionId)
-                .shopId(session.getShop().getShopId())
+                .shopId(shopId)
                 .buyerUuid(session.getBuyerUuid())
                 .sellerUuid(session.getSellerUuid())
                 .itemStackData(serializeItem(session.getOfferedItem()))
@@ -466,6 +480,8 @@ public class TradeEngine {
                 .tradeSource(source != null ? source.name() : "UNKNOWN")
                 .build();
 
+        String shopIdStr = String.valueOf(shopId);
+
         // Persist via TradeServiceImpl if available
         TradeServiceImpl tradeService = plugin.getTradeService();
         if (tradeService != null) {
@@ -473,6 +489,7 @@ public class TradeEngine {
                 .thenAccept(saved -> {
                     ITransactionLogger txLogger = plugin.getTransactionLogger();
                     if (txLogger != null) txLogger.log(saved);
+                    notifyWebhook(shopIdStr);
                 })
                 .exceptionally(ex -> {
                     logger.error("Failed to persist trade record: " + ex.getMessage());
@@ -480,6 +497,7 @@ public class TradeEngine {
                 });
         } else {
             logger.debug("Trade logged (no persistence — TradeServiceImpl not available): " + transactionId);
+            notifyWebhook(shopIdStr);
         }
     }
 
@@ -704,6 +722,21 @@ public class TradeEngine {
             }
             return false;
         });
+    }
+
+    /**
+     * Notifies the webhook of a trade completion if configured.
+     * Uses the dedicated trade_complete event type with its own debounce,
+     * independent of shop CRUD events.
+     *
+     * @param shopId The ID of the shop where the trade occurred
+     */
+    private void notifyWebhook(String shopId) {
+        if (serviceRegistry == null) return;
+        WebhookNotifier notifier = serviceRegistry.getService(WebhookNotifier.class);
+        if (notifier != null) {
+            notifier.notifyTradeComplete(shopId);
+        }
     }
 
     /**

@@ -10,6 +10,7 @@ import org.fourz.BarterShops.BarterShops;
 import org.fourz.BarterShops.command.sub.*;
 import org.fourz.BarterShops.economy.EconomyManager;
 import org.fourz.BarterShops.economy.ShopFeeCalculator;
+import org.fourz.BarterShops.service.IShopGroupService;
 import org.fourz.BarterShops.service.IRatingService;
 import org.fourz.BarterShops.service.IStatsService;
 import org.fourz.rvnkcore.util.log.LogManager;
@@ -99,6 +100,18 @@ public class ShopCommand implements CommandExecutor, TabCompleter {
 
         // Debug commands (feat-01)
         registerSubCommand("debug", new ShopDebugSubCommand(plugin));
+
+        // Shop group commands (conditional on ShopGroupService availability)
+        IShopGroupService groupService = plugin.getShopGroupService();
+        if (groupService != null) {
+            registerSubCommand("group", new ShopGroupSubCommand(plugin, groupService));
+            registerSubCommand("share", new ShopShareSubCommand(plugin, groupService));
+            registerSubCommand("unshare", new ShopUnshareSubCommand(plugin, groupService));
+            registerSubCommand("shared", new ShopSharedSubCommand(plugin, groupService));
+            logger.debug("Registered shop group commands (group, share, unshare, shared)");
+        } else {
+            logger.debug("ShopGroupService not available - group commands not registered");
+        }
 
         logger.debug("Registered " + subCommands.size() + " subcommands");
     }

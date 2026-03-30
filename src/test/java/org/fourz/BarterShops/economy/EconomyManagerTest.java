@@ -2,6 +2,7 @@ package org.fourz.BarterShops.economy;
 
 import net.milkbowl.vault.economy.Economy;
 import net.milkbowl.vault.economy.EconomyResponse;
+import org.bukkit.Bukkit;
 import org.bukkit.OfflinePlayer;
 import org.bukkit.Server;
 import org.bukkit.configuration.file.FileConfiguration;
@@ -13,6 +14,8 @@ import org.junit.jupiter.api.*;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.mockito.junit.jupiter.MockitoSettings;
+import org.mockito.quality.Strictness;
 
 import java.util.UUID;
 import java.util.concurrent.ExecutionException;
@@ -26,6 +29,7 @@ import static org.mockito.Mockito.*;
  * Tests Vault API integration, fee calculation, and transaction handling.
  */
 @ExtendWith(MockitoExtension.class)
+@MockitoSettings(strictness = Strictness.LENIENT)
 @DisplayName("EconomyManager Tests")
 class EconomyManagerTest {
 
@@ -60,10 +64,23 @@ class EconomyManagerTest {
     void setUp() {
         testPlayerUuid = UUID.randomUUID();
 
+        // Set Bukkit's internal server so static methods delegate to our mock
+        try {
+            var serverField = Bukkit.class.getDeclaredField("server");
+            serverField.setAccessible(true);
+            serverField.set(null, server);
+        } catch (ReflectiveOperationException e) {
+            throw new RuntimeException(e);
+        }
+
+        // Stub Bukkit.getOfflinePlayer to return our mock
+        when(server.getOfflinePlayer(testPlayerUuid)).thenReturn(offlinePlayer);
+
         // Setup server mock
         when(plugin.getServer()).thenReturn(server);
         when(server.getPluginManager()).thenReturn(pluginManager);
         when(server.getServicesManager()).thenReturn(servicesManager);
+        when(pluginManager.getPlugin("Vault")).thenReturn(mock(org.bukkit.plugin.Plugin.class));
 
         // Setup config mock
         when(plugin.getConfig()).thenReturn(config);
@@ -137,7 +154,7 @@ class EconomyManagerTest {
         @Test
         @DisplayName("getBalance returns player's current balance")
         void getBalanceReturnsBalance() throws ExecutionException, InterruptedException {
-            when(org.bukkit.Bukkit.getOfflinePlayer(testPlayerUuid)).thenReturn(offlinePlayer);
+
             when(economy.getBalance(offlinePlayer)).thenReturn(1500.0);
 
             Double balance = economyManager.getBalance(testPlayerUuid).get();
@@ -148,7 +165,7 @@ class EconomyManagerTest {
         @Test
         @DisplayName("has returns true when player has sufficient funds")
         void hasReturnsTrueWhenSufficientFunds() throws ExecutionException, InterruptedException {
-            when(org.bukkit.Bukkit.getOfflinePlayer(testPlayerUuid)).thenReturn(offlinePlayer);
+
             when(economy.has(offlinePlayer, 500.0)).thenReturn(true);
 
             Boolean has = economyManager.has(testPlayerUuid, 500.0).get();
@@ -159,7 +176,7 @@ class EconomyManagerTest {
         @Test
         @DisplayName("has returns false when player lacks funds")
         void hasReturnsFalseWhenInsufficientFunds() throws ExecutionException, InterruptedException {
-            when(org.bukkit.Bukkit.getOfflinePlayer(testPlayerUuid)).thenReturn(offlinePlayer);
+
             when(economy.has(offlinePlayer, 9999.0)).thenReturn(false);
 
             Boolean has = economyManager.has(testPlayerUuid, 9999.0).get();
@@ -176,7 +193,7 @@ class EconomyManagerTest {
 
         @BeforeEach
         void setUpWithdrawal() {
-            when(org.bukkit.Bukkit.getOfflinePlayer(testPlayerUuid)).thenReturn(offlinePlayer);
+
         }
 
         @Test
@@ -210,7 +227,7 @@ class EconomyManagerTest {
         void withdrawReturnsDisabledWhenEconomyDisabled() throws ExecutionException, InterruptedException {
             when(pluginManager.getPlugin("Vault")).thenReturn(null);
             EconomyManager noEconomyManager = new EconomyManager(plugin);
-            when(org.bukkit.Bukkit.getOfflinePlayer(testPlayerUuid)).thenReturn(offlinePlayer);
+
 
             EconomyManager.TransactionResult result = noEconomyManager.withdraw(testPlayerUuid, 100.0).get();
 
@@ -227,7 +244,7 @@ class EconomyManagerTest {
 
         @BeforeEach
         void setUpDeposit() {
-            when(org.bukkit.Bukkit.getOfflinePlayer(testPlayerUuid)).thenReturn(offlinePlayer);
+
         }
 
         @Test
@@ -249,7 +266,7 @@ class EconomyManagerTest {
         void depositReturnsDisabledWhenEconomyDisabled() throws ExecutionException, InterruptedException {
             when(pluginManager.getPlugin("Vault")).thenReturn(null);
             EconomyManager noEconomyManager = new EconomyManager(plugin);
-            when(org.bukkit.Bukkit.getOfflinePlayer(testPlayerUuid)).thenReturn(offlinePlayer);
+
 
             EconomyManager.TransactionResult result = noEconomyManager.deposit(testPlayerUuid, 100.0).get();
 
@@ -333,7 +350,7 @@ class EconomyManagerTest {
 
         @BeforeEach
         void setUpFeeCharging() {
-            when(org.bukkit.Bukkit.getOfflinePlayer(testPlayerUuid)).thenReturn(offlinePlayer);
+
             when(economy.has(offlinePlayer, 100.0)).thenReturn(true);
             EconomyResponse response = new EconomyResponse(100.0, 900.0, EconomyResponse.ResponseType.SUCCESS, null);
             when(economy.withdrawPlayer(offlinePlayer, 100.0)).thenReturn(response);
@@ -370,7 +387,7 @@ class EconomyManagerTest {
 
         @BeforeEach
         void setUpTaxApplication() {
-            when(org.bukkit.Bukkit.getOfflinePlayer(testPlayerUuid)).thenReturn(offlinePlayer);
+
             when(economy.has(offlinePlayer, 50.0)).thenReturn(true);
             EconomyResponse response = new EconomyResponse(50.0, 950.0, EconomyResponse.ResponseType.SUCCESS, null);
             when(economy.withdrawPlayer(offlinePlayer, 50.0)).thenReturn(response);
@@ -448,7 +465,7 @@ class EconomyManagerTest {
         @Test
         @DisplayName("getTotalFeesCollected returns accumulated fees")
         void getTotalFeesCollectedReturnsValue() throws ExecutionException, InterruptedException {
-            when(org.bukkit.Bukkit.getOfflinePlayer(testPlayerUuid)).thenReturn(offlinePlayer);
+
             when(economy.has(offlinePlayer, 100.0)).thenReturn(true);
             EconomyResponse response = new EconomyResponse(100.0, 900.0, EconomyResponse.ResponseType.SUCCESS, null);
             when(economy.withdrawPlayer(offlinePlayer, 100.0)).thenReturn(response);
@@ -465,7 +482,7 @@ class EconomyManagerTest {
         @Test
         @DisplayName("getTotalTaxesCollected returns accumulated taxes")
         void getTotalTaxesCollectedReturnsValue() throws ExecutionException, InterruptedException {
-            when(org.bukkit.Bukkit.getOfflinePlayer(testPlayerUuid)).thenReturn(offlinePlayer);
+
             when(economy.has(offlinePlayer, 50.0)).thenReturn(true);
             EconomyResponse response = new EconomyResponse(50.0, 950.0, EconomyResponse.ResponseType.SUCCESS, null);
             when(economy.withdrawPlayer(offlinePlayer, 50.0)).thenReturn(response);

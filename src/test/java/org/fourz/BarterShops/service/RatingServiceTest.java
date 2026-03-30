@@ -129,8 +129,8 @@ class RatingServiceTest {
         @Test
         @DisplayName("rateShop rejects null raterUuid")
         void rateShopRejectsNullRater() {
-            assertThrows(ExecutionException.class, () -> {
-                ratingService.rateShop(testShopId, null, 5, "Good").get();
+            assertThrows(NullPointerException.class, () -> {
+                ratingService.rateShop(testShopId, null, 5, "Good");
             });
         }
 
