@@ -244,7 +244,6 @@ public class ShopApiEndpointImpl implements IBarterShopsApiService {
         });
     }
 
-    @Override
     public CompletableFuture<ApiResponse<?>> getGroups(Map<String, String> filters) {
         if (shopGroupService == null) {
             return CompletableFuture.completedFuture(
@@ -317,7 +316,6 @@ public class ShopApiEndpointImpl implements IBarterShopsApiService {
             });
     }
 
-    @Override
     public CompletableFuture<ApiResponse<?>> getGroupById(String groupIdStr) {
         if (shopGroupService == null) {
             return CompletableFuture.completedFuture(
