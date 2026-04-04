@@ -416,6 +416,39 @@ public class ShopRepositoryImpl implements IShopRepository {
     }
 
     @Override
+    public CompletableFuture<List<ShopDataDTO>> findByWorld(String worldName) {
+        if (fallbackTracker.isInFallbackMode()) {
+            return CompletableFuture.completedFuture(List.of());
+        }
+
+        return CompletableFuture.supplyAsync(() -> {
+            String sql = "SELECT * FROM " + t("shops") + " WHERE is_active = TRUE AND location_world = ?";
+            List<ShopDataDTO> shops = new ArrayList<>();
+
+            try (Connection conn = connectionProvider.getConnection();
+                 PreparedStatement stmt = conn.prepareStatement(sql)) {
+
+                stmt.setString(1, worldName);
+                try (ResultSet rs = stmt.executeQuery()) {
+                    while (rs.next()) {
+                        int shopId = rs.getInt("shop_id");
+                        Map<String, String> metadata = loadMetadataInternal(conn, shopId);
+                        shops.add(mapRowToShop(rs, metadata));
+                    }
+                }
+
+                fallbackTracker.recordSuccess();
+                return shops;
+
+            } catch (SQLException e) {
+                fallbackTracker.recordFailure("Find shops by world failed: " + e.getMessage());
+                logger.error("Failed to find shops in world '" + worldName + "': " + e.getMessage());
+                return shops;
+            }
+        }, executor);
+    }
+
+    @Override
     public CompletableFuture<List<ShopDataDTO>> findAll() {
         if (fallbackTracker.isInFallbackMode()) {
             return CompletableFuture.completedFuture(List.of());

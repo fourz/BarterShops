@@ -113,6 +113,15 @@ public interface IShopRepository {
             String world, double x, double y, double z, double radius);
 
     /**
+     * Finds all active shops in a specific world.
+     * Used for runtime world hydration (e.g. /world load mid-session).
+     *
+     * @param worldName The world name to query
+     * @return CompletableFuture containing list of active shops in that world
+     */
+    CompletableFuture<List<ShopDataDTO>> findByWorld(String worldName);
+
+    /**
      * Finds all active shops.
      *
      * @return CompletableFuture containing list of all active shops
