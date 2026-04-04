@@ -131,8 +131,10 @@ public class ShopGroupSubCommand implements SubCommand {
             plugin.getShopGroupRepository().getShopsInGroup(groupId).thenAccept(shops -> {
                 sender.sendMessage(ChatColor.YELLOW + "Shops (" + shops.size() + "):");
                 for (ShopDataDTO shop : shops) {
+                    String offeringStr = formatOffering(shop.metadata());
+                    String offeringPart = offeringStr.isEmpty() ? "" : " " + offeringStr;
                     sender.sendMessage(ChatColor.WHITE + "  #" + shop.shopId() + " " +
-                        shop.shopType().name() + " at " +
+                        shop.shopType().name() + offeringPart + " at " +
                         String.format("%.0f, %.0f, %.0f", shop.locationX(), shop.locationY(), shop.locationZ()));
                 }
                 sender.sendMessage(ChatColor.GOLD + "==========================");
@@ -428,5 +430,27 @@ public class ShopGroupSubCommand implements SubCommand {
     @Override
     public boolean requiresPlayer() {
         return false; // Console-friendly for list, info, add, remove
+    }
+
+    private static String formatOffering(java.util.Map<String, String> metadata) {
+        if (metadata == null) return "";
+        String json = metadata.get("shop_config_offering");
+        if (json == null || json.isEmpty()) return "";
+        try {
+            String type = json.replaceAll(".*\"type\":\\s*\"([^\"]+)\".*", "$1");
+            String amount = json.replaceAll(".*\"amount\":\\s*(\\d+).*", "$1");
+            if (type.equals(json)) return "";
+            String[] words = type.toLowerCase().split("_");
+            StringBuilder name = new StringBuilder();
+            for (String w : words) {
+                if (!w.isEmpty()) {
+                    if (!name.isEmpty()) name.append(' ');
+                    name.append(Character.toUpperCase(w.charAt(0))).append(w.substring(1));
+                }
+            }
+            return name + " x" + (amount.equals(json) ? "?" : amount);
+        } catch (Exception e) {
+            return "";
+        }
     }
 }

@@ -98,9 +98,9 @@ public class ShopListSubCommand implements SubCommand {
                 ? "=== Shops by " + plugin.getPlayerLookup().getPlayerName(filterOwner) + " ==="
                 : "=== All Barter Shops ===";
         sender.sendMessage(ChatColor.GREEN + header);
-        sender.sendMessage(ChatColor.GRAY + String.format("%-5s %-16s %-12s %-20s",
-                "ID", "Owner", "Type", "Location"));
-        sender.sendMessage(ChatColor.GRAY + "------------------------------------------------");
+        sender.sendMessage(ChatColor.GRAY + String.format("%-5s %-16s %-12s %-18s %-20s",
+                "ID", "Owner", "Type", "Location", "Offering"));
+        sender.sendMessage(ChatColor.GRAY + "-------------------------------------------------------------------");
 
         // Shop entries
         for (int i = startIndex; i < endIndex; i++) {
@@ -114,19 +114,17 @@ public class ShopListSubCommand implements SubCommand {
                         (int) shop.locationX(), (int) shop.locationY(), (int) shop.locationZ())
                     : "N/A";
 
-            String shopName = shop.shopName() != null ? shop.shopName() : "";
             String typeStr = shop.shopType() != null ? shop.shopType().name() : "BARTER";
+            String offeringStr = formatOffering(shop.metadata());
 
-            String row = String.format("%-5d %-16s %-12s %-20s",
+            String row = String.format("%-5d %-16s %-12s %-18s %-20s",
                     shop.shopId(),
                     ownerName,
                     typeStr,
-                    locationStr);
+                    locationStr,
+                    offeringStr);
 
             sender.sendMessage(ChatColor.WHITE + row);
-            if (!shopName.isEmpty()) {
-                sender.sendMessage(ChatColor.GRAY + "      " + shopName);
-            }
         }
 
         // Footer
@@ -194,5 +192,27 @@ public class ShopListSubCommand implements SubCommand {
     @Override
     public boolean requiresPlayer() {
         return false; // Console-friendly
+    }
+
+    private static String formatOffering(java.util.Map<String, String> metadata) {
+        if (metadata == null) return "";
+        String json = metadata.get("shop_config_offering");
+        if (json == null || json.isEmpty()) return "";
+        try {
+            String type = json.replaceAll(".*\"type\":\\s*\"([^\"]+)\".*", "$1");
+            String amount = json.replaceAll(".*\"amount\":\\s*(\\d+).*", "$1");
+            if (type.equals(json)) return ""; // regex didn't match
+            String[] words = type.toLowerCase().split("_");
+            StringBuilder name = new StringBuilder();
+            for (String w : words) {
+                if (!w.isEmpty()) {
+                    if (!name.isEmpty()) name.append(' ');
+                    name.append(Character.toUpperCase(w.charAt(0))).append(w.substring(1));
+                }
+            }
+            return name + " x" + (amount.equals(json) ? "?" : amount);
+        } catch (Exception e) {
+            return "";
+        }
     }
 }

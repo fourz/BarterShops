@@ -8,6 +8,7 @@ import org.bukkit.entity.Player;
 import org.fourz.BarterShops.BarterShops;
 import org.fourz.BarterShops.command.SubCommand;
 import org.fourz.BarterShops.sign.BarterSign;
+import org.fourz.BarterShops.sign.renderer.SignRenderUtil;
 
 import java.util.ArrayList;
 import java.util.Comparator;
@@ -69,9 +70,9 @@ public class ShopNearbySubCommand implements SubCommand {
 
         // Display results
         sender.sendMessage(ChatColor.GREEN + "=== Shops within " + radius + " blocks ===");
-        sender.sendMessage(ChatColor.GRAY + String.format("%-16s %-12s %-8s",
-                "Owner", "Type", "Distance"));
-        sender.sendMessage(ChatColor.GRAY + "------------------------------------");
+        sender.sendMessage(ChatColor.GRAY + String.format("%-16s %-12s %-8s %-20s",
+                "Owner", "Type", "Distance", "Offering"));
+        sender.sendMessage(ChatColor.GRAY + "-------------------------------------------------------");
 
         for (Map.Entry<Location, BarterSign> entry : nearbyShops) {
             Location shopLocation = entry.getKey();
@@ -82,10 +83,17 @@ public class ShopNearbySubCommand implements SubCommand {
 
             int distance = (int) shopLocation.distance(playerLoc);
 
-            String row = String.format("%-16s %-12s %-8s",
+            String offeringStr = "";
+            if (sign.getItemOffering() != null) {
+                offeringStr = SignRenderUtil.formatItemName(sign.getItemOffering()) +
+                        " x" + sign.getItemOffering().getAmount();
+            }
+
+            String row = String.format("%-16s %-12s %-8s %-20s",
                     ownerName,
                     sign.getType(),
-                    distance + "m");
+                    distance + "m",
+                    offeringStr);
 
             sender.sendMessage(ChatColor.WHITE + row);
         }
