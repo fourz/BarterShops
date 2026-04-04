@@ -238,6 +238,14 @@ public class SignManager implements Listener {
                 barterSign.setShopId(savedDTO.shopId());
                 logger.debug("Barter sign persisted to database with shop ID: " + savedDTO.shopId());
 
+                // Flush any configuration that was set while the async save was in-flight.
+                // Without this, saveSignConfiguration() bails early (shopId <= 0) and the
+                // player's offering/payment config is lost on server restart. (#594)
+                if (barterSign.getItemOffering() != null || !barterSign.getAcceptedPayments().isEmpty()) {
+                    logger.debug("Flushing pending sign configuration for shop ID: " + savedDTO.shopId());
+                    saveSignConfiguration(barterSign);
+                }
+
                 // Auto-assign to shop group (non-blocking — grouping failure does not prevent shop creation)
                 org.fourz.BarterShops.service.IShopGroupService groupService = plugin.getShopGroupService();
                 if (groupService != null) {
