@@ -8,6 +8,7 @@ import org.fourz.BarterShops.command.SubCommand;
 import org.fourz.BarterShops.data.dto.ShopDataDTO;
 import org.fourz.BarterShops.data.dto.ShopGroupDTO;
 import org.fourz.BarterShops.service.IShopGroupService;
+import org.fourz.BarterShops.util.TableDisplay;
 
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -23,6 +24,14 @@ public class ShopGroupSubCommand implements SubCommand {
 
     private final BarterShops plugin;
     private final IShopGroupService groupService;
+
+    // Owner omitted — already shown in the group header above the shop list.
+    private static final TableDisplay<ShopDataDTO> SHOP_TABLE = TableDisplay.<ShopDataDTO>builder()
+            .column("#",        ChatColor.GRAY,      s -> String.valueOf(s.shopId()))
+            .column("TYPE",     ChatColor.YELLOW,    s -> s.shopType() != null ? s.shopType().name() : "BARTER")
+            .column("Offering", ChatColor.GREEN,     s -> formatOffering(s.metadata()))
+            .column("Location", ChatColor.DARK_GRAY, ShopGroupSubCommand::coords)
+            .build();
 
     public ShopGroupSubCommand(BarterShops plugin, IShopGroupService groupService) {
         this.plugin = plugin;
@@ -130,13 +139,8 @@ public class ShopGroupSubCommand implements SubCommand {
             // Show shops in group
             plugin.getShopGroupRepository().getShopsInGroup(groupId).thenAccept(shops -> {
                 sender.sendMessage(ChatColor.YELLOW + "Shops (" + shops.size() + "):");
-                for (ShopDataDTO shop : shops) {
-                    String offeringStr = formatOffering(shop.metadata());
-                    String offeringPart = offeringStr.isEmpty() ? "" : " " + offeringStr;
-                    sender.sendMessage(ChatColor.WHITE + "  #" + shop.shopId() + " " +
-                        shop.shopType().name() + offeringPart + " at " +
-                        String.format("%.0f, %.0f, %.0f", shop.locationX(), shop.locationY(), shop.locationZ()));
-                }
+                SHOP_TABLE.renderHeader(sender);
+                SHOP_TABLE.render(sender, shops);
             });
         }).exceptionally(ex -> {
             sender.sendMessage(ChatColor.RED + "Failed to load group info.");
@@ -429,6 +433,12 @@ public class ShopGroupSubCommand implements SubCommand {
     @Override
     public boolean requiresPlayer() {
         return false; // Console-friendly for list, info, add, remove
+    }
+
+    private static String coords(ShopDataDTO s) {
+        return s.locationWorld() != null
+                ? String.format("%d,%d,%d", (int) s.locationX(), (int) s.locationY(), (int) s.locationZ())
+                : "N/A";
     }
 
     private static String formatOffering(java.util.Map<String, String> metadata) {
