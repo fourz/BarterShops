@@ -58,6 +58,7 @@ public class ShopGroupSubCommand implements SubCommand {
             case "transfer" -> handleTransfer(sender, actionArgs);
             case "create" -> handleCreate(sender, actionArgs);
             case "delete" -> handleDelete(sender, actionArgs);
+            case "coowner" -> handleCoOwner(sender, actionArgs);
             default -> {
                 sender.sendMessage(ChatColor.RED + "Unknown group action: " + action);
                 showSubActions(sender);
@@ -325,8 +326,49 @@ public class ShopGroupSubCommand implements SubCommand {
     // Helpers
     // ========================================================
 
+    private boolean handleCoOwner(CommandSender sender, String[] args) {
+        if (args.length < 3) {
+            sender.sendMessage(ChatColor.RED + "Usage: /shop group coowner <add|remove> <groupId> <player>");
+            return true;
+        }
+
+        String subAction = args[0].toLowerCase();
+        int groupId = parseGroupId(sender, args[1]);
+        if (groupId < 0) return true;
+
+        UUID target = resolvePlayer(sender, args[2]);
+        if (target == null) return true;
+
+        UUID requester = getRequesterUuid(sender);
+        if (requester == null) return true;
+
+        if (subAction.equals("add")) {
+            groupService.addCoOwner(groupId, requester, target).thenAccept(success -> {
+                if (success) {
+                    sender.sendMessage(ChatColor.GREEN + "+ " + plugin.getPlayerLookup().getPlayerName(target)
+                            + " added as co-owner of group #" + groupId);
+                } else {
+                    sender.sendMessage(ChatColor.RED + "x Failed (not group owner, or group not found).");
+                }
+            });
+        } else if (subAction.equals("remove")) {
+            groupService.removeCoOwner(groupId, requester, target).thenAccept(success -> {
+                if (success) {
+                    sender.sendMessage(ChatColor.GREEN + "+ " + plugin.getPlayerLookup().getPlayerName(target)
+                            + " removed as co-owner of group #" + groupId);
+                } else {
+                    sender.sendMessage(ChatColor.RED + "x Failed (not group owner, or group not found).");
+                }
+            });
+        } else {
+            sender.sendMessage(ChatColor.RED + "Usage: /shop group coowner <add|remove> <groupId> <player>");
+        }
+
+        return true;
+    }
+
     private void showSubActions(CommandSender sender) {
-        sender.sendMessage(ChatColor.GRAY + "Actions: list, info, rename, add, remove, transfer, create, delete");
+        sender.sendMessage(ChatColor.GRAY + "Actions: list, info, rename, add, remove, transfer, create, delete, coowner");
     }
 
     private int parseGroupId(CommandSender sender, String arg) {
@@ -397,34 +439,31 @@ public class ShopGroupSubCommand implements SubCommand {
 
         if (args.length == 1) {
             String partial = args[0].toLowerCase();
-            for (String action : List.of("list", "info", "rename", "add", "remove", "transfer", "create", "delete")) {
+            for (String action : List.of("list", "info", "rename", "add", "remove", "transfer", "create", "delete", "coowner")) {
                 if (action.startsWith(partial)) {
                     completions.add(action);
                 }
             }
         } else if (args.length == 2) {
             String action = args[0].toLowerCase();
-            // For actions needing groupId, suggest IDs
-            if (List.of("info", "rename", "delete", "transfer").contains(action)) {
-                // Could query player's groups here for suggestions
+            if (List.of("info", "rename", "delete", "transfer", "coowner").contains(action)) {
                 completions.add("<groupId>");
             } else if ("add".equals(action)) {
                 completions.add("<shopId>");
             } else if ("remove".equals(action)) {
                 completions.add("<shopId>");
             } else if ("list".equals(action) && sender.hasPermission("bartershops.admin")) {
-                // Suggest online players for admin lookup
-                plugin.getServer().getOnlinePlayers().forEach(p ->
-                    completions.add(p.getName()));
+                plugin.getServer().getOnlinePlayers().forEach(p -> completions.add(p.getName()));
             }
         } else if (args.length == 3) {
             String action = args[0].toLowerCase();
             if ("add".equals(action)) {
                 completions.add("<groupId>");
-            } else if ("transfer".equals(action)) {
-                plugin.getServer().getOnlinePlayers().forEach(p ->
-                    completions.add(p.getName()));
+            } else if (List.of("transfer", "coowner").contains(action)) {
+                plugin.getServer().getOnlinePlayers().forEach(p -> completions.add(p.getName()));
             }
+        } else if (args.length == 4 && "coowner".equals(args[0].toLowerCase())) {
+            plugin.getServer().getOnlinePlayers().forEach(p -> completions.add(p.getName()));
         }
 
         return completions;
