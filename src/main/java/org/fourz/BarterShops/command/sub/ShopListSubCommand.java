@@ -98,16 +98,15 @@ public class ShopListSubCommand implements SubCommand {
                 ? "=== Shops by " + plugin.getPlayerLookup().getPlayerName(filterOwner) + " ==="
                 : "=== All Barter Shops ===";
         sender.sendMessage(ChatColor.GREEN + header);
-        sender.sendMessage(ChatColor.GRAY + String.format("%-5s %-16s %-12s %-18s %-20s",
-                "ID", "Owner", "Type", "Location", "Offering"));
-        sender.sendMessage(ChatColor.GRAY + "-------------------------------------------------------------------");
+        sender.sendMessage(ChatColor.GRAY + String.format("%-4s %-10s %-14s %-22s %s",
+                "ID", "TYPE", "Location", "Offering", "Owner"));
 
         // Shop entries
         for (int i = startIndex; i < endIndex; i++) {
             ShopDataDTO shop = allShops.get(i);
 
             String ownerName = plugin.getPlayerLookup().getPlayerName(shop.ownerUuid());
-            if (ownerName.length() > 15) ownerName = ownerName.substring(0, 12) + "...";
+            if (ownerName.length() > 16) ownerName = ownerName.substring(0, 13) + "...";
 
             String locationStr = shop.locationWorld() != null
                     ? String.format("%d,%d,%d",
@@ -117,18 +116,16 @@ public class ShopListSubCommand implements SubCommand {
             String typeStr = shop.shopType() != null ? shop.shopType().name() : "BARTER";
             String offeringStr = formatOffering(shop.metadata());
 
-            String row = String.format("%-5d %-16s %-12s %-18s %-20s",
+            String row = String.format("%-4d %-10s %-14s %-22s %s",
                     shop.shopId(),
-                    ownerName,
                     typeStr,
                     locationStr,
-                    offeringStr);
+                    offeringStr,
+                    ownerName);
 
             sender.sendMessage(ChatColor.WHITE + row);
         }
 
-        // Footer
-        sender.sendMessage(ChatColor.GRAY + "------------------------------------------------");
         sender.sendMessage(ChatColor.GREEN + "Total: " + ChatColor.WHITE + allShops.size() +
                 ChatColor.GRAY + " | Page " + page + "/" + totalPages);
 

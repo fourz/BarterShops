@@ -70,16 +70,15 @@ public class ShopNearbySubCommand implements SubCommand {
 
         // Display results
         sender.sendMessage(ChatColor.GREEN + "=== Shops within " + radius + " blocks ===");
-        sender.sendMessage(ChatColor.GRAY + String.format("%-16s %-12s %-8s %-20s",
-                "Owner", "Type", "Distance", "Offering"));
-        sender.sendMessage(ChatColor.GRAY + "-------------------------------------------------------");
+        sender.sendMessage(ChatColor.GRAY + String.format("%-10s %-6s %-22s %s",
+                "TYPE", "Dist", "Offering", "Owner"));
 
         for (Map.Entry<Location, BarterSign> entry : nearbyShops) {
             Location shopLocation = entry.getKey();
             BarterSign sign = entry.getValue();
 
             String ownerName = plugin.getPlayerLookup().getPlayerName(sign.getOwner());
-            if (ownerName.length() > 15) ownerName = ownerName.substring(0, 12) + "...";
+            if (ownerName.length() > 16) ownerName = ownerName.substring(0, 13) + "...";
 
             int distance = (int) shopLocation.distance(playerLoc);
 
@@ -89,16 +88,15 @@ public class ShopNearbySubCommand implements SubCommand {
                         " x" + sign.getItemOffering().getAmount();
             }
 
-            String row = String.format("%-16s %-12s %-8s %-20s",
-                    ownerName,
+            String row = String.format("%-10s %-6s %-22s %s",
                     sign.getType(),
                     distance + "m",
-                    offeringStr);
+                    offeringStr,
+                    ownerName);
 
             sender.sendMessage(ChatColor.WHITE + row);
         }
 
-        sender.sendMessage(ChatColor.GRAY + "------------------------------------");
         sender.sendMessage(ChatColor.GREEN + "Found " + nearbyShops.size() + " shop(s)");
 
         return true;

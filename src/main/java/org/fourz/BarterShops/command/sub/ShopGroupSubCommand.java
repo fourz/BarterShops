@@ -137,7 +137,6 @@ public class ShopGroupSubCommand implements SubCommand {
                         shop.shopType().name() + offeringPart + " at " +
                         String.format("%.0f, %.0f, %.0f", shop.locationX(), shop.locationY(), shop.locationZ()));
                 }
-                sender.sendMessage(ChatColor.GOLD + "==========================");
             });
         }).exceptionally(ex -> {
             sender.sendMessage(ChatColor.RED + "Failed to load group info.");
