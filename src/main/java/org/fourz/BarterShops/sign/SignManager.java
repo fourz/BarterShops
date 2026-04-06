@@ -238,6 +238,14 @@ public class SignManager implements Listener {
                 barterSign.setShopId(savedDTO.shopId());
                 logger.debug("Barter sign persisted to database with shop ID: " + savedDTO.shopId());
 
+                // Flush any configuration that was set while the async save was in-flight.
+                // Without this, saveSignConfiguration() bails early (shopId <= 0) and the
+                // player's offering/payment config is lost on server restart. (#594)
+                if (barterSign.getItemOffering() != null || !barterSign.getAcceptedPayments().isEmpty()) {
+                    logger.debug("Flushing pending sign configuration for shop ID: " + savedDTO.shopId());
+                    saveSignConfiguration(barterSign);
+                }
+
                 // Auto-assign to shop group (non-blocking — grouping failure does not prevent shop creation)
                 org.fourz.BarterShops.service.IShopGroupService groupService = plugin.getShopGroupService();
                 if (groupService != null) {
@@ -669,28 +677,54 @@ public class SignManager implements Listener {
     @EventHandler
     public void onWorldLoad(WorldLoadEvent event) {
         String worldName = event.getWorld().getName();
-        List<ShopDataDTO> shops = deferredShops.remove(worldName);
-        if (shops == null || shops.isEmpty()) return;
+        List<ShopDataDTO> deferred = deferredShops.remove(worldName);
 
-        // Hydrate deferred shops now that their world is loaded
-        // Must run on main thread (Bukkit block access) — WorldLoadEvent is already on main thread
-        int loaded = 0;
-        int skipped = 0;
-        for (ShopDataDTO shop : shops) {
-            Location signLoc = shop.getSignLocation();
-            if (signLoc == null || signLoc.getWorld() == null) {
-                skipped++;
-                continue;
+        if (deferred != null && !deferred.isEmpty()) {
+            // Startup-deferred path: world was not loaded when loadSignsFromDatabase() ran
+            // WorldLoadEvent fires on the main thread — hydrate synchronously
+            int loaded = 0;
+            int skipped = 0;
+            for (ShopDataDTO shop : deferred) {
+                Location signLoc = shop.getSignLocation();
+                if (signLoc == null || signLoc.getWorld() == null) {
+                    skipped++;
+                    continue;
+                }
+                if (hydrateShop(shop, signLoc)) {
+                    loaded++;
+                } else {
+                    skipped++;
+                }
             }
-            if (hydrateShop(shop, signLoc)) {
-                loaded++;
-            } else {
-                skipped++;
+            if (loaded > 0 || skipped > 0) {
+                logger.info("World '" + worldName + "' loaded: hydrated " + loaded + "/" + deferred.size()
+                    + " deferred barter signs" + (skipped > 0 ? " (skipped " + skipped + ")" : ""));
             }
-        }
-        if (loaded > 0 || skipped > 0) {
-            logger.info("World '" + worldName + "' loaded: hydrated " + loaded + "/" + shops.size()
-                + " deferred barter signs" + (skipped > 0 ? " (skipped " + skipped + ")" : ""));
+        } else {
+            // Runtime path: world was loaded via /world load mid-session (was never deferred at startup).
+            // Query the DB live for active shops in this world and hydrate them.
+            if (plugin.getShopRepository() == null) return;
+            plugin.getShopRepository().findByWorld(worldName).thenAccept(shops -> {
+                if (shops.isEmpty()) return;
+                Bukkit.getScheduler().runTask(plugin, () -> {
+                    int loaded = 0;
+                    int skipped = 0;
+                    for (ShopDataDTO shop : shops) {
+                        Location signLoc = shop.getSignLocation();
+                        if (signLoc == null || signLoc.getWorld() == null) {
+                            skipped++;
+                            continue;
+                        }
+                        if (!barterSigns.containsKey(signLoc) && hydrateShop(shop, signLoc)) {
+                            loaded++;
+                        } else {
+                            skipped++;
+                        }
+                    }
+                    logger.info("Runtime world load '" + worldName + "': hydrated " + loaded + "/" + shops.size()
+                        + " barter signs" + (skipped > 0 ? " (skipped " + skipped + ")" : ""));
+                });
+            });
         }
     }
 

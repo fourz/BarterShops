@@ -8,6 +8,7 @@ import org.fourz.BarterShops.command.SubCommand;
 import org.fourz.BarterShops.data.dto.ShopDataDTO;
 import org.fourz.BarterShops.data.dto.ShopGroupDTO;
 import org.fourz.BarterShops.service.IShopGroupService;
+import org.fourz.BarterShops.util.TableDisplay;
 
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -23,6 +24,14 @@ public class ShopGroupSubCommand implements SubCommand {
 
     private final BarterShops plugin;
     private final IShopGroupService groupService;
+
+    // Owner omitted — already shown in the group header above the shop list.
+    private static final TableDisplay<ShopDataDTO> SHOP_TABLE = TableDisplay.<ShopDataDTO>builder()
+            .column("#",        ChatColor.GRAY,      s -> String.valueOf(s.shopId()))
+            .column("TYPE",     ChatColor.YELLOW,    s -> s.shopType() != null ? s.shopType().name() : "BARTER")
+            .column("Offering", ChatColor.GREEN,     s -> formatOffering(s.metadata()))
+            .column("Location", ChatColor.DARK_GRAY, ShopGroupSubCommand::coords)
+            .build();
 
     public ShopGroupSubCommand(BarterShops plugin, IShopGroupService groupService) {
         this.plugin = plugin;
@@ -49,6 +58,7 @@ public class ShopGroupSubCommand implements SubCommand {
             case "transfer" -> handleTransfer(sender, actionArgs);
             case "create" -> handleCreate(sender, actionArgs);
             case "delete" -> handleDelete(sender, actionArgs);
+            case "coowner" -> handleCoOwner(sender, actionArgs);
             default -> {
                 sender.sendMessage(ChatColor.RED + "Unknown group action: " + action);
                 showSubActions(sender);
@@ -130,12 +140,8 @@ public class ShopGroupSubCommand implements SubCommand {
             // Show shops in group
             plugin.getShopGroupRepository().getShopsInGroup(groupId).thenAccept(shops -> {
                 sender.sendMessage(ChatColor.YELLOW + "Shops (" + shops.size() + "):");
-                for (ShopDataDTO shop : shops) {
-                    sender.sendMessage(ChatColor.WHITE + "  #" + shop.shopId() + " " +
-                        shop.shopType().name() + " at " +
-                        String.format("%.0f, %.0f, %.0f", shop.locationX(), shop.locationY(), shop.locationZ()));
-                }
-                sender.sendMessage(ChatColor.GOLD + "==========================");
+                SHOP_TABLE.renderHeader(sender);
+                SHOP_TABLE.render(sender, shops);
             });
         }).exceptionally(ex -> {
             sender.sendMessage(ChatColor.RED + "Failed to load group info.");
@@ -320,8 +326,49 @@ public class ShopGroupSubCommand implements SubCommand {
     // Helpers
     // ========================================================
 
+    private boolean handleCoOwner(CommandSender sender, String[] args) {
+        if (args.length < 3) {
+            sender.sendMessage(ChatColor.RED + "Usage: /shop group coowner <add|remove> <groupId> <player>");
+            return true;
+        }
+
+        String subAction = args[0].toLowerCase();
+        int groupId = parseGroupId(sender, args[1]);
+        if (groupId < 0) return true;
+
+        UUID target = resolvePlayer(sender, args[2]);
+        if (target == null) return true;
+
+        UUID requester = getRequesterUuid(sender);
+        if (requester == null) return true;
+
+        if (subAction.equals("add")) {
+            groupService.addCoOwner(groupId, requester, target).thenAccept(success -> {
+                if (success) {
+                    sender.sendMessage(ChatColor.GREEN + "+ " + plugin.getPlayerLookup().getPlayerName(target)
+                            + " added as co-owner of group #" + groupId);
+                } else {
+                    sender.sendMessage(ChatColor.RED + "x Failed (not group owner, or group not found).");
+                }
+            });
+        } else if (subAction.equals("remove")) {
+            groupService.removeCoOwner(groupId, requester, target).thenAccept(success -> {
+                if (success) {
+                    sender.sendMessage(ChatColor.GREEN + "+ " + plugin.getPlayerLookup().getPlayerName(target)
+                            + " removed as co-owner of group #" + groupId);
+                } else {
+                    sender.sendMessage(ChatColor.RED + "x Failed (not group owner, or group not found).");
+                }
+            });
+        } else {
+            sender.sendMessage(ChatColor.RED + "Usage: /shop group coowner <add|remove> <groupId> <player>");
+        }
+
+        return true;
+    }
+
     private void showSubActions(CommandSender sender) {
-        sender.sendMessage(ChatColor.GRAY + "Actions: list, info, rename, add, remove, transfer, create, delete");
+        sender.sendMessage(ChatColor.GRAY + "Actions: list, info, rename, add, remove, transfer, create, delete, coowner");
     }
 
     private int parseGroupId(CommandSender sender, String arg) {
@@ -392,34 +439,31 @@ public class ShopGroupSubCommand implements SubCommand {
 
         if (args.length == 1) {
             String partial = args[0].toLowerCase();
-            for (String action : List.of("list", "info", "rename", "add", "remove", "transfer", "create", "delete")) {
+            for (String action : List.of("list", "info", "rename", "add", "remove", "transfer", "create", "delete", "coowner")) {
                 if (action.startsWith(partial)) {
                     completions.add(action);
                 }
             }
         } else if (args.length == 2) {
             String action = args[0].toLowerCase();
-            // For actions needing groupId, suggest IDs
-            if (List.of("info", "rename", "delete", "transfer").contains(action)) {
-                // Could query player's groups here for suggestions
+            if (List.of("info", "rename", "delete", "transfer", "coowner").contains(action)) {
                 completions.add("<groupId>");
             } else if ("add".equals(action)) {
                 completions.add("<shopId>");
             } else if ("remove".equals(action)) {
                 completions.add("<shopId>");
             } else if ("list".equals(action) && sender.hasPermission("bartershops.admin")) {
-                // Suggest online players for admin lookup
-                plugin.getServer().getOnlinePlayers().forEach(p ->
-                    completions.add(p.getName()));
+                plugin.getServer().getOnlinePlayers().forEach(p -> completions.add(p.getName()));
             }
         } else if (args.length == 3) {
             String action = args[0].toLowerCase();
             if ("add".equals(action)) {
                 completions.add("<groupId>");
-            } else if ("transfer".equals(action)) {
-                plugin.getServer().getOnlinePlayers().forEach(p ->
-                    completions.add(p.getName()));
+            } else if (List.of("transfer", "coowner").contains(action)) {
+                plugin.getServer().getOnlinePlayers().forEach(p -> completions.add(p.getName()));
             }
+        } else if (args.length == 4 && "coowner".equals(args[0].toLowerCase())) {
+            plugin.getServer().getOnlinePlayers().forEach(p -> completions.add(p.getName()));
         }
 
         return completions;
@@ -428,5 +472,33 @@ public class ShopGroupSubCommand implements SubCommand {
     @Override
     public boolean requiresPlayer() {
         return false; // Console-friendly for list, info, add, remove
+    }
+
+    private static String coords(ShopDataDTO s) {
+        return s.locationWorld() != null
+                ? String.format("%d,%d,%d", (int) s.locationX(), (int) s.locationY(), (int) s.locationZ())
+                : "N/A";
+    }
+
+    private static String formatOffering(java.util.Map<String, String> metadata) {
+        if (metadata == null) return "";
+        String json = metadata.get("shop_config_offering");
+        if (json == null || json.isEmpty()) return "";
+        try {
+            String type = json.replaceAll(".*\"type\":\\s*\"([^\"]+)\".*", "$1");
+            String amount = json.replaceAll(".*\"amount\":\\s*(\\d+).*", "$1");
+            if (type.equals(json)) return "";
+            String[] words = type.toLowerCase().split("_");
+            StringBuilder name = new StringBuilder();
+            for (String w : words) {
+                if (!w.isEmpty()) {
+                    if (!name.isEmpty()) name.append(' ');
+                    name.append(Character.toUpperCase(w.charAt(0))).append(w.substring(1));
+                }
+            }
+            return name + " x" + (amount.equals(json) ? "?" : amount);
+        } catch (Exception e) {
+            return "";
+        }
     }
 }

@@ -244,7 +244,6 @@ public class ShopApiEndpointImpl implements IBarterShopsApiService {
         });
     }
 
-    @Override
     public CompletableFuture<ApiResponse<?>> getGroups(Map<String, String> filters) {
         if (shopGroupService == null) {
             return CompletableFuture.completedFuture(
@@ -317,7 +316,6 @@ public class ShopApiEndpointImpl implements IBarterShopsApiService {
             });
     }
 
-    @Override
     public CompletableFuture<ApiResponse<?>> getGroupById(String groupIdStr) {
         if (shopGroupService == null) {
             return CompletableFuture.completedFuture(
@@ -375,6 +373,99 @@ public class ShopApiEndpointImpl implements IBarterShopsApiService {
                 if (ex != null) return ApiResponse.error("INTERNAL_ERROR",
                     "Failed to retrieve group: " + ex.getMessage());
                 return result;
+            });
+    }
+
+    @Override
+    public CompletableFuture<ApiResponse<?>> addGroupCoOwner(String groupId, String requesterUuid, String coOwnerUuid) {
+        if (shopGroupService == null) {
+            return CompletableFuture.completedFuture(
+                ApiResponse.error("SERVICE_UNAVAILABLE", "Shop group service is not available"));
+        }
+        int gid;
+        UUID requester, coOwner;
+        try {
+            gid = Integer.parseInt(groupId);
+            requester = UUID.fromString(requesterUuid);
+            coOwner = UUID.fromString(coOwnerUuid);
+        } catch (IllegalArgumentException e) {
+            return CompletableFuture.completedFuture(
+                ApiResponse.error("INVALID_REQUEST", "Invalid UUID or group ID format"));
+        }
+        return shopGroupService.addCoOwner(gid, requester, coOwner)
+            .<ApiResponse<?>>handle((success, ex) -> {
+                if (ex != null) return ApiResponse.error("INTERNAL_ERROR",
+                    "Failed to add co-owner: " + ex.getMessage());
+                if (!success) return ApiResponse.error("FORBIDDEN",
+                    "Only the group owner can add co-owners, or the group was not found");
+                Map<String, Object> result = new LinkedHashMap<>();
+                result.put("groupId", gid);
+                result.put("coOwnerUuid", coOwnerUuid);
+                result.put("coOwnerName", resolvePlayerName(coOwner));
+                result.put("action", "added");
+                return ApiResponse.success(result);
+            });
+    }
+
+    @Override
+    public CompletableFuture<ApiResponse<?>> removeGroupCoOwner(String groupId, String coOwnerUuid, String requesterUuid) {
+        if (shopGroupService == null) {
+            return CompletableFuture.completedFuture(
+                ApiResponse.error("SERVICE_UNAVAILABLE", "Shop group service is not available"));
+        }
+        int gid;
+        UUID requester, coOwner;
+        try {
+            gid = Integer.parseInt(groupId);
+            requester = UUID.fromString(requesterUuid);
+            coOwner = UUID.fromString(coOwnerUuid);
+        } catch (IllegalArgumentException e) {
+            return CompletableFuture.completedFuture(
+                ApiResponse.error("INVALID_REQUEST", "Invalid UUID or group ID format"));
+        }
+        return shopGroupService.removeCoOwner(gid, requester, coOwner)
+            .<ApiResponse<?>>handle((success, ex) -> {
+                if (ex != null) return ApiResponse.error("INTERNAL_ERROR",
+                    "Failed to remove co-owner: " + ex.getMessage());
+                if (!success) return ApiResponse.error("FORBIDDEN",
+                    "Only the group owner can remove co-owners, or the group was not found");
+                Map<String, Object> result = new LinkedHashMap<>();
+                result.put("groupId", gid);
+                result.put("coOwnerUuid", coOwnerUuid);
+                result.put("action", "removed");
+                return ApiResponse.success(result);
+            });
+    }
+
+    @Override
+    public CompletableFuture<ApiResponse<?>> renameGroup(String groupId, String requesterUuid, String groupName) {
+        if (shopGroupService == null) {
+            return CompletableFuture.completedFuture(
+                ApiResponse.error("SERVICE_UNAVAILABLE", "Shop group service is not available"));
+        }
+        int gid;
+        UUID requester;
+        try {
+            gid = Integer.parseInt(groupId);
+            requester = UUID.fromString(requesterUuid);
+        } catch (IllegalArgumentException e) {
+            return CompletableFuture.completedFuture(
+                ApiResponse.error("INVALID_REQUEST", "Invalid UUID or group ID format"));
+        }
+        if (groupName == null || groupName.isBlank()) {
+            return CompletableFuture.completedFuture(
+                ApiResponse.error("INVALID_REQUEST", "groupName must not be blank"));
+        }
+        return shopGroupService.renameGroup(gid, requester, groupName.trim())
+            .<ApiResponse<?>>handle((success, ex) -> {
+                if (ex != null) return ApiResponse.error("INTERNAL_ERROR",
+                    "Failed to rename group: " + ex.getMessage());
+                if (!success) return ApiResponse.error("FORBIDDEN",
+                    "Only the group owner can rename it, or the group was not found");
+                Map<String, Object> result = new LinkedHashMap<>();
+                result.put("groupId", gid);
+                result.put("groupName", groupName.trim());
+                return ApiResponse.success(result);
             });
     }
 

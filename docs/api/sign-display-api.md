@@ -4,8 +4,8 @@ plugin: BarterShops
 category: api
 tags: [sign, display, renderer, layout, ui]
 created: 2026-03-03
-updated: 2026-03-03
-version: 1.0.29
+updated: 2026-04-04
+version: 1.1.23
 ---
 
 # Sign Display API
@@ -633,12 +633,12 @@ renderCustomerPaymentPage()
 
 ## Known Issues
 
-| Bug ID | Description | Workaround |
-|--------|-------------|------------|
-| bug-34 | Owner preview mode (`isOwnerPreviewMode=true`) renders owner summary instead of customer pagination | Check payment options manually in TYPE mode |
-| bug-30 | Chest break deletes shop from database despite break prevention | Use DELETE mode on sign to remove shops |
+| Bug ID | Status | Description |
+|--------|--------|-------------|
+| bug-34 | **Resolved** (v1.1.x) | Owner preview mode (`isOwnerPreviewMode=true`) previously rendered owner summary instead of customer pagination — fixed in sign display refactor |
+| bug-30 | **Resolved** (v1.0.x) | Chest break previously deleted shop from database; now enforced via DELETE mode only |
 
 ---
 
-*Last Updated*: March 3, 2026
-*Plugin Version*: 1.0.29
+*Last Updated*: April 4, 2026
+*Plugin Version*: 1.1.23
