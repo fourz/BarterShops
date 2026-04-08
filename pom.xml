@@ -6,7 +6,7 @@
 
     <groupId>org.fourz.BarterShops</groupId>
     <artifactId>BarterShops</artifactId>
-    <version>1.1.25</version>
+    <version>1.1.27</version>
 
     <name>BarterShops</name>
     <description></description>
@@ -70,24 +70,12 @@
             <version>1.7</version>
             <scope>provided</scope>
         </dependency>
-        <!-- RVNKCore - shared logging and utilities -->
+        <!-- RVNKCore - shared logging, utilities, and DB connection management (provides HikariCP, sqlite-jdbc, MySQL driver) -->
         <dependency>
             <groupId>org.fourz</groupId>
             <artifactId>rvnkcore</artifactId>
-            <version>1.4.5-alpha</version>
+            <version>1.4.10-alpha</version>
             <scope>provided</scope>
-        </dependency>
-        <!-- HikariCP - High-performance JDBC connection pool -->
-        <dependency>
-            <groupId>com.zaxxer</groupId>
-            <artifactId>HikariCP</artifactId>
-            <version>5.1.0</version>
-        </dependency>
-        <!-- SQLite JDBC driver -->
-        <dependency>
-            <groupId>org.xerial</groupId>
-            <artifactId>sqlite-jdbc</artifactId>
-            <version>3.45.0.0</version>
         </dependency>
         <!-- WorldGuard - Region protection (softdepend) -->
         <dependency>
@@ -153,6 +141,16 @@
                         <goals>
                             <goal>shade</goal>
                         </goals>
+                        <configuration>
+                            <filters>
+                                <filter>
+                                    <artifact>*:*</artifact>
+                                    <excludes>
+                                        <exclude>META-INF/MANIFEST.MF</exclude>
+                                    </excludes>
+                                </filter>
+                            </filters>
+                        </configuration>
                     </execution>
                 </executions>
             </plugin>
