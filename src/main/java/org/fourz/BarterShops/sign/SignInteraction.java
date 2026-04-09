@@ -1114,6 +1114,7 @@ public class SignInteraction {
 
                         if (deleted) {
                             logger.info("Shop deleted from database: " + shopId);
+                            notifyShopWebhook(String.valueOf(shopId));
 
                             // Sync back to main thread to modify sign
                             plugin.getServer().getScheduler().runTask(plugin, () -> {
@@ -1154,6 +1155,16 @@ public class SignInteraction {
         } catch (Exception e) {
             logger.error("Error in deleteShopAndSign", e);
             player.sendMessage(ChatColor.RED + "✗ An error occurred during deletion");
+        }
+    }
+
+    private void notifyShopWebhook(String shopId) {
+        org.fourz.rvnkcore.service.registry.ServiceRegistry registry = plugin.getServiceRegistry();
+        if (registry == null) return;
+        org.fourz.rvnkcore.api.webhook.WebhookNotifier notifier =
+            registry.getService(org.fourz.rvnkcore.api.webhook.WebhookNotifier.class);
+        if (notifier != null) {
+            notifier.notifyShopChange(shopId);
         }
     }
 

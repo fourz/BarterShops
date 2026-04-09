@@ -238,6 +238,9 @@ public class SignManager implements Listener {
                 barterSign.setShopId(savedDTO.shopId());
                 logger.debug("Barter sign persisted to database with shop ID: " + savedDTO.shopId());
 
+                // Notify WebUI to revalidate barter shop cache
+                notifyShopWebhook(String.valueOf(savedDTO.shopId()));
+
                 // Flush any configuration that was set while the async save was in-flight.
                 // Without this, saveSignConfiguration() bails early (shopId <= 0) and the
                 // player's offering/payment config is lost on server restart. (#594)
@@ -670,6 +673,20 @@ public class SignManager implements Listener {
         // UNIFIED: Set bidirectional reference for user-aware validation context
         shopContainer.setBarterSign(barterSign);
         return shopContainer;
+    }
+
+    /**
+     * Notifies the WebhookNotifier of a shop change after sign creation or removal.
+     * Resolves WebhookNotifier lazily from ServiceRegistry.
+     */
+    private void notifyShopWebhook(String shopId) {
+        org.fourz.rvnkcore.service.registry.ServiceRegistry registry = plugin.getServiceRegistry();
+        if (registry == null) return;
+        org.fourz.rvnkcore.api.webhook.WebhookNotifier notifier =
+            registry.getService(org.fourz.rvnkcore.api.webhook.WebhookNotifier.class);
+        if (notifier != null) {
+            notifier.notifyShopChange(shopId);
+        }
     }
 
     // ========== World Load Listener (multi-world support) ==========
