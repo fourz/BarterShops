@@ -782,4 +782,8 @@ public class BarterShops extends JavaPlugin {
     public IShopGroupService getShopGroupService() {
         return shopGroupService;
     }
+
+    public org.fourz.rvnkcore.service.registry.ServiceRegistry getServiceRegistry() {
+        return rvnkServiceRegistry;
+    }
 }
