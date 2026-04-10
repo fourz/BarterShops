@@ -1,14 +1,16 @@
 package org.fourz.BarterShops.data.repository.impl;
 
-import com.zaxxer.hikari.HikariConfig;
-import com.zaxxer.hikari.HikariDataSource;
 import org.fourz.BarterShops.BarterShops;
 import org.fourz.rvnkcore.config.dto.DatabaseSettingsDTO;
 import org.fourz.rvnkcore.config.dto.MySQLSettingsDTO;
 import org.fourz.rvnkcore.config.dto.SQLiteSettingsDTO;
 import org.fourz.BarterShops.data.IConnectionProvider;
+import org.fourz.rvnkcore.database.config.DatabaseConfig;
+import org.fourz.rvnkcore.database.connection.ConnectionProvider;
+import org.fourz.rvnkcore.database.connection.ConnectionProviderFactory;
 import org.fourz.rvnkcore.util.log.LogManager;
 
+import java.io.File;
 import java.sql.Connection;
 import java.sql.PreparedStatement;
 import java.sql.SQLException;
@@ -16,16 +18,9 @@ import java.sql.Statement;
 import java.util.concurrent.CompletableFuture;
 
 /**
- * HikariCP-based connection provider implementation.
+ * RVNKCore-backed connection provider implementation.
+ * Delegates pool management to RVNKCore's ConnectionProviderFactory.
  * Supports both MySQL and SQLite with automatic configuration.
- *
- * <p>Features:</p>
- * <ul>
- *   <li>Connection pooling via HikariCP</li>
- *   <li>Health monitoring</li>
- *   <li>Schema validation and creation</li>
- *   <li>Graceful shutdown</li>
- * </ul>
  */
 public class ConnectionProviderImpl implements IConnectionProvider {
 
@@ -33,7 +28,7 @@ public class ConnectionProviderImpl implements IConnectionProvider {
     private final LogManager logger;
     private final String databaseType;
     private final String tablePrefix;
-    private HikariDataSource dataSource;
+    private ConnectionProvider rvnkProvider;
 
     // Table name constants (base names without prefix)
     private static final String TABLE_SHOPS = "shops";
@@ -46,22 +41,10 @@ public class ConnectionProviderImpl implements IConnectionProvider {
     private static final String TABLE_SHOP_GROUPS = "shop_groups";
     private static final String TABLE_SHOP_GROUP_MEMBERS = "shop_group_members";
 
-    /**
-     * Creates a new ConnectionProviderImpl.
-     *
-     * @param plugin The BarterShops plugin instance
-     */
     public ConnectionProviderImpl(BarterShops plugin) {
         this(plugin, LogManager.getInstance(plugin, "ConnectionProvider"));
     }
 
-    /**
-     * Creates a new ConnectionProviderImpl with injected LogManager.
-     * This constructor supports dependency injection for testing.
-     *
-     * @param plugin The BarterShops plugin instance
-     * @param logger The LogManager instance for logging
-     */
     public ConnectionProviderImpl(BarterShops plugin, LogManager logger) {
         this.plugin = plugin;
         this.logger = logger;
@@ -74,69 +57,40 @@ public class ConnectionProviderImpl implements IConnectionProvider {
     }
 
     /**
-     * Initializes the connection pool and creates schema.
-     *
-     * @throws SQLException if initialization fails
+     * Initializes the connection pool via RVNKCore's ConnectionProviderFactory.
      */
     public void initialize() throws SQLException {
         logger.info("Initializing database connection pool (" + databaseType + ")...");
-
-        HikariConfig config = new HikariConfig();
-
-        if ("mysql".equals(databaseType)) {
-            configureMysql(config);
-        } else {
-            configureSqlite(config);
-        }
-
-        // Common pool settings
-        config.setPoolName("BarterShops-HikariPool");
-        config.addDataSourceProperty("cachePrepStmts", "true");
-        config.addDataSourceProperty("prepStmtCacheSize", "250");
-        config.addDataSourceProperty("prepStmtCacheSqlLimit", "2048");
-
-        dataSource = new HikariDataSource(config);
-
-        // Create schema
+        ConnectionProviderFactory factory = new ConnectionProviderFactory(plugin);
+        DatabaseConfig config = buildDatabaseConfig();
+        rvnkProvider = factory.createConnectionProvider(config);
         createSchema();
-
         logger.info("Database connection pool initialized successfully");
     }
 
-    private void configureMysql(HikariConfig config) {
-        MySQLSettingsDTO mysql = plugin.getConfigManager().getDatabaseSettings().getMysqlSettings();
-
-        config.setJdbcUrl("jdbc:mysql://" + mysql.getHost() + ":" + mysql.getPort() + "/" + mysql.getDatabase() +
-                "?useSSL=false&autoReconnect=true&useUnicode=true&characterEncoding=UTF-8");
-        config.setUsername(mysql.getUsername());
-        config.setPassword(mysql.getPassword());
-        config.setDriverClassName("com.mysql.cj.jdbc.Driver");
-
-        // MySQL-specific settings
-        config.setMaximumPoolSize(mysql.getPoolSize());
-        config.setMinimumIdle(2);
-        config.setIdleTimeout(600000); // 10 minutes
-        config.setMaxLifetime(1800000); // 30 minutes
-        config.setConnectionTimeout(30000); // 30 seconds
-    }
-
-    private void configureSqlite(HikariConfig config) {
-        SQLiteSettingsDTO sqlite = plugin.getConfigManager().getDatabaseSettings().getSqliteSettings();
-
-        config.setJdbcUrl("jdbc:sqlite:" + sqlite.getFilePath());
-        config.setDriverClassName("org.sqlite.JDBC");
-
-        // SQLite-specific settings (single connection is often best)
-        config.setMaximumPoolSize(1);
-        config.setMinimumIdle(1);
-        config.setIdleTimeout(0); // Never timeout
-        config.setMaxLifetime(0); // Infinite lifetime
-        config.setConnectionTimeout(30000);
-
-        // SQLite optimizations
-        config.addDataSourceProperty("journal_mode", "WAL");
-        config.addDataSourceProperty("synchronous", "NORMAL");
-        config.addDataSourceProperty("foreign_keys", "ON");
+    private DatabaseConfig buildDatabaseConfig() {
+        if ("mysql".equals(databaseType)) {
+            MySQLSettingsDTO mysql = plugin.getConfigManager().getDatabaseSettings().getMysqlSettings();
+            return DatabaseConfig.builder()
+                    .type("mysql")
+                    .host(mysql.getHost())
+                    .port(mysql.getPort())
+                    .database(mysql.getDatabase())
+                    .username(mysql.getUsername())
+                    .password(mysql.getPassword())
+                    .useSSL(mysql.isUseSSL())
+                    .maxConnections(mysql.getPoolSize())
+                    .minIdleConnections(2)
+                    .idleTimeoutMs(300000L)
+                    .maxLifetimeMs(580000L)
+                    .connectionTimeoutMs(30000L)
+                    .build();
+        } else {
+            SQLiteSettingsDTO sqlite = plugin.getConfigManager().getDatabaseSettings().getSqliteSettings();
+            // Extract filename only — ConnectionProviderFactory resolves relative to plugin data folder
+            String filename = new File(sqlite.getFilePath()).getName();
+            return DatabaseConfig.sqlite(filename);
+        }
     }
 
     private void createSchema() throws SQLException {
@@ -160,7 +114,7 @@ public class ConnectionProviderImpl implements IConnectionProvider {
      * Each migration is idempotent — errors from already-applied changes are silently skipped.
      */
     private void runMigrations(Connection conn) {
-        // v1.0.27: add trade_source column to active and archive tables (IF NOT EXISTS = idempotent on reload)
+        // v1.0.27: add trade_source column to active and archive tables
         for (String tableName : new String[]{ table(TABLE_TRADE_RECORDS), table(TABLE_TRADE_RECORDS_ARCHIVE) }) {
             String alterSql = "mysql".equals(databaseType)
                 ? "ALTER TABLE " + tableName + " ADD COLUMN IF NOT EXISTS trade_source VARCHAR(32) NOT NULL DEFAULT 'UNKNOWN'"
@@ -169,12 +123,11 @@ public class ConnectionProviderImpl implements IConnectionProvider {
                 s.execute();
                 logger.info("Migration applied: added trade_source to " + tableName);
             } catch (SQLException e) {
-                // Expected on repeat runs (column already exists) — silently skip
                 logger.debug("Migration skip (already applied or table absent): " + tableName + " — " + e.getMessage());
             }
         }
 
-        // #191: add item_type column to active and archive tables (IF NOT EXISTS = idempotent on reload)
+        // #191: add item_type column to active and archive tables
         for (String tableName : new String[]{ table(TABLE_TRADE_RECORDS), table(TABLE_TRADE_RECORDS_ARCHIVE) }) {
             String alterSql = "mysql".equals(databaseType)
                 ? "ALTER TABLE " + tableName + " ADD COLUMN IF NOT EXISTS item_type VARCHAR(64)"
@@ -187,7 +140,7 @@ public class ConnectionProviderImpl implements IConnectionProvider {
             }
         }
 
-        // #191: index for per-item analytics on active table (CREATE INDEX IF NOT EXISTS = idempotent)
+        // #191: index for per-item analytics on active table
         String idxSql = "CREATE INDEX IF NOT EXISTS idx_" + getTablePrefix() + "trade_records_item_type ON "
                 + table(TABLE_TRADE_RECORDS) + "(item_type)";
         try (PreparedStatement s = conn.prepareStatement(idxSql)) {
@@ -333,7 +286,6 @@ public class ConnectionProviderImpl implements IConnectionProvider {
                 "INDEX idx_" + p + "monthly_shop (shop_id)" +
                 ") ENGINE=InnoDB DEFAULT CHARSET=utf8mb4");
 
-        // Shop groups table
         String shopGroups = table(TABLE_SHOP_GROUPS);
         String shopGroupMembers = table(TABLE_SHOP_GROUP_MEMBERS);
 
@@ -479,7 +431,6 @@ public class ConnectionProviderImpl implements IConnectionProvider {
         stmt.execute("CREATE INDEX IF NOT EXISTS idx_" + p + "monthly_month ON " + monthlySummary + "(summary_month)");
         stmt.execute("CREATE INDEX IF NOT EXISTS idx_" + p + "monthly_shop ON " + monthlySummary + "(shop_id)");
 
-        // Shop groups table
         String shopGroups = table(TABLE_SHOP_GROUPS);
         String shopGroupMembers = table(TABLE_SHOP_GROUP_MEMBERS);
 
@@ -509,10 +460,10 @@ public class ConnectionProviderImpl implements IConnectionProvider {
 
     @Override
     public Connection getConnection() throws SQLException {
-        if (dataSource == null || dataSource.isClosed()) {
-            throw new SQLException("Connection pool is not initialized or has been closed");
+        if (rvnkProvider == null) {
+            throw new SQLException("Connection pool is not initialized");
         }
-        return dataSource.getConnection();
+        return rvnkProvider.getConnection();
     }
 
     @Override
@@ -528,9 +479,10 @@ public class ConnectionProviderImpl implements IConnectionProvider {
 
     @Override
     public void shutdown() {
-        if (dataSource != null && !dataSource.isClosed()) {
+        if (rvnkProvider != null) {
             logger.info("Shutting down database connection pool...");
-            dataSource.close();
+            rvnkProvider.close();
+            rvnkProvider = null;
             logger.info("Database connection pool shut down successfully");
         }
     }
@@ -545,11 +497,10 @@ public class ConnectionProviderImpl implements IConnectionProvider {
 
     @Override
     public boolean isHealthy() {
-        if (dataSource == null || dataSource.isClosed()) {
+        if (rvnkProvider == null || !rvnkProvider.isValid()) {
             return false;
         }
-
-        try (Connection conn = dataSource.getConnection()) {
+        try (Connection conn = rvnkProvider.getConnection()) {
             return conn.isValid(5);
         } catch (SQLException e) {
             logger.warning("Database health check failed: " + e.getMessage());
@@ -559,17 +510,18 @@ public class ConnectionProviderImpl implements IConnectionProvider {
 
     @Override
     public int getActiveConnections() {
-        return dataSource != null ? dataSource.getHikariPoolMXBean().getActiveConnections() : 0;
+        // Pool metrics not exposed through RVNKCore's ConnectionProvider interface
+        return 0;
     }
 
     @Override
     public int getIdleConnections() {
-        return dataSource != null ? dataSource.getHikariPoolMXBean().getIdleConnections() : 0;
+        return 0;
     }
 
     @Override
     public int getMaxPoolSize() {
-        return dataSource != null ? dataSource.getMaximumPoolSize() : 0;
+        return 0;
     }
 
     @Override
@@ -580,7 +532,6 @@ public class ConnectionProviderImpl implements IConnectionProvider {
     @Override
     public boolean validateSchema() {
         try (Connection conn = getConnection()) {
-            // Check if shops table exists (with prefix if configured)
             var meta = conn.getMetaData();
             var rs = meta.getTables(null, null, table(TABLE_SHOPS), null);
             return rs.next();
