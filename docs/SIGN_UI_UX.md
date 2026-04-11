@@ -1,6 +1,6 @@
 # BarterShops Sign UI/UX System
 
-**Version**: 2.0 (Feb 2026)
+**Version**: 2.1 (Apr 2026)
 **Scope**: Sign-based shop creation and configuration
 **Based on**: BarterSignsPlus reference implementation with modern enhancements
 
@@ -130,8 +130,10 @@ STACKABLE
 
 ### BOARD Mode
 
-**Purpose**: Active shop, ready for customer trades
-**Sign Display**:
+**Purpose**: Active shop, ready for customer trades.
+
+#### Standard Display (single payment, names ≤15 chars)
+
 ```
 [Barter Shop]
 64x dirt
@@ -139,13 +141,65 @@ for
 10x emerald
 ```
 
-**Owner Interactions**:
+#### Name Wrapping (Phase 9 — name >15 chars)
+
+When either the offering or payment item name exceeds 15 characters, it is word-split across two sign lines. The header line is dropped to make room.
+
+```
+Enchanted Diamond
+Sword (×1)
+for
+10x emerald
+```
+
+#### Dual-Wrap Mode (Phases 10–13 — both names >15 chars)
+
+When **both** the offering AND the payment item name exceed 15 characters, the `[Barter]` header is removed entirely and all four sign lines are used for content:
+
+```
+Enchanted Diamond
+Sword (×1)
+Enchanted Iron
+Pickaxe (×1)
+```
+
+`SignRenderUtil.displayDualWrapMode()` handles this layout. `computeNameSplit()` finds word-boundary split points for each name.
+
+#### Multi-Payment Pagination (Phase 8 — BARTER shops with multiple payment options)
+
+BARTER shops may have multiple accepted payment options. Sign cycles through pages on right-click:
+
+**Summary page (index 0)**:
+```
+[Barter Shop]
+64x dirt
+accepts 3
+payment options
+```
+
+**Payment page N (index 1–N)**:
+```
+64x dirt
+for
+10x emerald    ← offering + payment for this option
+§6page 2 of 3  ← page indicator on line 3
+```
+
+Customer right-click advances to the next payment page. After the last page, wraps back to the summary. Chat feedback after each advance: `"Payment option N/M"`.
+
+The `currentPaymentPage` field on `BarterSign` tracks the current page index per session. `BoardModeRenderer.renderPaginatedPayment()` renders each payment page.
+
+#### Owner Interactions
+
 - **Left-click**: Show shop info (temporary message)
 - **Right-click**: Advance to DELETE mode
+- **Sneak + Right-click** (in BOARD mode): Toggle owner preview mode — sign switches to the customer-facing paginated view so the owner can verify how buyers see the shop. Toggled via the `ownerPreviewMode` flag on `BarterSign`. Right-click again (non-sneaking) exits preview.
 
-**Customer Interactions**:
-- **Right-click**: Initiate trade
-  - Opens trade confirmation GUI
+#### Customer Interactions
+
+- **Right-click**: Initiate trade (single payment) or advance payment page (multi-payment BARTER shop)
+  - For multi-payment shops: first right-click pages through payment options; use the payment option on the current page
+  - Opens trade confirmation GUI once a payment option is selected
   - Validates item availability and player payment
   - Executes trade if confirmed
 
@@ -355,10 +409,13 @@ Owners receive chat feedback for:
 | Component | File | Purpose |
 |-----------|------|---------|
 | Mode State Machine | `ShopMode.java` | Enum + getNextMode() for cycling |
-| Sign Display | `SignDisplay.java` | Renders sign text based on mode |
+| Sign Display | `SignDisplay.java` | Thin dispatcher to `ISignModeRenderer` impls via `EnumMap` |
+| Board Renderer | `BoardModeRenderer.java` | All BOARD mode rendering (customer/owner paths, pagination, wrapping) |
+| Render Utilities | `SignRenderUtil.java` | Shared helpers: `getTypeHeader`, `formatItemName`, `displayOfferingWithWrapping`, `displayPaymentWithWrapping`, `displayDualWrapMode`, `computeNameSplit`, `applyLayoutToSign` |
+| Layout Factory | `SignLayoutFactory.java` | Legacy layout builders (`MAX_LINE_LENGTH = 15`, `truncateForSign`, type/setup/board/delete layouts) |
 | Interaction Handler | `SignInteraction.java` | Processes player clicks |
 | Sign Manager | `SignManager.java` | Periodic validation, type detection |
-| Sign Model | `BarterSign.java` | Stores mode, type, locked state |
+| Sign Model | `BarterSign.java` | Stores mode, type, locked state, pagination state |
 | Type Detection | `BarterSign.detectAndSetTypeFromChest()` | Auto-detect and lock type |
 
 ### Critical Fields (BarterSign)
@@ -372,6 +429,8 @@ private boolean isStackable;        // Stackable vs non-stackable
 private ItemStack itemOffering;     // For stackable shops
 private ItemStack priceItem;        // Trade payment item
 private int priceAmount;            // Trade payment quantity
+private int currentPaymentPage;     // Multi-payment BARTER: current page index (0 = summary)
+private boolean ownerPreviewMode;   // BOARD mode: sneak+right-click toggles customer-facing view
 ```
 
 ---
@@ -437,6 +496,17 @@ This implementation is derived from BarterSignsPlus but with modern enhancements
 
 | Version | Date | Changes |
 |---------|------|---------|
+| 2.1 | Apr 2026 | Document Phase 8–13 sign display features (pagination, preview, wrapping) |
 | 2.0 | Feb 2026 | Type detection, locking, item return, periodic validation |
 | 1.0 | Jan 2026 | Basic sign system, mode cycling |
+
+### Sign Display Phase Log
+
+| Phase | Version | Date | Change |
+|-------|---------|------|--------|
+| Phase 8 | v1.0.x | Feb 12 2026 | Multi-payment pagination — `currentPaymentPage` per-session; customer right-click cycles pages; chat feedback "Payment option N/M" |
+| Phase 8 | v1.0.x | Feb 12 2026 | Owner preview mode — sneak+right-click in BOARD toggles `ownerPreviewMode`; sign shows customer-facing view |
+| Phase 8.5 | v1.0.x | Feb 12 2026 | 1 payment per page rendering — `renderPaginatedPayment()` in `BoardModeRenderer`; summary page (index 0) + N payment pages; page indicator `§6page N of M` on line 3 |
+| Phase 9 | v1.0.x | Feb 13 2026 | Offering name wrapping — `displayOfferingWithWrapping()` in `SignRenderUtil`; names >15 chars word-split across two lines via `computeNameSplit()` |
+| Phases 10–13 | v1.0.x | Feb 13 2026 | Dual-wrap mode — `displayDualWrapMode()` in `SignRenderUtil`; when both offering AND payment exceed 15 chars, `[Barter]` header removed and all 4 sign lines used; payment wrapping via `displayPaymentWithWrapping()` |
 
