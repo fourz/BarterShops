@@ -23,6 +23,9 @@ CREATE TABLE IF NOT EXISTS bs_shops (
     chest_y DOUBLE,
     chest_z DOUBLE,
 
+    -- Group membership (NULL = ungrouped)
+    group_id INT NULL,
+
     -- Status
     is_active TINYINT(1) NOT NULL DEFAULT 1,
     created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
@@ -30,10 +33,41 @@ CREATE TABLE IF NOT EXISTS bs_shops (
 
     -- Indexes
     INDEX idx_owner (owner_uuid),
+    INDEX idx_group (group_id),
     INDEX idx_location (location_world, location_x, location_y, location_z),
     INDEX idx_active (is_active),
     INDEX idx_type (shop_type),
     INDEX idx_owner_active (owner_uuid, is_active)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- Shop groups (owner-defined groupings of shops, per-world)
+CREATE TABLE IF NOT EXISTS bs_shop_groups (
+    group_id INT AUTO_INCREMENT PRIMARY KEY,
+    group_name VARCHAR(64) NOT NULL,
+    owner_uuid CHAR(36) NOT NULL,
+    world VARCHAR(64) NOT NULL,
+    is_active TINYINT(1) NOT NULL DEFAULT 1,
+    created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    last_modified TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+
+    INDEX idx_owner (owner_uuid),
+    INDEX idx_world (world),
+    INDEX idx_active (is_active)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- Shop group members (co-owners per group)
+CREATE TABLE IF NOT EXISTS bs_shop_group_members (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    group_id INT NOT NULL,
+    member_uuid CHAR(36) NOT NULL,
+    role VARCHAR(32) NOT NULL DEFAULT 'CO_OWNER',
+    added_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+
+    UNIQUE KEY uq_group_member (group_id, member_uuid),
+    CONSTRAINT fk_member_group FOREIGN KEY (group_id)
+        REFERENCES bs_shop_groups(group_id) ON DELETE CASCADE,
+
+    INDEX idx_member (member_uuid)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 -- Trade items (what the shop offers/accepts)
