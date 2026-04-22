@@ -90,22 +90,24 @@ CREATE TABLE IF NOT EXISTS bs_trade_items (
     INDEX idx_offering (is_offering)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
--- Trade history (completed transactions)
-CREATE TABLE IF NOT EXISTS bs_trade_history (
+-- Trade records (completed transactions)
+-- Table name: bs_trade_records (matches Java TradeRepositoryImpl and fourzorg-api)
+CREATE TABLE IF NOT EXISTS bs_trade_records (
     transaction_id VARCHAR(36) PRIMARY KEY,
-    shop_id INT NOT NULL,
+    shop_id INT NULL,
     buyer_uuid CHAR(36) NOT NULL,
     seller_uuid CHAR(36) NOT NULL,
     item_stack_data TEXT NOT NULL,
     quantity INT NOT NULL,
+    item_type VARCHAR(64),
     currency_material VARCHAR(64),
     price_paid INT NOT NULL DEFAULT 0,
     status ENUM('COMPLETED', 'CANCELLED', 'FAILED', 'PENDING', 'REFUNDED') NOT NULL DEFAULT 'COMPLETED',
     trade_source VARCHAR(32) NOT NULL DEFAULT 'UNKNOWN',
     completed_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
 
-    -- Foreign key
-    CONSTRAINT fk_history_shop FOREIGN KEY (shop_id)
+    -- Foreign key (shop_id is NULL-able to support ON DELETE SET NULL)
+    CONSTRAINT fk_records_shop FOREIGN KEY (shop_id)
         REFERENCES bs_shops(shop_id) ON DELETE SET NULL,
 
     -- Indexes
@@ -114,6 +116,7 @@ CREATE TABLE IF NOT EXISTS bs_trade_history (
     INDEX idx_seller (seller_uuid),
     INDEX idx_completed (completed_at),
     INDEX idx_status (status),
+    INDEX idx_item_type (item_type),
     INDEX idx_buyer_completed (buyer_uuid, completed_at)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
@@ -156,14 +159,15 @@ CREATE TABLE IF NOT EXISTS bs_shop_ratings (
     INDEX idx_rater (rater_uuid)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
--- Trade history archive (for old records)
-CREATE TABLE IF NOT EXISTS bs_trade_history_archive (
+-- Trade records archive (for old records, matches Java trade_records_archive)
+CREATE TABLE IF NOT EXISTS bs_trade_records_archive (
     transaction_id VARCHAR(36) PRIMARY KEY,
-    shop_id INT NOT NULL,
+    shop_id INT NULL,
     buyer_uuid CHAR(36) NOT NULL,
     seller_uuid CHAR(36) NOT NULL,
     item_stack_data TEXT NOT NULL,
     quantity INT NOT NULL,
+    item_type VARCHAR(64),
     currency_material VARCHAR(64),
     price_paid INT NOT NULL DEFAULT 0,
     status ENUM('COMPLETED', 'CANCELLED', 'FAILED', 'PENDING', 'REFUNDED') NOT NULL,
@@ -172,5 +176,6 @@ CREATE TABLE IF NOT EXISTS bs_trade_history_archive (
     archived_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
 
     -- Indexes
-    INDEX idx_archived (archived_at)
+    INDEX idx_archived (archived_at),
+    INDEX idx_item_type (item_type)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
