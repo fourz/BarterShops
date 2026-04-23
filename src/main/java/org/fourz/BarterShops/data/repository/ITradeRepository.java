@@ -163,15 +163,6 @@ public interface ITradeRepository {
     CompletableFuture<List<int[]>> findTopShopsByTradeCount(int limit);
 
     /**
-     * Deletes trade records older than the specified timestamp.
-     * Use with caution - typically for archival purposes only.
-     *
-     * @param before Delete records before this timestamp
-     * @return CompletableFuture containing number of deleted records
-     */
-    CompletableFuture<Integer> deleteOlderThan(Timestamp before);
-
-    /**
      * Archives trade records older than the specified timestamp.
      * Implementation should move records to an archive table.
      *

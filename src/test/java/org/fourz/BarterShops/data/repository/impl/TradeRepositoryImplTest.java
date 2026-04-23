@@ -362,18 +362,6 @@ class TradeRepositoryImplTest {
         }
 
         @Test
-        @DisplayName("deleteOlderThan() should return 0 in fallback mode")
-        void deleteOlderThanShouldReturn0InFallbackMode() throws Exception {
-            when(fallbackTracker.isInFallbackMode()).thenReturn(true);
-
-            Timestamp cutoff = new Timestamp(System.currentTimeMillis() - 86400000 * 30);
-            Integer result = getFutureResult(repository.deleteOlderThan(cutoff));
-
-            assertEquals(0, result);
-            verify(connectionProvider, never()).getConnection();
-        }
-
-        @Test
         @DisplayName("archiveOlderThan() should return 0 in fallback mode")
         void archiveOlderThanShouldReturn0InFallbackMode() throws Exception {
             when(fallbackTracker.isInFallbackMode()).thenReturn(true);

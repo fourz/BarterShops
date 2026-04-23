@@ -629,52 +629,15 @@ public class TradeRepositoryImpl implements ITradeRepository {
     }
 
     @Override
-    public CompletableFuture<Integer> deleteOlderThan(Timestamp threshold) {
-        if (fallbackTracker.isInFallbackMode()) {
-            return CompletableFuture.completedFuture(0);
-        }
-
-        return CompletableFuture.supplyAsync(() -> {
-            String sql = "DELETE FROM " + t("trade_records") + " WHERE completed_at < ?";
-
-            try (Connection conn = connectionProvider.getConnection();
-                 PreparedStatement stmt = conn.prepareStatement(sql)) {
-
-                stmt.setTimestamp(1, threshold);
-                int affected = stmt.executeUpdate();
-                fallbackTracker.recordSuccess();
-                logger.info("Purged " + affected + " old trade records");
-                return affected;
-
-            } catch (SQLException e) {
-                fallbackTracker.recordFailure("Delete old trades failed: " + e.getMessage());
-                logger.error("Failed to delete old trades: " + e.getMessage());
-                return 0;
-            }
-        }, executor);
-    }
-
-    @Override
     public CompletableFuture<Integer> archiveOlderThan(Timestamp before) {
         if (fallbackTracker.isInFallbackMode()) {
             return CompletableFuture.completedFuture(0);
         }
 
         return CompletableFuture.supplyAsync(() -> {
-            // For now, archive is a soft operation - we move to archive table
-            // If archive table doesn't exist, we just return 0 (no archiving capability)
             String archiveTable = t("trade_records_archive");
 
             try (Connection conn = connectionProvider.getConnection()) {
-                // Use DatabaseMetaData — safe, no SQL concatenation, works for MySQL and SQLite
-                try (ResultSet checkRs = conn.getMetaData().getTables(null, null, archiveTable, new String[]{"TABLE"})) {
-                    if (!checkRs.next()) {
-                        // Archive table doesn't exist, just return 0
-                        logger.debug("Archive table does not exist, skipping archive operation");
-                        return 0;
-                    }
-                }
-
                 // Archive the records — explicit column list excludes archived_at (auto-defaulted)
                 String cols = "transaction_id, shop_id, buyer_uuid, seller_uuid, item_stack_data," +
                     " quantity, currency_material, price_paid, status, trade_source, item_type, completed_at";
@@ -875,14 +838,8 @@ public class TradeRepositoryImpl implements ITradeRepository {
     // ========================================================
 
     private TradeRecordDTO mapRowToTrade(ResultSet rs) throws SQLException {
-        String tradeSource;
-        try {
-            tradeSource = rs.getString("trade_source");
-            if (tradeSource == null) tradeSource = "UNKNOWN";
-        } catch (SQLException e) {
-            // Column absent on very old installs before migration ran
-            tradeSource = "UNKNOWN";
-        }
+        String tradeSource = rs.getString("trade_source");
+        if (tradeSource == null) tradeSource = "UNKNOWN";
         return TradeRecordDTO.builder()
                 .transactionId(rs.getString("transaction_id"))
                 .shopId(rs.getInt("shop_id"))
