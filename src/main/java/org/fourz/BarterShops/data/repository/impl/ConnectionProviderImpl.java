@@ -110,8 +110,9 @@ public class ConnectionProviderImpl implements IConnectionProvider {
     }
 
     /**
-     * Runs incremental schema migrations for existing installs.
-     * Each migration is idempotent — errors from already-applied changes are silently skipped.
+     * Backward-compat ALTER migrations for installs predating column additions.
+     * Base DDL already includes these columns for fresh installs; these are no-ops there.
+     * Each statement is idempotent — duplicate-column errors are caught and logged at DEBUG.
      */
     private void runMigrations(Connection conn) {
         // v1.0.27: add trade_source column to active and archive tables
@@ -193,11 +194,13 @@ public class ConnectionProviderImpl implements IConnectionProvider {
                 "chest_location_y DOUBLE, " +
                 "chest_location_z DOUBLE, " +
                 "is_active BOOLEAN NOT NULL DEFAULT TRUE, " +
+                "group_id INT DEFAULT NULL, " +
                 "created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP, " +
                 "last_modified TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP, " +
                 "INDEX idx_" + p + "owner (owner_uuid), " +
                 "INDEX idx_" + p + "location (location_world, location_x, location_y, location_z), " +
-                "INDEX idx_" + p + "active (is_active)" +
+                "INDEX idx_" + p + "active (is_active), " +
+                "INDEX idx_" + p + "shops_group (group_id)" +
                 ") ENGINE=InnoDB DEFAULT CHARSET=utf8mb4");
 
         stmt.execute("CREATE TABLE IF NOT EXISTS " + tradeRecords + " (" +
@@ -335,6 +338,7 @@ public class ConnectionProviderImpl implements IConnectionProvider {
                 "chest_location_y REAL, " +
                 "chest_location_z REAL, " +
                 "is_active INTEGER NOT NULL DEFAULT 1, " +
+                "group_id INTEGER DEFAULT NULL, " +
                 "created_at TEXT DEFAULT CURRENT_TIMESTAMP, " +
                 "last_modified TEXT DEFAULT CURRENT_TIMESTAMP" +
                 ")");
