@@ -86,7 +86,7 @@ public class TradeRepositoryImpl implements ITradeRepository {
                 stmt.setInt(8, trade.pricePaid());
                 stmt.setString(9, trade.status().name());
                 stmt.setString(10, trade.tradeSource() != null ? trade.tradeSource() : "UNKNOWN");
-                stmt.setString(11, extractItemTypeForInsert(trade.itemStackData()));
+                stmt.setString(11, trade.itemType());
                 stmt.setTimestamp(12, trade.completedAt());
 
                 stmt.executeUpdate();
@@ -847,18 +847,13 @@ public class TradeRepositoryImpl implements ITradeRepository {
                 .sellerUuid(UUID.fromString(rs.getString("seller_uuid")))
                 .itemStackData(rs.getString("item_stack_data"))
                 .quantity(rs.getInt("quantity"))
+                .itemType(rs.getString("item_type"))
                 .currencyMaterial(rs.getString("currency_material"))
                 .pricePaid(rs.getInt("price_paid"))
                 .status(TradeRecordDTO.TradeStatus.valueOf(rs.getString("status")))
                 .tradeSource(tradeSource)
                 .completedAt(rs.getTimestamp("completed_at"))
                 .build();
-    }
-
-    private static String extractItemTypeForInsert(String data) {
-        if (data == null || data.isEmpty()) return "UNKNOWN";
-        int colon = data.indexOf(':');
-        return colon > 0 ? data.substring(0, colon) : data;
     }
 
     /**
