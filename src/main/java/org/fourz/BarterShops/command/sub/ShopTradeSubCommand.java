@@ -201,7 +201,7 @@ public class ShopTradeSubCommand implements SubCommand {
 
     @Override
     public boolean hasPermission(CommandSender sender) {
-        return sender.hasPermission(getPermission()) || sender.hasPermission("bartershops.admin");
+        return sender.hasPermission("bartershops.admin");
     }
 
     @Override
