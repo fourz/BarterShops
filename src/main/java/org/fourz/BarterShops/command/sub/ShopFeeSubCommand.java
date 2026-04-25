@@ -82,7 +82,7 @@ public class ShopFeeSubCommand implements SubCommand {
     public boolean hasPermission(CommandSender sender) {
         return sender.hasPermission(getPermission())
             || sender.hasPermission("bartershops.create")
-            || sender.isOp();
+            || sender.hasPermission("bartershops.admin");
     }
 
     @Override

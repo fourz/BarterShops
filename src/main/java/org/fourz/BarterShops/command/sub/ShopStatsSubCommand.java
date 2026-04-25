@@ -202,7 +202,7 @@ public class ShopStatsSubCommand implements SubCommand {
     public boolean hasPermission(CommandSender sender) {
         // Anyone can view their own stats
         // Admin permission required for server stats or other players
-        if (sender.hasPermission("bartershops.admin") || sender.isOp()) {
+        if (sender.hasPermission("bartershops.admin") || sender.hasPermission("bartershops.admin")) {
             return true;
         }
         return sender.hasPermission(getPermission());
@@ -226,7 +226,7 @@ public class ShopStatsSubCommand implements SubCommand {
             }
 
             // Suggest online player names if admin
-            if (sender.hasPermission("bartershops.admin") || sender.isOp()) {
+            if (sender.hasPermission("bartershops.admin") || sender.hasPermission("bartershops.admin")) {
                 Bukkit.getOnlinePlayers().stream()
                     .map(Player::getName)
                     .filter(name -> name.toLowerCase().startsWith(partial))
