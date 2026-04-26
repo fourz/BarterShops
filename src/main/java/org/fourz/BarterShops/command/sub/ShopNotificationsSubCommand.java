@@ -35,46 +35,65 @@ public class ShopNotificationsSubCommand implements SubCommand {
 
     @Override
     public boolean execute(CommandSender sender, String[] args) {
-        Player player = (Player) sender;
+        UUID targetUUID;
+        int argOffset;
 
-        if (args.length == 0) {
-            showNotificationStatus(player);
+        if (!(sender instanceof Player)) {
+            // Console: /shop notifications <player> [action] [type]
+            if (args.length == 0) {
+                sender.sendMessage(ChatColor.RED + "Usage: /shop notifications <player> [on|off|toggle <type>|list]");
+                return true;
+            }
+            Player target = plugin.getServer().getPlayer(args[0]);
+            if (target == null) {
+                sender.sendMessage(ChatColor.RED + "Player not found or not online: " + args[0]);
+                return true;
+            }
+            targetUUID = target.getUniqueId();
+            argOffset = 1;
+        } else {
+            targetUUID = ((Player) sender).getUniqueId();
+            argOffset = 0;
+        }
+
+        if (args.length <= argOffset) {
+            showNotificationStatus(sender, targetUUID);
             return true;
         }
 
-        String action = args[0].toLowerCase();
+        String action = args[argOffset].toLowerCase();
 
-        // Handle "list" as alias for showing notifications
         if (action.equals("list")) {
-            showNotificationStatus(player);
+            showNotificationStatus(sender, targetUUID);
             return true;
         }
 
         switch (action) {
             case "on" -> {
-                NotificationPreferencesDTO current = plugin.getNotificationManager().getPreferences(player.getUniqueId());
+                NotificationPreferencesDTO current = plugin.getNotificationManager().getPreferences(targetUUID);
                 if (current.masterEnabled()) {
-                    player.sendMessage(ChatColor.YELLOW + "Shop notifications are already enabled.");
+                    sender.sendMessage(ChatColor.YELLOW + "Shop notifications are already enabled.");
                     return true;
                 }
-                plugin.getNotificationManager().toggleMasterEnabled(player.getUniqueId());
-                player.sendMessage(ChatColor.GREEN + "Shop notifications enabled.");
+                plugin.getNotificationManager().toggleMasterEnabled(targetUUID);
+                sender.sendMessage(ChatColor.GREEN + "Shop notifications enabled.");
                 return true;
             }
             case "off" -> {
-                NotificationPreferencesDTO current = plugin.getNotificationManager().getPreferences(player.getUniqueId());
+                NotificationPreferencesDTO current = plugin.getNotificationManager().getPreferences(targetUUID);
                 if (!current.masterEnabled()) {
-                    player.sendMessage(ChatColor.YELLOW + "Shop notifications are already disabled.");
+                    sender.sendMessage(ChatColor.YELLOW + "Shop notifications are already disabled.");
                     return true;
                 }
-                plugin.getNotificationManager().toggleMasterEnabled(player.getUniqueId());
-                player.sendMessage(ChatColor.RED + "Shop notifications disabled.");
+                plugin.getNotificationManager().toggleMasterEnabled(targetUUID);
+                sender.sendMessage(ChatColor.RED + "Shop notifications disabled.");
                 return true;
             }
             case "toggle" -> {
-                if (args.length < 2) {
-                    player.sendMessage(ChatColor.RED + "Usage: /shop notifications toggle <type>");
-                    player.sendMessage(ChatColor.GRAY + "Types: " +
+                int typeArgIdx = argOffset + 1;
+                if (args.length <= typeArgIdx) {
+                    sender.sendMessage(ChatColor.RED + "Usage: /shop notifications toggle <type>");
+                    sender.sendMessage(ChatColor.GRAY + "Types: " +
                             PLAYER_CONFIGURABLE_TYPES.stream()
                                     .map(t -> t.name().toLowerCase())
                                     .sorted()
@@ -82,22 +101,22 @@ public class ShopNotificationsSubCommand implements SubCommand {
                     return true;
                 }
 
-                String typeName = args[1].toUpperCase();
+                String typeName = args[typeArgIdx].toUpperCase();
                 try {
                     NotificationType type = NotificationType.valueOf(typeName);
                     if (!PLAYER_CONFIGURABLE_TYPES.contains(type)) {
-                        player.sendMessage(ChatColor.RED + "That notification type cannot be toggled.");
+                        sender.sendMessage(ChatColor.RED + "That notification type cannot be toggled.");
                         return true;
                     }
 
-                    NotificationPreferencesDTO currentPrefs = plugin.getNotificationManager().getPreferences(player.getUniqueId());
+                    NotificationPreferencesDTO currentPrefs = plugin.getNotificationManager().getPreferences(targetUUID);
                     boolean newState = !currentPrefs.enabledTypes().getOrDefault(type, true);
-                    plugin.getNotificationManager().toggleNotificationType(player.getUniqueId(), type);
+                    plugin.getNotificationManager().toggleNotificationType(targetUUID, type);
                     String status = newState ? ChatColor.GREEN + "enabled" : ChatColor.RED + "disabled";
-                    player.sendMessage(ChatColor.GOLD + type.getDisplayName() + " notifications " + status);
+                    sender.sendMessage(ChatColor.GOLD + type.getDisplayName() + " notifications " + status);
                 } catch (IllegalArgumentException e) {
-                    player.sendMessage(ChatColor.RED + "Unknown notification type: " + args[1]);
-                    player.sendMessage(ChatColor.GRAY + "Types: " +
+                    sender.sendMessage(ChatColor.RED + "Unknown notification type: " + args[typeArgIdx]);
+                    sender.sendMessage(ChatColor.GRAY + "Types: " +
                             PLAYER_CONFIGURABLE_TYPES.stream()
                                     .map(t -> t.name().toLowerCase())
                                     .sorted()
@@ -106,34 +125,31 @@ public class ShopNotificationsSubCommand implements SubCommand {
                 return true;
             }
             default -> {
-                player.sendMessage(ChatColor.RED + "Unknown action: " + action);
-                player.sendMessage(ChatColor.GRAY + "Available: on, off, toggle");
+                sender.sendMessage(ChatColor.RED + "Unknown action: " + action);
+                sender.sendMessage(ChatColor.GRAY + "Available: on, off, toggle");
                 return true;
             }
         }
     }
 
-    /**
-     * Shows current notification settings to the player.
-     */
-    private void showNotificationStatus(Player player) {
-        NotificationPreferencesDTO prefs = plugin.getNotificationManager().getPreferences(player.getUniqueId());
+    private void showNotificationStatus(CommandSender sender, UUID targetUUID) {
+        NotificationPreferencesDTO prefs = plugin.getNotificationManager().getPreferences(targetUUID);
 
-        player.sendMessage(ChatColor.GOLD + "=== Notification Settings ===");
+        sender.sendMessage(ChatColor.GOLD + "=== Notification Settings ===");
 
         String masterStatus = prefs.masterEnabled()
                 ? ChatColor.GREEN + "enabled" + ChatColor.GRAY + " (/shop notifications off to disable)"
                 : ChatColor.RED + "disabled" + ChatColor.GRAY + " (/shop notifications on to enable)";
-        player.sendMessage(ChatColor.YELLOW + "All notifications: " + masterStatus);
+        sender.sendMessage(ChatColor.YELLOW + "All notifications: " + masterStatus);
 
         if (prefs.masterEnabled()) {
-            player.sendMessage(ChatColor.GOLD + "Types:");
+            sender.sendMessage(ChatColor.GOLD + "Types:");
             for (NotificationType type : PLAYER_CONFIGURABLE_TYPES) {
                 boolean enabled = prefs.enabledTypes().getOrDefault(type, true);
                 String status = enabled ? ChatColor.GREEN + "on" : ChatColor.RED + "off";
-                player.sendMessage(ChatColor.GRAY + "  " + type.getDisplayName() + ": " + status);
+                sender.sendMessage(ChatColor.GRAY + "  " + type.getDisplayName() + ": " + status);
             }
-            player.sendMessage(ChatColor.GRAY + "Use /shop notifications toggle <type> to change.");
+            sender.sendMessage(ChatColor.GRAY + "Use /shop notifications toggle <type> to change.");
         }
     }
 
@@ -183,6 +199,6 @@ public class ShopNotificationsSubCommand implements SubCommand {
 
     @Override
     public boolean requiresPlayer() {
-        return true;
+        return false;
     }
 }
