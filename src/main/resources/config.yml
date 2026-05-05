@@ -8,12 +8,12 @@ storage:
   # types: mysql, sqlite
   type: mysql
   mysql:
-    host: 64.20.41.122
+    host: localhost
     port: 3306
-    username: fourzorg_rvnkuser
+    username: rvnkuser
     password: ''
-    useSSL: true
-    database: fourzorg_rvnkcore_dev
+    useSSL: false
+    database: bartershops
     # Table prefix for shared database hosting (e.g., "barter_" creates "barter_shops")
     tablePrefix: "barter_"
   sqlite:
@@ -54,8 +54,7 @@ api:
     required: false
 
     # Valid API keys (use environment variables in production)
-    keys:
-      - "dev-key-12345"
+    keys: []
 
 economy:
   # Shop listing fees (requires Vault)
