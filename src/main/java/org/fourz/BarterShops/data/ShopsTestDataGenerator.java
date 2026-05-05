@@ -38,9 +38,8 @@ public class ShopsTestDataGenerator extends TestDataGenerator {
     // Shop types
     private static final String[] SHOP_TYPES = {"BARTER", "SELL", "BUY", "ADMIN"};
 
-    // Known server player UUIDs for realistic test data (names resolve via Bukkit cache)
     private static final UUID[] SEED_OWNER_UUIDS = {
-        UUID.fromString("94c37976-5134-40b0-9e03-722ae6664fea"), // wizardofire
+        UUID.fromString("00000000-0000-0000-0000-000000000001"),
     };
 
     // Transaction statuses

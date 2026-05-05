@@ -2,10 +2,13 @@ package org.fourz.BarterShops.command.sub;
 
 import org.bukkit.ChatColor;
 import org.bukkit.command.CommandSender;
+import org.bukkit.entity.Player;
 import org.fourz.BarterShops.BarterShops;
 import org.fourz.BarterShops.command.SubCommand;
 import org.fourz.BarterShops.data.dto.TradeRecordDTO;
 import org.fourz.BarterShops.data.repository.ITradeRepository;
+
+import java.util.UUID;
 
 import java.text.SimpleDateFormat;
 import java.util.ArrayList;
@@ -64,10 +67,23 @@ public class ShopHistorySubCommand implements SubCommand {
             return true;
         }
 
+        final UUID senderUuid = sender instanceof Player p ? p.getUniqueId() : null;
+        final boolean isAdmin = sender.hasPermission("bartershops.admin");
+
         sender.sendMessage(ChatColor.GOLD + "* Loading trade history for shop #" + shopId + "...");
 
         final int finalPage = page;
-        tradeRepo.findByShop(shopId, MAX_FETCH).thenAccept(trades -> {
+        plugin.getShopRepository().findById(shopId).thenCompose(shopOpt -> {
+            if (shopOpt.isEmpty()) {
+                sender.sendMessage(ChatColor.RED + "x Shop #" + shopId + " not found.");
+                return java.util.concurrent.CompletableFuture.completedFuture(java.util.Collections.emptyList());
+            }
+            if (!isAdmin && (senderUuid == null || !senderUuid.equals(shopOpt.get().ownerUuid()))) {
+                sender.sendMessage(ChatColor.RED + "x You can only view history for your own shops.");
+                return java.util.concurrent.CompletableFuture.completedFuture(java.util.Collections.emptyList());
+            }
+            return tradeRepo.findByShop(shopId, MAX_FETCH);
+        }).thenAccept(trades -> {
             if (trades.isEmpty()) {
                 sender.sendMessage(ChatColor.YELLOW + "! No trades found for shop #" + shopId + ".");
                 return;
@@ -174,7 +190,7 @@ public class ShopHistorySubCommand implements SubCommand {
 
     @Override
     public boolean hasPermission(CommandSender sender) {
-        return sender.hasPermission(getPermission()) || sender.isOp();
+        return sender.hasPermission(getPermission()) || sender.hasPermission("bartershops.admin");
     }
 
     @Override

@@ -424,8 +424,9 @@ public class ShopGroupSubCommand implements SubCommand {
         return sender.hasPermission("bartershops.group.list") ||
                sender.hasPermission("bartershops.group.info") ||
                sender.hasPermission("bartershops.group.manage") ||
-               sender.hasPermission("bartershops.admin") ||
-               sender.isOp();
+               sender.hasPermission("bartershops.group.rename") ||
+               sender.hasPermission("bartershops.group.transfer") ||
+               sender.hasPermission("bartershops.admin");
     }
 
     @Override

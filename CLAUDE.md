@@ -60,11 +60,7 @@ org.fourz.BarterShops
 │   ├── CommandManager.java    # Command registration
 │   ├── ShopCommand.java       # Main /shop command dispatcher (20 subcommands)
 │   ├── SubCommand.java        # Abstract subcommand interface
-│   ├── BaseCommand.java       # Base command implementation
 │   ├── SeedSubCommand.java    # Test data seeding
-│   ├── ListCommand.java       # Legacy list command
-│   ├── NearbyCommand.java     # Legacy nearby command
-│   ├── ReloadCommand.java     # Legacy reload command
 │   └── sub/                   # All subcommand implementations
 │       ├── ShopCreateSubCommand.java
 │       ├── ShopListSubCommand.java
@@ -244,7 +240,7 @@ Use consistent message prefixes in command handlers:
 | Dependency | Version | Purpose |
 |------------|---------|---------|
 | spigot-api | 1.21-R0.1-SNAPSHOT | Bukkit API |
-| RVNKCore | 1.3.0-alpha | Shared logging, ServiceRegistry (softdepend) |
+| RVNKCore | 1.5.2-alpha | Shared logging, ServiceRegistry (depend) |
 | Vault | 1.7+ | Economy integration (softdepend) |
 | snakeyaml | 2.0 | YAML configuration |
 | jetty-servlet | 9.4.44.v20210927 | Web integration (REST API) |
@@ -298,46 +294,17 @@ Use consistent message prefixes in command handlers:
 
 ### Local Documentation
 - [README.md](README.md) - Features, usage, configuration
-- [USER_GUIDE.md](USER_GUIDE.md) - Complete player guide
-- [ADMIN_GUIDE.md](ADMIN_GUIDE.md) - Installation, configuration, permissions
-- [DEVELOPER_GUIDE.md](DEVELOPER_GUIDE.md) - API usage, integration
-- [API_REFERENCE.md](API_REFERENCE.md) - REST API endpoints
+- [User Guide](docs/user-guide.md) - Complete player guide
+- [Admin Guide](docs/admin-guide.md) - Installation, configuration, permissions
+- [Developer Guide](docs/developer-guide.md) - API usage, integration
+- [API Reference](docs/api-reference.md) - REST API endpoints
 - **Graph Memory** — For BarterShops status and history: `search_nodes("BarterShops")`
 
-### Archon Board Documents (BarterShops-specific)
-Documents on BarterShops board (`bd4e478b-772a-4b97-bd99-300552840815`):
-- **BarterShops Architecture Specification** - Plugin architecture, RVNKCore integration plan, sign system
-- **BarterShops Database API Specification** - Repository interfaces, DTO definitions, FallbackTracker patterns
+### Parent Repo Standards
 
-### Parent Board Standards (Cross-cutting)
-Documents on Ravenkraft Dev board (`4787f505-e92e-474d-ba54-f5ac7993ccfe`):
 - [Coding Standards](../../docs/standard/coding-standards.md) - Java 17+ conventions
 - [RVNKCore Integration](../../docs/standard/rvnkcore-integration.md) - ServiceRegistry usage patterns
 - [Database Patterns](../../docs/standard/database-patterns.md) - Repository pattern, HikariCP
-
-## Archon MCP Integration
-
-**BarterShops Board**: `bd4e478b-772a-4b97-bd99-300552840815`
-**Parent Project (Ravenkraft Dev)**: `4787f505-e92e-474d-ba54-f5ac7993ccfe`
-**RVNKCore Board**: `7785e125-4468-44e2-a86c-2fef668fce48`
-
-Use parent project for shared RVNK standards, coding patterns, and documentation. Reference RVNKCore board for integration patterns (ServiceRegistry, Repository, DTO) and shared service interfaces.
-
-Use Archon task management for development workflow:
-
-```python
-# Check for existing tasks on this board
-find_tasks(project_id="bd4e478b-772a-4b97-bd99-300552840815")
-
-# Start work
-manage_task("update", task_id="...", status="doing")
-
-# Search knowledge base for Paper/Bukkit patterns
-rag_search_knowledge_base(query="Bukkit sign interaction")
-
-# Complete task
-manage_task("update", task_id="...", status="done")
-```
 
 ## Development Status
 

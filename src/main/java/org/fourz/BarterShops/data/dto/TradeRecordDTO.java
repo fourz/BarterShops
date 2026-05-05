@@ -17,6 +17,7 @@ public record TradeRecordDTO(
     UUID sellerUuid,
     String itemStackData,
     int quantity,
+    String itemType,
     String currencyMaterial,
     int pricePaid,
     TradeStatus status,
@@ -58,12 +59,19 @@ public record TradeRecordDTO(
      */
     public static TradeRecordDTO completed(int shopId, UUID buyerUuid, UUID sellerUuid,
             String itemStackData, int quantity, String currencyMaterial, int pricePaid) {
+        String itemType = extractItemType(itemStackData);
         return new TradeRecordDTO(
             UUID.randomUUID().toString(),
-            shopId, buyerUuid, sellerUuid, itemStackData, quantity,
+            shopId, buyerUuid, sellerUuid, itemStackData, quantity, itemType,
             currencyMaterial, pricePaid, TradeStatus.COMPLETED, "UNKNOWN",
             new Timestamp(System.currentTimeMillis())
         );
+    }
+
+    private static String extractItemType(String data) {
+        if (data == null || data.isEmpty()) return "UNKNOWN";
+        int colon = data.indexOf(':');
+        return colon > 0 ? data.substring(0, colon) : data;
     }
 
     /**
@@ -108,6 +116,7 @@ public record TradeRecordDTO(
         private UUID sellerUuid;
         private String itemStackData;
         private int quantity;
+        private String itemType;
         private String currencyMaterial;
         private int pricePaid;
         private TradeStatus status = TradeStatus.COMPLETED;
@@ -136,6 +145,11 @@ public record TradeRecordDTO(
 
         public Builder itemStackData(String itemStackData) {
             this.itemStackData = itemStackData;
+            return this;
+        }
+
+        public Builder itemType(String itemType) {
+            this.itemType = itemType;
             return this;
         }
 
@@ -172,7 +186,7 @@ public record TradeRecordDTO(
         public TradeRecordDTO build() {
             return new TradeRecordDTO(
                 transactionId, shopId, buyerUuid, sellerUuid,
-                itemStackData, quantity, currencyMaterial, pricePaid,
+                itemStackData, quantity, itemType, currencyMaterial, pricePaid,
                 status, tradeSource, completedAt
             );
         }

@@ -99,7 +99,7 @@ public class ShopNearbySubCommand implements SubCommand {
 
     @Override
     public boolean hasPermission(CommandSender sender) {
-        return sender.hasPermission(getPermission()) || sender.isOp();
+        return sender.hasPermission(getPermission()) || sender.hasPermission("bartershops.admin");
     }
 
     @Override

@@ -81,7 +81,7 @@ public class ShopSharedSubCommand implements SubCommand {
 
     @Override
     public boolean hasPermission(CommandSender sender) {
-        return sender.hasPermission(getPermission()) || sender.hasPermission("bartershops.admin") || sender.isOp();
+        return sender.hasPermission(getPermission()) || sender.hasPermission("bartershops.admin");
     }
 
     @Override

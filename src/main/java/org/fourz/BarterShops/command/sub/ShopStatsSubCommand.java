@@ -57,12 +57,21 @@ public class ShopStatsSubCommand implements SubCommand {
         String target = args[0].toLowerCase();
 
         if ("server".equals(target)) {
-            // Show server-wide statistics
+            if (!sender.hasPermission("bartershops.admin")) {
+                sender.sendMessage(ChatColor.RED + "x Admin permission required for server statistics.");
+                return true;
+            }
             showServerStats(sender);
             return true;
         }
 
-        // Show stats for specified player
+        // Show stats for specified player — allow self-lookup by name, require admin for others
+        boolean isSelf = sender instanceof Player player && player.getName().equalsIgnoreCase(target);
+        if (!isSelf && !sender.hasPermission("bartershops.admin")) {
+            sender.sendMessage(ChatColor.RED + "x Admin permission required to view other players' statistics.");
+            return true;
+        }
+
         OfflinePlayer targetPlayer = Bukkit.getOfflinePlayer(target);
         if (!targetPlayer.hasPlayedBefore() && !targetPlayer.isOnline()) {
             sender.sendMessage(ChatColor.RED + "Player not found: " + target);
@@ -200,12 +209,7 @@ public class ShopStatsSubCommand implements SubCommand {
 
     @Override
     public boolean hasPermission(CommandSender sender) {
-        // Anyone can view their own stats
-        // Admin permission required for server stats or other players
-        if (sender.hasPermission("bartershops.admin") || sender.isOp()) {
-            return true;
-        }
-        return sender.hasPermission(getPermission());
+        return sender.hasPermission("bartershops.create") || sender.hasPermission("bartershops.admin");
     }
 
     @Override
@@ -226,7 +230,7 @@ public class ShopStatsSubCommand implements SubCommand {
             }
 
             // Suggest online player names if admin
-            if (sender.hasPermission("bartershops.admin") || sender.isOp()) {
+            if (sender.hasPermission("bartershops.admin") || sender.hasPermission("bartershops.admin")) {
                 Bukkit.getOnlinePlayers().stream()
                     .map(Player::getName)
                     .filter(name -> name.toLowerCase().startsWith(partial))

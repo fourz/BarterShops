@@ -1,10 +1,12 @@
 -- ============================================================
--- BarterShops MySQL Schema v1.0
--- RVNKCore Integration compliant
+-- BarterShops MySQL Schema
+-- Table names use the configured prefix (config.yml → database.tablePrefix).
+-- Default prefix: "barter_"  →  barter_shops, barter_trade_records, etc.
+-- The "barter_" prefix below reflects the Ravenkraft default install.
+-- Replace the prefix to match your tablePrefix setting.
 -- ============================================================
 
--- Main shops table
-CREATE TABLE IF NOT EXISTS bs_shops (
+CREATE TABLE IF NOT EXISTS barter_shops (
     shop_id INT AUTO_INCREMENT PRIMARY KEY,
     owner_uuid CHAR(36) NOT NULL,
     shop_name VARCHAR(64),
@@ -18,26 +20,59 @@ CREATE TABLE IF NOT EXISTS bs_shops (
     location_z DOUBLE NOT NULL,
 
     -- Chest location
-    chest_world VARCHAR(64),
-    chest_x DOUBLE,
-    chest_y DOUBLE,
-    chest_z DOUBLE,
+    chest_location_world VARCHAR(64),
+    chest_location_x DOUBLE,
+    chest_location_y DOUBLE,
+    chest_location_z DOUBLE,
+
+    -- Group membership (NULL = ungrouped)
+    group_id INT NULL,
 
     -- Status
     is_active TINYINT(1) NOT NULL DEFAULT 1,
     created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
     last_modified TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
 
-    -- Indexes
     INDEX idx_owner (owner_uuid),
+    INDEX idx_group (group_id),
     INDEX idx_location (location_world, location_x, location_y, location_z),
     INDEX idx_active (is_active),
     INDEX idx_type (shop_type),
     INDEX idx_owner_active (owner_uuid, is_active)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
+-- Shop groups (owner-defined groupings of shops, per-world)
+CREATE TABLE IF NOT EXISTS barter_shop_groups (
+    group_id INT AUTO_INCREMENT PRIMARY KEY,
+    group_name VARCHAR(64) NOT NULL,
+    owner_uuid CHAR(36) NOT NULL,
+    world VARCHAR(64) NOT NULL,
+    is_active TINYINT(1) NOT NULL DEFAULT 1,
+    created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    last_modified TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+
+    INDEX idx_owner (owner_uuid),
+    INDEX idx_world (world),
+    INDEX idx_active (is_active)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- Shop group members (co-owners per group)
+CREATE TABLE IF NOT EXISTS barter_shop_group_members (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    group_id INT NOT NULL,
+    member_uuid CHAR(36) NOT NULL,
+    role VARCHAR(32) NOT NULL DEFAULT 'CO_OWNER',
+    added_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+
+    UNIQUE KEY uq_group_member (group_id, member_uuid),
+    CONSTRAINT fk_member_group FOREIGN KEY (group_id)
+        REFERENCES barter_shop_groups(group_id) ON DELETE CASCADE,
+
+    INDEX idx_member (member_uuid)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
 -- Trade items (what the shop offers/accepts)
-CREATE TABLE IF NOT EXISTS bs_trade_items (
+CREATE TABLE IF NOT EXISTS barter_trade_items (
     trade_item_id INT AUTO_INCREMENT PRIMARY KEY,
     shop_id INT NOT NULL,
     item_stack_data TEXT NOT NULL,
@@ -47,62 +82,57 @@ CREATE TABLE IF NOT EXISTS bs_trade_items (
     is_offering TINYINT(1) NOT NULL DEFAULT 1,
     created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
 
-    -- Foreign key
     CONSTRAINT fk_trade_shop FOREIGN KEY (shop_id)
-        REFERENCES bs_shops(shop_id) ON DELETE CASCADE,
+        REFERENCES barter_shops(shop_id) ON DELETE CASCADE,
 
-    -- Indexes
     INDEX idx_shop (shop_id),
     INDEX idx_offering (is_offering)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
--- Trade history (completed transactions)
-CREATE TABLE IF NOT EXISTS bs_trade_history (
+-- Trade records (completed transactions)
+CREATE TABLE IF NOT EXISTS barter_trade_records (
     transaction_id VARCHAR(36) PRIMARY KEY,
-    shop_id INT NOT NULL,
+    shop_id INT NULL,
     buyer_uuid CHAR(36) NOT NULL,
     seller_uuid CHAR(36) NOT NULL,
     item_stack_data TEXT NOT NULL,
     quantity INT NOT NULL,
+    item_type VARCHAR(64),
     currency_material VARCHAR(64),
     price_paid INT NOT NULL DEFAULT 0,
     status ENUM('COMPLETED', 'CANCELLED', 'FAILED', 'PENDING', 'REFUNDED') NOT NULL DEFAULT 'COMPLETED',
     trade_source VARCHAR(32) NOT NULL DEFAULT 'UNKNOWN',
     completed_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
 
-    -- Foreign key
-    CONSTRAINT fk_history_shop FOREIGN KEY (shop_id)
-        REFERENCES bs_shops(shop_id) ON DELETE SET NULL,
+    CONSTRAINT fk_records_shop FOREIGN KEY (shop_id)
+        REFERENCES barter_shops(shop_id) ON DELETE SET NULL,
 
-    -- Indexes
     INDEX idx_shop (shop_id),
     INDEX idx_buyer (buyer_uuid),
     INDEX idx_seller (seller_uuid),
     INDEX idx_completed (completed_at),
     INDEX idx_status (status),
+    INDEX idx_item_type (item_type),
     INDEX idx_buyer_completed (buyer_uuid, completed_at)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 -- Shop metadata (key-value pairs for extensibility)
-CREATE TABLE IF NOT EXISTS bs_shop_metadata (
+CREATE TABLE IF NOT EXISTS barter_shop_metadata (
     shop_id INT NOT NULL,
     meta_key VARCHAR(64) NOT NULL,
     meta_value TEXT,
     updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
 
-    -- Composite primary key
     PRIMARY KEY (shop_id, meta_key),
 
-    -- Foreign key
     CONSTRAINT fk_meta_shop FOREIGN KEY (shop_id)
-        REFERENCES bs_shops(shop_id) ON DELETE CASCADE,
+        REFERENCES barter_shops(shop_id) ON DELETE CASCADE,
 
-    -- Index for metadata queries by key
     INDEX idx_meta_key (meta_key)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 -- Shop ratings and reviews
-CREATE TABLE IF NOT EXISTS bs_shop_ratings (
+CREATE TABLE IF NOT EXISTS barter_shop_ratings (
     rating_id INT AUTO_INCREMENT PRIMARY KEY,
     shop_id INT NOT NULL,
     rater_uuid CHAR(36) NOT NULL,
@@ -110,26 +140,24 @@ CREATE TABLE IF NOT EXISTS bs_shop_ratings (
     review TEXT,
     created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
 
-    -- Ensure one rating per player per shop
     UNIQUE KEY uq_shop_rater (shop_id, rater_uuid),
 
-    -- Foreign key
     CONSTRAINT fk_rating_shop FOREIGN KEY (shop_id)
-        REFERENCES bs_shops(shop_id) ON DELETE CASCADE,
+        REFERENCES barter_shops(shop_id) ON DELETE CASCADE,
 
-    -- Indexes
     INDEX idx_shop (shop_id),
     INDEX idx_rater (rater_uuid)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
--- Trade history archive (for old records)
-CREATE TABLE IF NOT EXISTS bs_trade_history_archive (
+-- Trade records archive (retention manager moves records older than N days here)
+CREATE TABLE IF NOT EXISTS barter_trade_records_archive (
     transaction_id VARCHAR(36) PRIMARY KEY,
-    shop_id INT NOT NULL,
+    shop_id INT NULL,
     buyer_uuid CHAR(36) NOT NULL,
     seller_uuid CHAR(36) NOT NULL,
     item_stack_data TEXT NOT NULL,
     quantity INT NOT NULL,
+    item_type VARCHAR(64),
     currency_material VARCHAR(64),
     price_paid INT NOT NULL DEFAULT 0,
     status ENUM('COMPLETED', 'CANCELLED', 'FAILED', 'PENDING', 'REFUNDED') NOT NULL,
@@ -137,6 +165,6 @@ CREATE TABLE IF NOT EXISTS bs_trade_history_archive (
     completed_at TIMESTAMP NOT NULL,
     archived_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
 
-    -- Indexes
-    INDEX idx_archived (archived_at)
+    INDEX idx_archived (archived_at),
+    INDEX idx_item_type (item_type)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;

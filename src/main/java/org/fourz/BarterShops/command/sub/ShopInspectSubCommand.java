@@ -169,7 +169,7 @@ public class ShopInspectSubCommand implements SubCommand {
 
     @Override
     public String getPermission() {
-        return "bartershops.admin";
+        return "bartershops.use";
     }
 
     @Override
