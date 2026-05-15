@@ -120,7 +120,7 @@ public class BarterShops extends JavaPlugin {
 
         // Initialize ownership service (centralized shop ownership management)
         this.ownershipService = new org.fourz.BarterShops.service.impl.ShopOwnershipServiceImpl(this);
-        logger.info("Ownership service initialized");
+        logger.debug("Ownership service initialized");
 
         // Load signs from database now that both signManager and shopRepository are initialized
         if (signManager != null && shopRepository != null) {
@@ -132,17 +132,17 @@ public class BarterShops extends JavaPlugin {
 
         // Initialize preference system
         this.preferenceManager = new ShopPreferenceManager(this);
-        logger.info("Preference manager initialized");
+        logger.debug("Preference manager initialized");
 
         // Initialize auto-exchange handler (after tradeEngine + preferenceManager)
         this.autoExchangeHandler = new org.fourz.BarterShops.trade.AutoExchangeHandler(
             this, tradeEngine, preferenceManager
         );
-        logger.info("Auto-exchange handler initialized");
+        logger.debug("Auto-exchange handler initialized");
 
         // Initialize info display helper
         this.shopInfoDisplayHelper = new ShopInfoDisplayHelper(this, preferenceManager);
-        logger.info("Shop info display helper initialized");
+        logger.debug("Shop info display helper initialized");
 
         // Initialize RatingService (requires database layer)
         initializeRatingService();
@@ -166,7 +166,9 @@ public class BarterShops extends JavaPlugin {
         // Apply configured log level to all BarterShops instances now that all managers are created.
         // Use setPluginLogLevel (not setGlobalLogLevel) to avoid resetting other plugins' log levels.
         LogManager.setPluginLogLevel(this, configManager.getLogLevel());
-        logger.info("Log level set to: " + configManager.getLogLevel());
+        if (!java.util.logging.Level.INFO.equals(configManager.getLogLevel())) {
+            logger.info("Log level set to: " + configManager.getLogLevel());
+        }
 
         logger.info("BarterShops has been loaded");
     }
@@ -230,7 +232,7 @@ public class BarterShops extends JavaPlugin {
         try {
             IRatingRepository ratingRepo = new RatingRepositoryImpl(this, connectionProvider, fallbackTracker);
             this.ratingService = new RatingServiceImpl(this, ratingRepo, shopRepository);
-            logger.info("RatingService initialized");
+            logger.debug("RatingService initialized");
         } catch (Exception e) {
             logger.warning("Failed to initialize RatingService: " + e.getMessage());
         }
@@ -247,7 +249,7 @@ public class BarterShops extends JavaPlugin {
         }
         try {
             this.statsService = new StatsServiceImpl(this, (IShopService) shopServiceObj, ratingService);
-            logger.info("StatsService initialized");
+            logger.debug("StatsService initialized");
         } catch (Exception e) {
             logger.warning("Failed to initialize StatsService: " + e.getMessage());
         }
@@ -281,7 +283,7 @@ public class BarterShops extends JavaPlugin {
         }
         try {
             this.shopGroupService = new ShopGroupServiceImpl(this, shopGroupRepository, shopRepository);
-            logger.info("ShopGroupService initialized");
+            logger.debug("ShopGroupService initialized");
 
             // Run startup migration (async, non-blocking)
             shopGroupService.migrateExistingShops()
@@ -328,32 +330,30 @@ public class BarterShops extends JavaPlugin {
             Class<?> registryClass = serviceRegistry.getClass();
             java.lang.reflect.Method registerMethod = registryClass.getMethod("registerService", Class.class, Object.class);
 
+            int registered = 0;
+
             // Register ShopServiceImpl if available
-            // ShopServiceImpl is the concrete implementation of IShopService
             Object shopService = createShopService();
             if (shopService != null) {
                 registerMethod.invoke(serviceRegistry, IShopService.class, shopService);
-                logger.info("Registered IShopService with RVNKCore");
+                registered++;
             } else {
-                logger.info("ShopServiceImpl not available - skipping IShopService registration");
+                logger.debug("ShopServiceImpl not available - skipping IShopService registration");
             }
 
-            // Register IRatingService
             if (ratingService != null) {
                 registerMethod.invoke(serviceRegistry, IRatingService.class, ratingService);
-                logger.info("Registered IRatingService with RVNKCore");
+                registered++;
             }
 
-            // Register IStatsService
             if (statsService != null) {
                 registerMethod.invoke(serviceRegistry, IStatsService.class, statsService);
-                logger.info("Registered IStatsService with RVNKCore");
+                registered++;
             }
 
-            // Register ITradeService
             if (tradeService != null) {
                 registerMethod.invoke(serviceRegistry, ITradeService.class, tradeService);
-                logger.info("Registered ITradeService with RVNKCore");
+                registered++;
             }
 
             // Register IBarterShopsApiService for RVNKCore's BarterShopsController
@@ -368,11 +368,11 @@ public class BarterShops extends JavaPlugin {
                 );
             Class<?> apiServiceInterface = Class.forName("org.fourz.rvnkcore.api.service.IBarterShopsApiService");
             registerMethod.invoke(serviceRegistry, apiServiceInterface, apiService);
-            logger.info("Registered IBarterShopsApiService with RVNKCore");
+            registered++;
 
             rvnkCoreAvailable = true;
             rvnkCoreInstance = coreInstance;
-            logger.info("RVNKCore integration enabled - services registered");
+            logger.info("RVNKCore integration enabled — " + registered + " services registered");
 
             // Pass ServiceRegistry to TradeEngine for webhook notifications
             if (tradeEngine != null) {
@@ -434,7 +434,7 @@ public class BarterShops extends JavaPlugin {
                     );
 
             prefsService.registerNotificationTypes("bartershops", types);
-            logger.info("Registered " + types.size() + " notification types with PlayerPreferencesService");
+            logger.debug("Registered " + types.size() + " notification types with PlayerPreferencesService");
 
         } catch (Exception e) {
             logger.debug("Failed to register notification types: " + e.getMessage());

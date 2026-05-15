@@ -39,7 +39,7 @@ public class TemplateManager {
      * Creates templates.yml if it doesn't exist and loads templates.
      */
     private void initialize() {
-        logger.info("Initializing TemplateManager...");
+        logger.debug("Initializing TemplateManager...");
 
         if (!templatesFile.exists()) {
             try {
@@ -54,7 +54,11 @@ public class TemplateManager {
 
         templatesConfig = YamlConfiguration.loadConfiguration(templatesFile);
         loadTemplates();
-        logger.info("TemplateManager initialized with " + templates.size() + " templates");
+        if (!templates.isEmpty()) {
+            logger.info("TemplateManager: " + templates.size() + " templates loaded");
+        } else {
+            logger.debug("TemplateManager initialized (no templates)");
+        }
     }
 
     /**

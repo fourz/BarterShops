@@ -59,9 +59,9 @@ public class ShopServiceImpl implements IShopService {
         this.fallbackNextShopId = new AtomicInteger(1);
 
         if (repository != null) {
-            logger.info("ShopServiceImpl initialized (database mode)");
+            logger.debug("ShopServiceImpl initialized (database mode)");
         } else {
-            logger.info("ShopServiceImpl initialized (in-memory fallback mode)");
+            logger.debug("ShopServiceImpl initialized (in-memory fallback mode)");
         }
     }
 

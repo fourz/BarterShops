@@ -42,7 +42,7 @@ public class NotificationManager {
         this.preferences = new ConcurrentHashMap<>();
         this.notificationQueue = new LinkedList<>();
         startQueueProcessor();
-        logger.info("NotificationManager initialized");
+        logger.debug("NotificationManager initialized");
     }
 
     /**

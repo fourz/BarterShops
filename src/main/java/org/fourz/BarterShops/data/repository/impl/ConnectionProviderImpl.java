@@ -52,7 +52,7 @@ public class ConnectionProviderImpl implements IConnectionProvider {
         this.databaseType = settings.isMySQL() ? "mysql" : "sqlite";
         this.tablePrefix = settings.getTablePrefix();
         if (tablePrefix != null && !tablePrefix.isEmpty()) {
-            logger.info("Using table prefix: " + tablePrefix);
+            logger.debug("Using table prefix: " + tablePrefix);
         }
     }
 
@@ -60,12 +60,12 @@ public class ConnectionProviderImpl implements IConnectionProvider {
      * Initializes the connection pool via RVNKCore's ConnectionProviderFactory.
      */
     public void initialize() throws SQLException {
-        logger.info("Initializing database connection pool (" + databaseType + ")...");
+        logger.debug("Initializing database connection pool (" + databaseType + ")...");
         ConnectionProviderFactory factory = new ConnectionProviderFactory(plugin);
         DatabaseConfig config = buildDatabaseConfig();
         rvnkProvider = factory.createConnectionProvider(config);
         createSchema();
-        logger.info("Database connection pool initialized successfully");
+        logger.debug("Database connection pool initialized successfully");
     }
 
     private DatabaseConfig buildDatabaseConfig() {
@@ -106,7 +106,7 @@ public class ConnectionProviderImpl implements IConnectionProvider {
             runMigrations(conn);
         }
 
-        logger.info("Database schema validated/created successfully");
+        logger.debug("Database schema validated/created successfully");
     }
 
     /**
@@ -122,7 +122,7 @@ public class ConnectionProviderImpl implements IConnectionProvider {
                 : "ALTER TABLE " + tableName + " ADD COLUMN trade_source TEXT NOT NULL DEFAULT 'UNKNOWN'";
             try (PreparedStatement s = conn.prepareStatement(alterSql)) {
                 s.execute();
-                logger.info("Migration applied: added trade_source to " + tableName);
+                logger.debug("Migration applied: added trade_source to " + tableName);
             } catch (SQLException e) {
                 logger.debug("Migration skip (already applied or table absent): " + tableName + " — " + e.getMessage());
             }
@@ -135,7 +135,7 @@ public class ConnectionProviderImpl implements IConnectionProvider {
                 : "ALTER TABLE " + tableName + " ADD COLUMN item_type TEXT";
             try (PreparedStatement s = conn.prepareStatement(alterSql)) {
                 s.execute();
-                logger.info("Migration applied: added item_type to " + tableName);
+                logger.debug("Migration applied: added item_type to " + tableName);
             } catch (SQLException e) {
                 logger.debug("Migration skip (already applied or table absent): " + tableName + " — " + e.getMessage());
             }
@@ -146,7 +146,7 @@ public class ConnectionProviderImpl implements IConnectionProvider {
                 + table(TABLE_TRADE_RECORDS) + "(item_type)";
         try (PreparedStatement s = conn.prepareStatement(idxSql)) {
             s.execute();
-            logger.info("Migration applied: item_type index on " + table(TABLE_TRADE_RECORDS));
+            logger.debug("Migration applied: item_type index on " + table(TABLE_TRADE_RECORDS));
         } catch (SQLException e) {
             logger.debug("Migration skip (index already exists): " + e.getMessage());
         }
@@ -157,7 +157,7 @@ public class ConnectionProviderImpl implements IConnectionProvider {
             : "ALTER TABLE " + table(TABLE_SHOPS) + " ADD COLUMN group_id INTEGER DEFAULT NULL";
         try (PreparedStatement s = conn.prepareStatement(groupColSql)) {
             s.execute();
-            logger.info("Migration applied: added group_id to " + table(TABLE_SHOPS));
+            logger.debug("Migration applied: added group_id to " + table(TABLE_SHOPS));
         } catch (SQLException e) {
             logger.debug("Migration skip (already applied): group_id — " + e.getMessage());
         }
@@ -166,7 +166,7 @@ public class ConnectionProviderImpl implements IConnectionProvider {
                 + table(TABLE_SHOPS) + "(group_id)";
         try (PreparedStatement s = conn.prepareStatement(groupIdxSql)) {
             s.execute();
-            logger.info("Migration applied: group_id index on " + table(TABLE_SHOPS));
+            logger.debug("Migration applied: group_id index on " + table(TABLE_SHOPS));
         } catch (SQLException e) {
             logger.debug("Migration skip (index already exists): " + e.getMessage());
         }
