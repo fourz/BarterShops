@@ -122,6 +122,10 @@ public class ConfigManager {
         return getConfig().getString("storage.type", "sqlite");
     }
 
+    public String getDatabaseMode() {
+        return getConfig().getString("database.mode", "shared");
+    }
+
     public Level getLogLevel() {
         String levelStr = getConfig().getString("general.logLevel", "INFO");
         return LogManager.parseLevel(levelStr);
