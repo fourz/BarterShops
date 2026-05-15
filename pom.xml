@@ -70,12 +70,25 @@
             <version>1.7</version>
             <scope>provided</scope>
         </dependency>
-        <!-- RVNKCore - shared logging, utilities, and DB connection management (provides HikariCP, sqlite-jdbc, MySQL driver) -->
+        <!-- RVNKCore - shared logging, utilities, and DB connection management -->
         <dependency>
             <groupId>org.fourz</groupId>
             <artifactId>rvnkcore</artifactId>
             <version>1.5.0-alpha</version>
             <scope>provided</scope>
+        </dependency>
+        <!-- HikariCP + MySQL driver - shaded for standalone mode (no RVNKCore required) -->
+        <dependency>
+            <groupId>com.zaxxer</groupId>
+            <artifactId>HikariCP</artifactId>
+            <version>5.1.0</version>
+            <scope>compile</scope>
+        </dependency>
+        <dependency>
+            <groupId>mysql</groupId>
+            <artifactId>mysql-connector-java</artifactId>
+            <version>8.0.33</version>
+            <scope>compile</scope>
         </dependency>
         <!-- WorldGuard - Region protection (softdepend) -->
         <dependency>
@@ -150,6 +163,16 @@
                                     </excludes>
                                 </filter>
                             </filters>
+                            <relocations>
+                                <relocation>
+                                    <pattern>com.zaxxer.hikari</pattern>
+                                    <shadedPattern>org.fourz.bartershops.shaded.hikari</shadedPattern>
+                                </relocation>
+                                <relocation>
+                                    <pattern>com.mysql</pattern>
+                                    <shadedPattern>org.fourz.bartershops.shaded.mysql</shadedPattern>
+                                </relocation>
+                            </relocations>
                         </configuration>
                     </execution>
                 </executions>
