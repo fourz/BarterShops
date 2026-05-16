@@ -717,7 +717,7 @@ public class TradeRepositoryImpl implements ITradeRepository {
         }
 
         return CompletableFuture.supplyAsync(() -> {
-            boolean isMySQL = "mysql".equals(connectionProvider.getDatabaseType());
+            boolean isMySQL = "mysql".equalsIgnoreCase(connectionProvider.getDatabaseType());
             String dailyTable = connectionProvider.table("trade_daily_summary");
             String tradeTable = connectionProvider.table("trade_records");
             String sql;
@@ -760,7 +760,7 @@ public class TradeRepositoryImpl implements ITradeRepository {
         }
 
         return CompletableFuture.supplyAsync(() -> {
-            boolean isMySQL = "mysql".equals(connectionProvider.getDatabaseType());
+            boolean isMySQL = "mysql".equalsIgnoreCase(connectionProvider.getDatabaseType());
             String monthlyTable = connectionProvider.table("trade_monthly_summary");
             String dailyTable = connectionProvider.table("trade_daily_summary");
             String sql;
