@@ -16,12 +16,12 @@ import java.sql.SQLException;
  * when database.mode=shared; the classloader will not touch it in standalone
  * mode, so NoClassDefFoundError cannot surface there.
  */
-class SharedPoolDelegate implements PoolDelegate {
+public class SharedPoolDelegate implements PoolDelegate {
 
     private final BarterShops plugin;
     private ConnectionProvider borrowed;
 
-    SharedPoolDelegate(BarterShops plugin) {
+    public SharedPoolDelegate(BarterShops plugin) {
         this.plugin = plugin;
     }
 

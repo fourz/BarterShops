@@ -8,7 +8,7 @@ import java.sql.SQLException;
  * to either SharedPoolDelegate (borrows RVNKCore pool) or StandalonePoolDelegate
  * (own shaded HikariCP pool) based on database.mode config.
  */
-interface PoolDelegate {
+public interface PoolDelegate {
     void initialize() throws SQLException;
     Connection getConnection() throws SQLException;
     void shutdown();

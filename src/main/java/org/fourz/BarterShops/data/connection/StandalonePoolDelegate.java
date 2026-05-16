@@ -1,8 +1,8 @@
 package org.fourz.BarterShops.data.connection;
 
 import org.fourz.BarterShops.BarterShops;
-import org.fourz.bartershops.shaded.hikari.HikariConfig;
-import org.fourz.bartershops.shaded.hikari.HikariDataSource;
+import com.zaxxer.hikari.HikariConfig;
+import com.zaxxer.hikari.HikariDataSource;
 
 import java.sql.Connection;
 import java.sql.SQLException;
@@ -11,13 +11,13 @@ import java.sql.SQLException;
  * Own HikariCP pool built from storage.mysql.* config using shaded HikariCP.
  * Zero RVNKCore imports — safe to load when RVNKCore is absent.
  */
-class StandalonePoolDelegate implements PoolDelegate {
+public class StandalonePoolDelegate implements PoolDelegate {
 
     private final BarterShops plugin;
     private HikariDataSource dataSource;
     private final String databaseType;
 
-    StandalonePoolDelegate(BarterShops plugin) {
+    public StandalonePoolDelegate(BarterShops plugin) {
         this.plugin = plugin;
         this.databaseType = plugin.getConfigManager().getStorageType();
     }
