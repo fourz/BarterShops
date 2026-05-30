@@ -74,7 +74,7 @@
         <dependency>
             <groupId>org.fourz</groupId>
             <artifactId>rvnkcore</artifactId>
-            <version>1.5.0-alpha</version>
+            <version>1.5.6-alpha</version>
             <scope>provided</scope>
         </dependency>
         <!-- HikariCP + MySQL driver - shaded for standalone mode (no RVNKCore required) -->
