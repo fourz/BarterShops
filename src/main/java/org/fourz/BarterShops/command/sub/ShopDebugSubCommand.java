@@ -55,7 +55,8 @@ public class ShopDebugSubCommand implements SubCommand {
 
     private static final List<String> SUB_COMMANDS = Arrays.asList(
             "loglevel", "seed", "diagnostics", "changeowner",
-            "stock", "validate", "rebind", "create");
+            "stock", "validate", "rebind", "create",
+            "remove", "rename", "activate", "deactivate", "info");
     private static final List<String> LOG_LEVELS = Arrays.asList("DEBUG", "INFO", "WARN", "OFF");
 
     /** Container material types recognised as valid shop chests. */
@@ -125,6 +126,16 @@ public class ShopDebugSubCommand implements SubCommand {
                     return handleRebind(sender, subArgs);
                 case "create":
                     return handleCreate(sender, subArgs);
+                case "remove":
+                    return handleRemove(sender, subArgs);
+                case "rename":
+                    return handleRename(sender, subArgs);
+                case "activate":
+                    return handleActivateDeactivate(sender, subArgs, true);
+                case "deactivate":
+                    return handleActivateDeactivate(sender, subArgs, false);
+                case "info":
+                    return handleInfo(sender, subArgs);
                 default:
                     sender.sendMessage(ChatColor.RED + "Unknown debug subcommand: " + subCommand);
                     showUsage(sender);
@@ -185,7 +196,7 @@ public class ShopDebugSubCommand implements SubCommand {
         sender.sendMessage(ChatColor.GOLD + "Log Level: " + ChatColor.WHITE + currentLevel);
 
         // Available subcommands
-        sender.sendMessage(ChatColor.GRAY + "Subcommands: /shop debug loglevel|seed|diagnostics|changeowner|stock|validate|rebind|create");
+        sender.sendMessage(ChatColor.GRAY + "Subcommands: /shop debug loglevel|seed|diagnostics|changeowner|stock|validate|rebind|create|remove|rename|activate|deactivate|info");
     }
 
     /**
@@ -872,6 +883,191 @@ public class ShopDebugSubCommand implements SubCommand {
         return true;
     }
 
+    /**
+     * Handle the remove subcommand.
+     * Usage: /shop debug remove <shopId>
+     *
+     * <p>Force-deletes a shop from the database. Also attempts to clean up the sign block
+     * if the sign world is loaded. Safe to run from console — uses ChunkLoadUtility.</p>
+     */
+    private boolean handleRemove(CommandSender sender, String[] args) {
+        if (args.length < 1) {
+            sender.sendMessage(ChatColor.RED + "> Usage: /shop debug remove <shopId>");
+            return true;
+        }
+
+        String shopIdStr = args[0];
+
+        shopService.getShopById(shopIdStr).thenAccept(optShop -> {
+            if (optShop.isEmpty()) {
+                sender.sendMessage(ChatColor.RED + "x Shop not found: #" + shopIdStr);
+                return;
+            }
+
+            ShopDataDTO shop = optShop.get();
+
+            // Attempt to clean up the sign block if the world is loaded
+            if (shop.locationWorld() != null) {
+                World signWorld = Bukkit.getWorld(shop.locationWorld());
+                if (signWorld != null) {
+                    Location signLoc = new Location(signWorld,
+                            shop.locationX(), shop.locationY(), shop.locationZ());
+                    ChunkLoadUtility.loadChunkForBlock(signLoc).thenRun(() ->
+                        Bukkit.getScheduler().runTask(plugin, () -> {
+                            Block signBlock = signLoc.getBlock();
+                            if (signBlock.getType().name().contains("SIGN")) {
+                                signBlock.setType(org.bukkit.Material.AIR);
+                            }
+                        })
+                    ).exceptionally(ex -> {
+                        logger.warning("Could not clean up sign block for shop #" + shopIdStr + ": " + ex.getMessage());
+                        return null;
+                    });
+                }
+            }
+
+            shopService.removeShop(shopIdStr).thenAccept(success -> {
+                if (success) {
+                    sender.sendMessage(ChatColor.GREEN + "✓ Shop #" + shopIdStr + " ("
+                            + shop.shopName() + ") removed from database.");
+                    logger.info("Force-removed shop #" + shopIdStr + " (" + shop.shopName() + ")");
+                } else {
+                    sender.sendMessage(ChatColor.RED + "x Remove failed for shop #" + shopIdStr + " — not found in database.");
+                }
+            }).exceptionally(ex -> {
+                sender.sendMessage(ChatColor.RED + "x Error removing shop: " + ex.getMessage());
+                logger.error("Error in handleRemove removeShop", ex);
+                return null;
+            });
+        }).exceptionally(ex -> {
+            sender.sendMessage(ChatColor.RED + "x Error fetching shop: " + ex.getMessage());
+            logger.error("Error in handleRemove", ex);
+            return null;
+        });
+
+        sender.sendMessage(ChatColor.YELLOW + "* Removing shop...");
+        return true;
+    }
+
+    /**
+     * Handle the rename subcommand.
+     * Usage: /shop debug rename <shopId> <name>
+     */
+    private boolean handleRename(CommandSender sender, String[] args) {
+        if (args.length < 2) {
+            sender.sendMessage(ChatColor.RED + "> Usage: /shop debug rename <shopId> <name>");
+            return true;
+        }
+
+        String shopIdStr = args[0];
+        String newName = String.join(" ", Arrays.copyOfRange(args, 1, args.length));
+
+        shopService.updateShop(shopIdStr, ShopUpdateRequest.nameOnly(newName)).thenAccept(success -> {
+            if (success) {
+                sender.sendMessage(ChatColor.GREEN + "✓ Shop #" + shopIdStr + " renamed to '" + newName + "'.");
+            } else {
+                sender.sendMessage(ChatColor.RED + "x Shop #" + shopIdStr + " not found or rename failed.");
+            }
+        }).exceptionally(ex -> {
+            sender.sendMessage(ChatColor.RED + "x Error renaming shop: " + ex.getMessage());
+            logger.error("Error in handleRename", ex);
+            return null;
+        });
+
+        return true;
+    }
+
+    /**
+     * Handle the activate/deactivate subcommands.
+     * Usage: /shop debug activate <shopId>
+     *        /shop debug deactivate <shopId>
+     */
+    private boolean handleActivateDeactivate(CommandSender sender, String[] args, boolean active) {
+        String verb = active ? "activate" : "deactivate";
+        if (args.length < 1) {
+            sender.sendMessage(ChatColor.RED + "> Usage: /shop debug " + verb + " <shopId>");
+            return true;
+        }
+
+        String shopIdStr = args[0];
+
+        shopService.updateShop(shopIdStr, ShopUpdateRequest.activeOnly(active)).thenAccept(success -> {
+            if (success) {
+                sender.sendMessage(ChatColor.GREEN + "✓ Shop #" + shopIdStr
+                        + (active ? " activated." : " deactivated."));
+            } else {
+                sender.sendMessage(ChatColor.RED + "x Shop #" + shopIdStr + " not found or update failed.");
+            }
+        }).exceptionally(ex -> {
+            sender.sendMessage(ChatColor.RED + "x Error updating shop: " + ex.getMessage());
+            logger.error("Error in handle " + verb, ex);
+            return null;
+        });
+
+        return true;
+    }
+
+    /**
+     * Handle the info subcommand.
+     * Usage: /shop debug info <shopId>
+     *
+     * <p>Prints a detailed summary of a shop's database record, including all metadata keys.</p>
+     */
+    private boolean handleInfo(CommandSender sender, String[] args) {
+        if (args.length < 1) {
+            sender.sendMessage(ChatColor.RED + "> Usage: /shop debug info <shopId>");
+            return true;
+        }
+
+        String shopIdStr = args[0];
+
+        shopService.getShopById(shopIdStr).thenAccept(optShop -> {
+            if (optShop.isEmpty()) {
+                sender.sendMessage(ChatColor.RED + "x Shop not found: #" + shopIdStr);
+                return;
+            }
+
+            ShopDataDTO shop = optShop.get();
+
+            sender.sendMessage(ChatColor.GOLD + "--- Shop #" + shop.shopId() + " ---");
+            sender.sendMessage(ChatColor.GRAY + "Name:   " + ChatColor.WHITE + shop.shopName());
+            sender.sendMessage(ChatColor.GRAY + "Owner:  " + ChatColor.WHITE + shop.ownerUuid());
+            sender.sendMessage(ChatColor.GRAY + "Type:   " + ChatColor.WHITE + shop.shopType());
+            sender.sendMessage(ChatColor.GRAY + "Active: " + (shop.isActive()
+                    ? ChatColor.GREEN + "Yes" : ChatColor.RED + "No"));
+            sender.sendMessage(ChatColor.GRAY + "Sign:   " + ChatColor.WHITE
+                    + shop.locationWorld() + " " + (int) shop.locationX()
+                    + "," + (int) shop.locationY() + "," + (int) shop.locationZ());
+            if (shop.chestLocationWorld() != null) {
+                sender.sendMessage(ChatColor.GRAY + "Chest:  " + ChatColor.WHITE
+                        + shop.chestLocationWorld() + " " + (int) shop.chestLocationX()
+                        + "," + (int) shop.chestLocationY() + "," + (int) shop.chestLocationZ());
+            } else {
+                sender.sendMessage(ChatColor.GRAY + "Chest:  " + ChatColor.YELLOW + "(not bound)");
+            }
+            if (shop.groupId() != null) {
+                sender.sendMessage(ChatColor.GRAY + "Group:  " + ChatColor.WHITE + shop.groupId());
+            }
+            if (shop.createdAt() != null) {
+                sender.sendMessage(ChatColor.GRAY + "Created:" + ChatColor.WHITE + " " + shop.createdAt());
+            }
+
+            if (shop.metadata() != null && !shop.metadata().isEmpty()) {
+                sender.sendMessage(ChatColor.GOLD + "Metadata:");
+                shop.metadata().entrySet().stream()
+                        .sorted(java.util.Map.Entry.comparingByKey())
+                        .forEach(e -> sender.sendMessage(ChatColor.GRAY + "  " + e.getKey()
+                                + ChatColor.DARK_GRAY + " = " + ChatColor.WHITE + e.getValue()));
+            }
+        }).exceptionally(ex -> {
+            sender.sendMessage(ChatColor.RED + "x Error fetching shop: " + ex.getMessage());
+            logger.error("Error in handleInfo", ex);
+            return null;
+        });
+
+        return true;
+    }
+
     // =========================================================
     // Usage / metadata
     // =========================================================
@@ -887,6 +1083,11 @@ public class ShopDebugSubCommand implements SubCommand {
         sender.sendMessage(ChatColor.GRAY + "/shop debug validate [shopId]" + ChatColor.DARK_GRAY + " - Validate shop integrity");
         sender.sendMessage(ChatColor.GRAY + "/shop debug rebind <shopId> <world> <x> <y> <z>" + ChatColor.DARK_GRAY + " - Rebind chest");
         sender.sendMessage(ChatColor.GRAY + "/shop debug create <name> <world> <x> <y> <z> [owner]" + ChatColor.DARK_GRAY + " - Create shop");
+        sender.sendMessage(ChatColor.GRAY + "/shop debug remove <shopId>" + ChatColor.DARK_GRAY + " - Force-remove shop from DB");
+        sender.sendMessage(ChatColor.GRAY + "/shop debug rename <shopId> <name>" + ChatColor.DARK_GRAY + " - Rename shop");
+        sender.sendMessage(ChatColor.GRAY + "/shop debug activate <shopId>" + ChatColor.DARK_GRAY + " - Activate shop");
+        sender.sendMessage(ChatColor.GRAY + "/shop debug deactivate <shopId>" + ChatColor.DARK_GRAY + " - Deactivate shop");
+        sender.sendMessage(ChatColor.GRAY + "/shop debug info <shopId>" + ChatColor.DARK_GRAY + " - Detailed shop info");
     }
 
     @Override
@@ -896,7 +1097,7 @@ public class ShopDebugSubCommand implements SubCommand {
 
     @Override
     public String getUsage() {
-        return "/shop debug [loglevel|seed|diagnostics|stock|validate|rebind|create]";
+        return "/shop debug [loglevel|seed|diagnostics|stock|validate|rebind|create|remove|rename|activate|deactivate|info]";
     }
 
     @Override
@@ -986,6 +1187,21 @@ public class ShopDebugSubCommand implements SubCommand {
                             completions.add(player.getName());
                         }
                     }
+                }
+                break;
+            }
+            case "remove":
+            case "activate":
+            case "deactivate":
+            case "info": {
+                if (args.length == 2) {
+                    addShopIdCompletions(completions, partial);
+                }
+                break;
+            }
+            case "rename": {
+                if (args.length == 2) {
+                    addShopIdCompletions(completions, partial);
                 }
                 break;
             }
