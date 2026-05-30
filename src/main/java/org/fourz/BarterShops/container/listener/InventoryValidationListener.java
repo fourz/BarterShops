@@ -39,6 +39,7 @@ import java.util.UUID;
  */
 public class InventoryValidationListener implements Listener {
     private final Map<UUID, ShopContainer> shopContainers = new HashMap<>();
+    private final Map<Location, ShopContainer> shopContainersByLocation = new HashMap<>();
     private final Set<String> pendingDeposits = new HashSet<>();
     private final long creationTime = System.currentTimeMillis();
     private final BarterShops plugin;
@@ -56,6 +57,7 @@ public class InventoryValidationListener implements Listener {
      */
     public void registerContainer(ShopContainer shopContainer) {
         shopContainers.put(shopContainer.getShopId(), shopContainer);
+        shopContainersByLocation.put(shopContainer.getLocation(), shopContainer);
         logger.debug("Registered shop container: " + shopContainer.getShopId() +
                    " at " + shopContainer.getLocation() +
                    " with " + shopContainer.getValidationRules().size() + " validation rules");
@@ -67,7 +69,10 @@ public class InventoryValidationListener implements Listener {
      * @param shopId The ID of the shop to stop monitoring
      */
     public void unregisterContainer(UUID shopId) {
-        shopContainers.remove(shopId);
+        ShopContainer removed = shopContainers.remove(shopId);
+        if (removed != null) {
+            shopContainersByLocation.remove(removed.getLocation());
+        }
     }
 
     /**
@@ -547,12 +552,9 @@ public class InventoryValidationListener implements Listener {
      */
     @EventHandler(priority = EventPriority.HIGH, ignoreCancelled = true)
     public void onInventoryMoveItem(InventoryMoveItemEvent event) {
-        // Check if destination is a shop container
+        if (shopContainers.isEmpty()) return;
         ShopContainer shopContainer = getShopContainerFromInventory(event.getDestination());
-        if (shopContainer == null) {
-            logger.debug("InventoryMoveItemEvent: Destination is not a shop container");
-            return;
-        }
+        if (shopContainer == null) return;
 
         ItemStack item = event.getItem();
         logger.info("InventoryMoveItemEvent: Automated item move detected: " + item.getType() +
@@ -770,45 +772,18 @@ public class InventoryValidationListener implements Listener {
      * Handles both single chests (Container holder) and double chests (DoubleChest holder).
      */
     private ShopContainer getShopContainerFromInventory(org.bukkit.inventory.Inventory inventory) {
-        // Single chest: holder is a Container
         if (inventory.getHolder() instanceof Container container) {
-            Location containerLoc = container.getLocation();
-            logger.debug("getShopContainerFromInventory: Container holder found at " + containerLoc +
-                        ", searching " + shopContainers.size() + " registered containers");
-
-            for (ShopContainer shopContainer : shopContainers.values()) {
-                if (shopContainer.getLocation().equals(containerLoc)) {
-                    logger.debug("getShopContainerFromInventory: Found matching shop container by location!");
-                    return shopContainer;
-                }
-            }
-            logger.debug("getShopContainerFromInventory: No matching shop container found in registered map");
-            return null;
+            return shopContainersByLocation.get(container.getLocation());
         }
-
-        // Double chest: holder is a DoubleChest — check both halves
         if (inventory.getHolder() instanceof org.bukkit.block.DoubleChest doubleChest) {
-            logger.debug("getShopContainerFromInventory: DoubleChest holder, checking both halves against " +
-                        shopContainers.size() + " registered containers");
-            for (ShopContainer shopContainer : shopContainers.values()) {
-                Location regLoc = shopContainer.getLocation();
-                if (doubleChest.getLeftSide() instanceof Container left
-                        && left.getLocation().equals(regLoc)) {
-                    logger.debug("getShopContainerFromInventory: Matched shop container via left half!");
-                    return shopContainer;
-                }
-                if (doubleChest.getRightSide() instanceof Container right
-                        && right.getLocation().equals(regLoc)) {
-                    logger.debug("getShopContainerFromInventory: Matched shop container via right half!");
-                    return shopContainer;
-                }
+            if (doubleChest.getLeftSide() instanceof Container left) {
+                ShopContainer found = shopContainersByLocation.get(left.getLocation());
+                if (found != null) return found;
             }
-            logger.debug("getShopContainerFromInventory: No matching shop container found for double chest");
-            return null;
+            if (doubleChest.getRightSide() instanceof Container right) {
+                return shopContainersByLocation.get(right.getLocation());
+            }
         }
-
-        logger.debug("getShopContainerFromInventory: Holder is not a Container or DoubleChest (type: " +
-                    (inventory.getHolder() != null ? inventory.getHolder().getClass().getName() : "null") + ")");
         return null;
     }
 
@@ -896,6 +871,7 @@ public class InventoryValidationListener implements Listener {
      */
     public void cleanup() {
         shopContainers.clear();
+        shopContainersByLocation.clear();
         pendingDeposits.clear();
     }
 }
