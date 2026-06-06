@@ -97,6 +97,8 @@ public class BarterShops extends JavaPlugin {
 
         this.configManager = new ConfigManager(this);
         this.notificationManager = new NotificationManager(this);
+        getServer().getPluginManager().registerEvents(
+                new org.fourz.BarterShops.notification.PreferenceCacheInvalidationListener(notificationManager), this);
         this.templateManager = new TemplateManager(this);
         this.protectionManager = new ProtectionManager(this);
         this.economyManager = new EconomyManager(this);
@@ -415,12 +417,6 @@ public class BarterShops extends JavaPlugin {
 
             java.util.List<org.fourz.rvnkcore.api.model.NotificationTypeDefinition> types =
                     java.util.Arrays.asList(
-                            new org.fourz.rvnkcore.api.model.NotificationTypeDefinition(
-                                    "bartershops", "trade_request", "Trade request received", true),
-                            new org.fourz.rvnkcore.api.model.NotificationTypeDefinition(
-                                    "bartershops", "trade_complete", "Trade completed successfully", true),
-                            new org.fourz.rvnkcore.api.model.NotificationTypeDefinition(
-                                    "bartershops", "trade_cancelled", "Trade cancelled by buyer", true),
                             new org.fourz.rvnkcore.api.model.NotificationTypeDefinition(
                                     "bartershops", "shop_stock_low", "Shop stock running low", true),
                             new org.fourz.rvnkcore.api.model.NotificationTypeDefinition(

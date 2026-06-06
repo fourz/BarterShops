@@ -238,6 +238,15 @@ public class NotificationManager {
     }
 
     /**
+     * Evicts a player's cached preferences so the next delivery reads fresh from PlayerPreferencesService.
+     * Called by PreferenceCacheInvalidationListener when the central service is updated externally.
+     */
+    public void invalidateCache(UUID playerUuid) {
+        preferences.remove(playerUuid);
+        logger.debug("Evicted preference cache for player: " + playerUuid);
+    }
+
+    /**
      * Updates notification preferences for a player.
      * Updates local cache immediately, then persists to PlayerPreferencesService async.
      */
