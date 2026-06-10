@@ -11,7 +11,6 @@ CREATE TABLE IF NOT EXISTS barter_shops (
     owner_uuid CHAR(36) NOT NULL,
     shop_name VARCHAR(64),
     shop_type ENUM('BARTER', 'SELL', 'BUY') NOT NULL DEFAULT 'BARTER',
-    is_admin TINYINT(1) NOT NULL DEFAULT 0,
 
     -- Sign location
     location_world VARCHAR(64) NOT NULL,

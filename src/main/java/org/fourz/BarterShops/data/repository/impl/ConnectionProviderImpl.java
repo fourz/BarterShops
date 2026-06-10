@@ -1,16 +1,12 @@
 package org.fourz.BarterShops.data.repository.impl;
 
 import org.fourz.BarterShops.BarterShops;
-import org.fourz.rvnkcore.config.dto.DatabaseSettingsDTO;
-import org.fourz.rvnkcore.config.dto.MySQLSettingsDTO;
-import org.fourz.rvnkcore.config.dto.SQLiteSettingsDTO;
 import org.fourz.BarterShops.data.IConnectionProvider;
-import org.fourz.rvnkcore.database.config.DatabaseConfig;
-import org.fourz.rvnkcore.database.connection.ConnectionProvider;
-import org.fourz.rvnkcore.database.connection.ConnectionProviderFactory;
+import org.fourz.BarterShops.data.connection.PoolDelegate;
+import org.fourz.BarterShops.data.connection.SharedPoolDelegate;
+import org.fourz.BarterShops.data.connection.StandalonePoolDelegate;
 import org.fourz.rvnkcore.util.log.LogManager;
 
-import java.io.File;
 import java.sql.Connection;
 import java.sql.PreparedStatement;
 import java.sql.SQLException;
@@ -18,9 +14,9 @@ import java.sql.Statement;
 import java.util.concurrent.CompletableFuture;
 
 /**
- * RVNKCore-backed connection provider implementation.
- * Delegates pool management to RVNKCore's ConnectionProviderFactory.
- * Supports both MySQL and SQLite with automatic configuration.
+ * IConnectionProvider dispatcher — reads database.mode and delegates pool
+ * lifecycle to SharedPoolDelegate (borrow RVNKCore pool) or StandalonePoolDelegate
+ * (own shaded HikariCP). All schema/migration logic lives here.
  */
 public class ConnectionProviderImpl implements IConnectionProvider {
 
@@ -28,7 +24,7 @@ public class ConnectionProviderImpl implements IConnectionProvider {
     private final LogManager logger;
     private final String databaseType;
     private final String tablePrefix;
-    private ConnectionProvider rvnkProvider;
+    private PoolDelegate delegate;
 
     // Table name constants (base names without prefix)
     private static final String TABLE_SHOPS = "shops";
@@ -48,49 +44,31 @@ public class ConnectionProviderImpl implements IConnectionProvider {
     public ConnectionProviderImpl(BarterShops plugin, LogManager logger) {
         this.plugin = plugin;
         this.logger = logger;
-        DatabaseSettingsDTO settings = plugin.getConfigManager().getDatabaseSettings();
+        var settings = plugin.getConfigManager().getDatabaseSettings();
         this.databaseType = settings.isMySQL() ? "mysql" : "sqlite";
         this.tablePrefix = settings.getTablePrefix();
         if (tablePrefix != null && !tablePrefix.isEmpty()) {
-            logger.info("Using table prefix: " + tablePrefix);
+            logger.debug("Using table prefix: " + tablePrefix);
         }
     }
 
-    /**
-     * Initializes the connection pool via RVNKCore's ConnectionProviderFactory.
-     */
     public void initialize() throws SQLException {
-        logger.info("Initializing database connection pool (" + databaseType + ")...");
-        ConnectionProviderFactory factory = new ConnectionProviderFactory(plugin);
-        DatabaseConfig config = buildDatabaseConfig();
-        rvnkProvider = factory.createConnectionProvider(config);
-        createSchema();
-        logger.info("Database connection pool initialized successfully");
-    }
-
-    private DatabaseConfig buildDatabaseConfig() {
-        if ("mysql".equals(databaseType)) {
-            MySQLSettingsDTO mysql = plugin.getConfigManager().getDatabaseSettings().getMysqlSettings();
-            return DatabaseConfig.builder()
-                    .type("mysql")
-                    .host(mysql.getHost())
-                    .port(mysql.getPort())
-                    .database(mysql.getDatabase())
-                    .username(mysql.getUsername())
-                    .password(mysql.getPassword())
-                    .useSSL(mysql.isUseSSL())
-                    .maxConnections(mysql.getPoolSize())
-                    .minIdleConnections(2)
-                    .idleTimeoutMs(300000L)
-                    .maxLifetimeMs(580000L)
-                    .connectionTimeoutMs(30000L)
-                    .build();
+        String mode = plugin.getConfigManager().getDatabaseMode();
+        logger.debug("Initializing database layer (mode=" + mode + ", type=" + databaseType + ")");
+        if ("shared".equalsIgnoreCase(mode)) {
+            try {
+                delegate = new SharedPoolDelegate(plugin);
+                delegate.initialize();
+            } catch (NoClassDefFoundError e) {
+                throw new IllegalStateException(
+                    "database.mode=shared but RVNKCore classes are not on the classpath: " + e.getMessage());
+            }
         } else {
-            SQLiteSettingsDTO sqlite = plugin.getConfigManager().getDatabaseSettings().getSqliteSettings();
-            // Extract filename only — ConnectionProviderFactory resolves relative to plugin data folder
-            String filename = new File(sqlite.getFilePath()).getName();
-            return DatabaseConfig.sqlite(filename);
+            delegate = new StandalonePoolDelegate(plugin);
+            delegate.initialize();
         }
+        createSchema();
+        logger.debug("Database layer ready");
     }
 
     private void createSchema() throws SQLException {
@@ -106,7 +84,7 @@ public class ConnectionProviderImpl implements IConnectionProvider {
             runMigrations(conn);
         }
 
-        logger.info("Database schema validated/created successfully");
+        logger.debug("Database schema validated/created successfully");
     }
 
     /**
@@ -122,7 +100,7 @@ public class ConnectionProviderImpl implements IConnectionProvider {
                 : "ALTER TABLE " + tableName + " ADD COLUMN trade_source TEXT NOT NULL DEFAULT 'UNKNOWN'";
             try (PreparedStatement s = conn.prepareStatement(alterSql)) {
                 s.execute();
-                logger.info("Migration applied: added trade_source to " + tableName);
+                logger.debug("Migration applied: added trade_source to " + tableName);
             } catch (SQLException e) {
                 logger.debug("Migration skip (already applied or table absent): " + tableName + " — " + e.getMessage());
             }
@@ -135,7 +113,7 @@ public class ConnectionProviderImpl implements IConnectionProvider {
                 : "ALTER TABLE " + tableName + " ADD COLUMN item_type TEXT";
             try (PreparedStatement s = conn.prepareStatement(alterSql)) {
                 s.execute();
-                logger.info("Migration applied: added item_type to " + tableName);
+                logger.debug("Migration applied: added item_type to " + tableName);
             } catch (SQLException e) {
                 logger.debug("Migration skip (already applied or table absent): " + tableName + " — " + e.getMessage());
             }
@@ -146,7 +124,7 @@ public class ConnectionProviderImpl implements IConnectionProvider {
                 + table(TABLE_TRADE_RECORDS) + "(item_type)";
         try (PreparedStatement s = conn.prepareStatement(idxSql)) {
             s.execute();
-            logger.info("Migration applied: item_type index on " + table(TABLE_TRADE_RECORDS));
+            logger.debug("Migration applied: item_type index on " + table(TABLE_TRADE_RECORDS));
         } catch (SQLException e) {
             logger.debug("Migration skip (index already exists): " + e.getMessage());
         }
@@ -157,7 +135,7 @@ public class ConnectionProviderImpl implements IConnectionProvider {
             : "ALTER TABLE " + table(TABLE_SHOPS) + " ADD COLUMN group_id INTEGER DEFAULT NULL";
         try (PreparedStatement s = conn.prepareStatement(groupColSql)) {
             s.execute();
-            logger.info("Migration applied: added group_id to " + table(TABLE_SHOPS));
+            logger.debug("Migration applied: added group_id to " + table(TABLE_SHOPS));
         } catch (SQLException e) {
             logger.debug("Migration skip (already applied): group_id — " + e.getMessage());
         }
@@ -166,7 +144,7 @@ public class ConnectionProviderImpl implements IConnectionProvider {
                 + table(TABLE_SHOPS) + "(group_id)";
         try (PreparedStatement s = conn.prepareStatement(groupIdxSql)) {
             s.execute();
-            logger.info("Migration applied: group_id index on " + table(TABLE_SHOPS));
+            logger.debug("Migration applied: group_id index on " + table(TABLE_SHOPS));
         } catch (SQLException e) {
             logger.debug("Migration skip (index already exists): " + e.getMessage());
         }
@@ -464,10 +442,10 @@ public class ConnectionProviderImpl implements IConnectionProvider {
 
     @Override
     public Connection getConnection() throws SQLException {
-        if (rvnkProvider == null) {
+        if (delegate == null) {
             throw new SQLException("Connection pool is not initialized");
         }
-        return rvnkProvider.getConnection();
+        return delegate.getConnection();
     }
 
     @Override
@@ -483,28 +461,26 @@ public class ConnectionProviderImpl implements IConnectionProvider {
 
     @Override
     public void shutdown() {
-        if (rvnkProvider != null) {
-            logger.info("Shutting down database connection pool...");
-            rvnkProvider.close();
-            rvnkProvider = null;
-            logger.info("Database connection pool shut down successfully");
+        if (delegate != null) {
+            logger.info("Shutting down database layer...");
+            delegate.shutdown();
+            delegate = null;
+            logger.info("Database layer shut down");
         }
     }
 
     @Override
     public void reload() throws SQLException {
-        logger.info("Reloading database connection pool (" + databaseType + ")...");
+        logger.info("Reloading database layer (" + databaseType + ")...");
         shutdown();
         initialize();
-        logger.info("Database connection pool reloaded successfully");
+        logger.info("Database layer reloaded");
     }
 
     @Override
     public boolean isHealthy() {
-        if (rvnkProvider == null || !rvnkProvider.isValid()) {
-            return false;
-        }
-        try (Connection conn = rvnkProvider.getConnection()) {
+        if (delegate == null) return false;
+        try (Connection conn = delegate.getConnection()) {
             return conn.isValid(5);
         } catch (SQLException e) {
             logger.warning("Database health check failed: " + e.getMessage());
@@ -530,7 +506,7 @@ public class ConnectionProviderImpl implements IConnectionProvider {
 
     @Override
     public String getDatabaseType() {
-        return databaseType;
+        return delegate != null ? delegate.getDatabaseType() : databaseType;
     }
 
     @Override

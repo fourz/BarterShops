@@ -1,3 +1,8 @@
+database:
+  # shared: borrow RVNKCore's HikariCP pool (RVNKCore must be present — hard fail if absent)
+  # standalone: own pool using storage.mysql.* config (works without RVNKCore)
+  mode: shared
+
 general:
   # Valid log levels: DEBUG, INFO, WARNING, SEVERE
   # Default: WARNING (quiet mode - set INFO for verbose operational logs)

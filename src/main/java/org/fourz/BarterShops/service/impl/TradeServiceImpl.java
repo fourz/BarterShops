@@ -37,7 +37,7 @@ public class TradeServiceImpl implements ITradeService {
         this.tradeRepository = tradeRepository;
         this.fallbackTracker = fallbackTracker;
 
-        logger.info("TradeServiceImpl initialized");
+        logger.debug("TradeServiceImpl initialized");
     }
 
     // ========================================================

@@ -3,12 +3,10 @@ package org.fourz.BarterShops.command.sub;
 import org.bukkit.ChatColor;
 import org.bukkit.command.CommandSender;
 import org.fourz.BarterShops.BarterShops;
-import org.fourz.BarterShops.command.SeedSubCommand;
 import org.fourz.BarterShops.command.SubCommand;
 import org.fourz.BarterShops.data.dto.ShopDataDTO;
 
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -22,20 +20,16 @@ public class ShopAdminSubCommand implements SubCommand {
 
     private final BarterShops plugin;
     private final Map<String, AdminAction> adminActions = new HashMap<>();
-    private final SeedSubCommand seedSubCommand;
 
     public ShopAdminSubCommand(BarterShops plugin) {
         this.plugin = plugin;
-        this.seedSubCommand = new SeedSubCommand(plugin);
         registerAdminActions();
     }
 
     private void registerAdminActions() {
         adminActions.put("reload", this::executeReload);
-        adminActions.put("debug", this::executeDebug);
         adminActions.put("stats", this::executeStats);
         adminActions.put("cleanup", this::executeCleanup);
-        adminActions.put("seed", (sender, args) -> seedSubCommand.execute(sender, args));
     }
 
     @Override
@@ -65,14 +59,11 @@ public class ShopAdminSubCommand implements SubCommand {
         sender.sendMessage(ChatColor.GOLD + "===== Shop Admin Commands =====");
         sender.sendMessage(ChatColor.YELLOW + "/shop admin reload" +
                 ChatColor.WHITE + " - Reload configuration");
-        sender.sendMessage(ChatColor.YELLOW + "/shop admin debug [on|off]" +
-                ChatColor.WHITE + " - Toggle debug mode");
         sender.sendMessage(ChatColor.YELLOW + "/shop admin stats" +
                 ChatColor.WHITE + " - Show plugin statistics");
         sender.sendMessage(ChatColor.YELLOW + "/shop admin cleanup [confirm]" +
                 ChatColor.WHITE + " - List/prune orphaned shops");
-        sender.sendMessage(ChatColor.YELLOW + "/shop admin seed <action>" +
-                ChatColor.WHITE + " - Seed test data");
+        sender.sendMessage(ChatColor.GRAY + "Log level and seed commands: /shop debug loglevel | /shop debug seed");
     }
 
     private boolean executeReload(CommandSender sender, String[] args) {
@@ -92,26 +83,6 @@ public class ShopAdminSubCommand implements SubCommand {
         } catch (Exception e) {
             sender.sendMessage(ChatColor.RED + "Failed to reload configuration: " + e.getMessage());
             return false;
-        }
-
-        return true;
-    }
-
-    private boolean executeDebug(CommandSender sender, String[] args) {
-        boolean currentDebug = plugin.getConfigManager().getBoolean("debug", false);
-
-        if (args.length > 0) {
-            boolean newDebug = args[0].equalsIgnoreCase("on") ||
-                    args[0].equalsIgnoreCase("true") ||
-                    args[0].equals("1");
-            plugin.getConfig().set("debug", newDebug);
-            plugin.saveConfig();
-            sender.sendMessage(ChatColor.GREEN + "Debug mode " +
-                    (newDebug ? "enabled" : "disabled"));
-        } else {
-            sender.sendMessage(ChatColor.YELLOW + "Debug mode is currently " +
-                    (currentDebug ? ChatColor.GREEN + "enabled" : ChatColor.RED + "disabled"));
-            sender.sendMessage(ChatColor.GRAY + "Use /shop admin debug <on|off> to toggle");
         }
 
         return true;
@@ -186,7 +157,7 @@ public class ShopAdminSubCommand implements SubCommand {
 
     @Override
     public String getUsage() {
-        return "/shop admin <reload|debug|stats>";
+        return "/shop admin <reload|stats|cleanup>";
     }
 
     @Override
@@ -210,19 +181,10 @@ public class ShopAdminSubCommand implements SubCommand {
                     completions.add(action);
                 }
             }
-        } else if (args.length >= 2 && args[0].equalsIgnoreCase("seed")) {
-            return seedSubCommand.getTabCompletions(sender, Arrays.copyOfRange(args, 1, args.length));
         } else if (args.length == 2 && args[0].equalsIgnoreCase("cleanup")) {
             String partial = args[1].toLowerCase();
             if ("confirm".startsWith(partial)) {
                 completions.add("confirm");
-            }
-        } else if (args.length == 2 && args[0].equalsIgnoreCase("debug")) {
-            String partial = args[1].toLowerCase();
-            for (String option : List.of("on", "off")) {
-                if (option.startsWith(partial)) {
-                    completions.add(option);
-                }
             }
         }
 

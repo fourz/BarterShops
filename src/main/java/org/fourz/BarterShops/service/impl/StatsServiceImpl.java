@@ -52,7 +52,7 @@ public class StatsServiceImpl implements IStatsService {
         this.playerStatsCache = new ConcurrentHashMap<>();
         this.shopStatsCache = new ConcurrentHashMap<>();
 
-        logger.info("StatsServiceImpl initialized with caching enabled");
+        logger.debug("StatsServiceImpl initialized");
     }
 
     // ========================================================

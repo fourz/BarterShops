@@ -227,6 +227,65 @@ public class ShopApiEndpointImpl implements IBarterShopsApiService {
     }
 
     @Override
+    public CompletableFuture<ApiResponse<?>> getShopItems(String shopId) {
+        try {
+            Integer.parseInt(shopId);
+        } catch (NumberFormatException e) {
+            return CompletableFuture.completedFuture(
+                ApiResponse.error("INVALID_REQUEST", "Invalid shop ID: must be numeric"));
+        }
+        return shopService.getShopById(shopId)
+            .<ApiResponse<?>>handle((optionalShop, ex) -> {
+                if (ex != null) return ApiResponse.error("INTERNAL_ERROR",
+                    "Failed to retrieve shop: " + ex.getMessage());
+                if (optionalShop.isEmpty()) return ApiResponse.error("NOT_FOUND",
+                    "Shop with ID " + shopId + " not found");
+
+                ShopDataDTO shop = optionalShop.get();
+                Map<String, String> meta = shop.metadata() != null ? shop.metadata() : Map.of();
+
+                Map<String, Object> result = new LinkedHashMap<>();
+                result.put("shopId", shop.shopId());
+                result.put("shopName", shop.shopName());
+                result.put("shopType", shop.shopType().name());
+
+                String offeringJson = sanitizeJson(meta.get("shop_config_offering"));
+                if (offeringJson != null) {
+                    result.put("offering", offeringJson);
+                }
+
+                String priceItemJson = sanitizeJson(meta.get("shop_config_price_item"));
+                String priceAmount = meta.get("shop_config_price_amount");
+                if (priceItemJson != null || priceAmount != null) {
+                    Map<String, Object> price = new LinkedHashMap<>();
+                    if (priceItemJson != null) price.put("item", priceItemJson);
+                    if (priceAmount != null) {
+                        try { price.put("amount", Integer.parseInt(priceAmount)); }
+                        catch (NumberFormatException ignore) { price.put("amount", priceAmount); }
+                    }
+                    result.put("price", price);
+                }
+
+                String acceptedPayments = sanitizeJson(meta.get("shop_config_accepted_payments"));
+                if (acceptedPayments != null) {
+                    result.put("acceptedPayments", acceptedPayments);
+                }
+
+                String lockedType = meta.get("shop_config_locked_item_type");
+                if (lockedType != null) {
+                    result.put("lockedItemType", lockedType);
+                }
+
+                String isStackable = meta.get("shop_config_is_stackable");
+                if (isStackable != null) {
+                    result.put("isStackable", Boolean.parseBoolean(isStackable));
+                }
+
+                return ApiResponse.success(result);
+            });
+    }
+
+    @Override
     public CompletableFuture<ApiResponse<?>> getHealthStatus() {
         return CompletableFuture.supplyAsync(() -> {
             Map<String, Object> health = new HashMap<>();

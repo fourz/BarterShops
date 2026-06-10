@@ -90,8 +90,16 @@ public class ShopRemoveSubCommand implements SubCommand {
             return true;
         }
 
-        // Remove the shop
+        // Remove from in-memory map and database
         plugin.getSignManager().getBarterSigns().remove(location);
+
+        int dbShopId = sign.getShopId();
+        if (dbShopId > 0 && plugin.getShopRepository() != null) {
+            plugin.getShopRepository().deleteById(dbShopId).exceptionally(ex -> {
+                plugin.getLogger().warning("ShopRemoveSubCommand: DB delete failed for shopId " + dbShopId + ": " + ex.getMessage());
+                return false;
+            });
+        }
 
         sender.sendMessage(ChatColor.GREEN + "Shop removed successfully.");
         sender.sendMessage(ChatColor.GRAY + "Location: " +
@@ -123,13 +131,12 @@ public class ShopRemoveSubCommand implements SubCommand {
             }
         }
 
-        // Try to match by index number
+        // Try to match by database shop ID
         try {
-            int index = Integer.parseInt(id) - 1;
-            List<Map.Entry<Location, BarterSign>> shopList = new ArrayList<>(shops.entrySet());
-            if (index >= 0 && index < shopList.size()) {
-                return Optional.of(shopList.get(index));
-            }
+            int targetId = Integer.parseInt(id);
+            return shops.entrySet().stream()
+                    .filter(entry -> entry.getValue().getShopId() == targetId)
+                    .findFirst();
         } catch (NumberFormatException ignored) {
         }
 
@@ -163,24 +170,24 @@ public class ShopRemoveSubCommand implements SubCommand {
         if (args.length == 1) {
             String partial = args[0].toLowerCase();
 
-            // Suggest shop numbers owned by the sender
+            // Suggest database shop IDs owned by the sender
             Map<Location, BarterSign> shops = plugin.getSignManager().getBarterSigns();
-            int index = 1;
             for (Map.Entry<Location, BarterSign> entry : shops.entrySet()) {
+                BarterSign sign = entry.getValue();
+                if (sign.getShopId() <= 0) continue;
+
                 // Only suggest shops the player owns (or all if admin)
                 if (sender instanceof Player player) {
-                    if (!entry.getValue().getOwner().equals(player.getUniqueId()) &&
+                    if (!sign.getOwner().equals(player.getUniqueId()) &&
                             !sender.hasPermission("bartershops.admin")) {
-                        index++;
                         continue;
                     }
                 }
 
-                String num = String.valueOf(index);
+                String num = String.valueOf(sign.getShopId());
                 if (num.startsWith(partial)) {
                     completions.add(num);
                 }
-                index++;
 
                 if (completions.size() >= 10) break;
             }

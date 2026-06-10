@@ -42,7 +42,7 @@ public class NotificationManager {
         this.preferences = new ConcurrentHashMap<>();
         this.notificationQueue = new LinkedList<>();
         startQueueProcessor();
-        logger.info("NotificationManager initialized");
+        logger.debug("NotificationManager initialized");
     }
 
     /**
@@ -235,6 +235,15 @@ public class NotificationManager {
             logger.error("Failed to retrieve preferences from service: " + e.getMessage());
             throw new RuntimeException(e);
         }
+    }
+
+    /**
+     * Evicts a player's cached preferences so the next delivery reads fresh from PlayerPreferencesService.
+     * Called by PreferenceCacheInvalidationListener when the central service is updated externally.
+     */
+    public void invalidateCache(UUID playerUuid) {
+        preferences.remove(playerUuid);
+        logger.debug("Evicted preference cache for player: " + playerUuid);
     }
 
     /**

@@ -11,7 +11,6 @@ CREATE TABLE IF NOT EXISTS barter_shops (
     owner_uuid TEXT NOT NULL,
     shop_name TEXT,
     shop_type TEXT NOT NULL DEFAULT 'BARTER' CHECK(shop_type IN ('BARTER', 'SELL', 'BUY')),
-    is_admin INTEGER NOT NULL DEFAULT 0,
 
     -- Sign location
     location_world TEXT NOT NULL,

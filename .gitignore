@@ -2,3 +2,4 @@
 .vscode/
 target/
 shared-backup/
+dependency-reduced-pom.xml
