@@ -1,5 +1,5 @@
 name: BarterShops
-api-version: '1.21'
+api-version: '26.1'
 version: ${project.version}
 description: Barter trading plugin with sign-based shop creation
 author: Derek Schrishuhn
