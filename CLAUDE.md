@@ -1,6 +1,6 @@
 # BarterShops: AI Assistant Instructions
 
-@import ../../.claude/rules/archon-workflow.md
+@import ../../.claude/rules/task-workflow.md
 @import ../../.claude/rules/java-plugin-build.md
 
 ---
