@@ -14,8 +14,13 @@
 
     <properties>
         <java.version>21</java.version>
-        <maven.compiler.source>21</maven.compiler.source>
-        <maven.compiler.target>21</maven.compiler.target>
+        <!--
+          release (not source/target): the build JDK is 25 (#1549). source/target would compile
+          against the JDK 25 class library while stamping Java 21 bytecode, so a Java-25-only API
+          would compile silently and the jar's Java 21 claim would be false. release swaps in the
+          Java 21 API signatures and makes the guarantee real.
+        -->
+        <maven.compiler.release>21</maven.compiler.release>
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
     </properties>
     <repositories>
@@ -139,8 +144,7 @@
                 <artifactId>maven-compiler-plugin</artifactId>
                 <version>3.8.1</version>
                 <configuration>
-                    <source>${java.version}</source>
-                    <target>${java.version}</target>
+                    <release>${java.version}</release>
                 </configuration>
             </plugin>
 
