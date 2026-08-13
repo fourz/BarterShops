@@ -94,6 +94,20 @@ class SignInteractionTest {
     private UUID ownerUuid;
     private UUID customerUuid;
 
+    /**
+     * Builds an ItemStack whose max stack size is answered without touching org.bukkit.Registry.
+     *
+     * ItemStack.getMaxStackSize() resolves through Material.asItemType() into Registry, which is
+     * populated by a running server and throws ExceptionInInitializerError in a plain unit test.
+     * Spying the stack keeps every other ItemStack behaviour real (clone, type, amount) and only
+     * stubs the one lookup that needs a server. See #1954.
+     */
+    private static ItemStack stackWithSize(Material material, int amount, int maxStackSize) {
+        ItemStack stack = spy(new ItemStack(material, amount));
+        doReturn(maxStackSize).when(stack).getMaxStackSize();
+        return stack;
+    }
+
     @BeforeEach
     void setUp() {
         ownerUuid = UUID.randomUUID();
@@ -266,7 +280,7 @@ class SignInteractionTest {
             when(sign.getSide(org.bukkit.block.sign.Side.FRONT)).thenReturn(mockFrontSide);
 
             // Setup shop inventory with stackable offering configured
-            ItemStack shopItem = new ItemStack(Material.DIAMOND, 5);
+            ItemStack shopItem = stackWithSize(Material.DIAMOND, 5, 64);
             ItemStack[] contents = new ItemStack[]{shopItem, null, null};
             when(inventory.getContents()).thenReturn(contents);
 
