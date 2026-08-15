@@ -231,4 +231,14 @@ public class ShopRegionSubCommand implements SubCommand {
     public boolean requiresPlayer() {
         return false; // Console-friendly with coordinate arguments
     }
+
+    /** Worked examples served by {@code /shop help <verb>} (#1981). */
+    @Override
+    public java.util.List<String> getExamples() {
+        return java.util.List.of(
+                "/shop region status",
+                "/shop region info 100 64 -200",
+                "/shop region info 100 64 -200 alphac",
+                "Backed by WorldGuard or GriefPrevention when present, no-op otherwise.");
+    }
 }

@@ -417,4 +417,14 @@ public class ShopTemplateSubCommand implements SubCommand {
     public boolean requiresPlayer() {
         return false; // Console can list/view/delete templates
     }
+
+    /** Worked examples served by {@code /shop help <verb>} (#1981). */
+    @Override
+    public java.util.List<String> getExamples() {
+        return java.util.List.of(
+                "/shop template save market_stall A standard 1x1 stall",
+                "/shop template load market_stall",
+                "/shop template info market_stall",
+                "/shop template delete market_stall");
+    }
 }

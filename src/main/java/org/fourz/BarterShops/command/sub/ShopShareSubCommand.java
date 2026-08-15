@@ -116,4 +116,12 @@ public class ShopShareSubCommand implements SubCommand {
     public boolean requiresPlayer() {
         return true;
     }
+
+    /** Worked examples served by {@code /shop help <verb>} (#1981). */
+    @Override
+    public java.util.List<String> getExamples() {
+        return java.util.List.of(
+                "/shop share 4 wizardofire",
+                "  grant another player access to group 4");
+    }
 }

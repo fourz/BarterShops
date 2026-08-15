@@ -187,4 +187,15 @@ public class ShopInspectSubCommand implements SubCommand {
     public boolean requiresPlayer() {
         return true;
     }
+
+    /** Worked examples served by {@code /shop help <verb>} (#1981). */
+    @Override
+    public java.util.List<String> getExamples() {
+        return java.util.List.of(
+                "/shop inspect",
+                "/shop inspect toggle",
+                "/shop inspect own",
+                "/shop inspect format actionbar",
+                "  chat or actionbar");
+    }
 }

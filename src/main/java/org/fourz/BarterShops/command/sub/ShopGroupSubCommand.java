@@ -502,4 +502,17 @@ public class ShopGroupSubCommand implements SubCommand {
             return "";
         }
     }
+
+    /** Worked examples served by {@code /shop help <verb>} (#1981). */
+    @Override
+    public java.util.List<String> getExamples() {
+        return java.util.List.of(
+                "/shop group list Shad0melt",
+                "/shop group info 4",
+                "/shop group rename 4 Market Row",
+                "/shop group add 123 4",
+                "  add shop 123 to group 4",
+                "/shop group remove 123",
+                "/shop group transfer 4 wizardofire");
+    }
 }

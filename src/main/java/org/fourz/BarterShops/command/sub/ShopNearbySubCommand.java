@@ -135,4 +135,13 @@ public class ShopNearbySubCommand implements SubCommand {
     private static String truncate(String value, int max) {
         return value.length() > max ? value.substring(0, max - 3) + "..." : value;
     }
+
+    /** Worked examples served by {@code /shop help <verb>} (#1981). */
+    @Override
+    public java.util.List<String> getExamples() {
+        return java.util.List.of(
+                "/shop nearby",
+                "/shop nearby 50",
+                "  [radius] in blocks");
+    }
 }

@@ -126,4 +126,13 @@ public class ShopCreateSubCommand implements SubCommand {
     public boolean requiresPlayer() {
         return true;
     }
+
+    /** Worked examples served by {@code /shop help <verb>} (#1981). */
+    @Override
+    public java.util.List<String> getExamples() {
+        return java.util.List.of(
+                "/shop create Riley's Emporium",
+                "  place a chest, attach a sign with [barter] on line 1, then run this",
+                "Wall sign binds the container BEHIND it; a standing sign binds the one BELOW.");
+    }
 }

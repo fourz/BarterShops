@@ -102,4 +102,12 @@ public class ShopSharedSubCommand implements SubCommand {
     public boolean requiresPlayer() {
         return false;
     }
+
+    /** Worked examples served by {@code /shop help <verb>} (#1981). */
+    @Override
+    public java.util.List<String> getExamples() {
+        return java.util.List.of(
+                "/shop shared 4",
+                "  who group 4 is shared with");
+    }
 }

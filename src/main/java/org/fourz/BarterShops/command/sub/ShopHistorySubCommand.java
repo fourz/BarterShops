@@ -207,4 +207,13 @@ public class ShopHistorySubCommand implements SubCommand {
     public boolean requiresPlayer() {
         return false; // Console-friendly
     }
+
+    /** Worked examples served by {@code /shop help <verb>} (#1981). */
+    @Override
+    public java.util.List<String> getExamples() {
+        return java.util.List.of(
+                "/shop history 123",
+                "/shop history 123 2",
+                "  paginated; buyer, seller, item and currency per row");
+    }
 }

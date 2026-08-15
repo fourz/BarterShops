@@ -248,4 +248,13 @@ public class ShopInfoSubCommand implements SubCommand {
     public boolean requiresPlayer() {
         return false; // Console-friendly
     }
+
+    /** Worked examples served by {@code /shop help <verb>} (#1981). */
+    @Override
+    public java.util.List<String> getExamples() {
+        return java.util.List.of(
+                "/shop info 123",
+                "/shop info Shad0melt",
+                "  accepts a shop id or an owner name");
+    }
 }

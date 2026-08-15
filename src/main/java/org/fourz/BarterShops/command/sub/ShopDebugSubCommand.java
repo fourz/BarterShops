@@ -1247,4 +1247,22 @@ public class ShopDebugSubCommand implements SubCommand {
     public boolean requiresPlayer() {
         return false; // Console-compatible
     }
+
+    /** Worked examples served by {@code /shop help <verb>} (#1981). */
+    @Override
+    public java.util.List<String> getExamples() {
+        return java.util.List.of(
+                "/shop debug diagnostics",
+                "/shop debug loglevel WARN",
+                "  DEBUG | INFO | WARN | OFF",
+                "/shop debug validate",
+                "/shop debug stock 123",
+                "/shop debug stock 123 64",
+                "/shop debug changeowner 123 Shad0melt",
+                "/shop debug rebind 123 alphac 100 64 -200",
+                "/shop debug create teststall alphac 100 64 -200 Shad0melt",
+                "/shop debug rename 123 New Name",
+                "After hot-deploying TokenEconomy, run 'plugman reload BarterShops' —",
+                "/shop reload does NOT rebind the Vault economy provider and leaves a dead one.");
+    }
 }

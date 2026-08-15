@@ -135,9 +135,14 @@ public class ShopCommand implements CommandExecutor, TabCompleter {
 
         String subCommandName = args[0].toLowerCase();
 
-        // Handle help as special case (not a registered subcommand)
+        // Handle help as special case (not a registered subcommand). With a verb argument it
+        // serves that verb's usage and worked examples (#1981).
         if (subCommandName.equals("help") || subCommandName.equals("?")) {
-            showHelp(sender);
+            if (args.length >= 2) {
+                showVerbHelp(sender, args[1].toLowerCase());
+            } else {
+                showHelp(sender);
+            }
             return true;
         }
 
@@ -177,14 +182,72 @@ public class ShopCommand implements CommandExecutor, TabCompleter {
     private void showHelp(CommandSender sender) {
         sender.sendMessage(ChatColor.GOLD + "===== BarterShops Commands =====");
 
-        for (Map.Entry<String, SubCommand> entry : subCommands.entrySet()) {
-            if (entry.getValue().hasPermission(sender)) {
-                sender.sendMessage(ChatColor.YELLOW + entry.getValue().getUsage() +
-                        ChatColor.WHITE + " - " + entry.getValue().getDescription());
+        List<String> names = new ArrayList<>(subCommands.keySet());
+        java.util.Collections.sort(names);
+
+        boolean anyExamples = false;
+        for (String name : names) {
+            SubCommand sub = subCommands.get(name);
+            if (sub == null || !sub.hasPermission(sender)) {
+                continue;
             }
+            boolean hasExamples = !sub.getExamples().isEmpty();
+            anyExamples |= hasExamples;
+            sender.sendMessage(ChatColor.YELLOW + sub.getUsage()
+                    + (hasExamples ? ChatColor.AQUA + " *" : "")
+                    + ChatColor.WHITE + " - " + sub.getDescription());
         }
 
-        sender.sendMessage(ChatColor.GRAY + "Use /shop <command> for more info.");
+        if (anyExamples) {
+            sender.sendMessage(ChatColor.AQUA + "*" + ChatColor.GRAY + " has worked examples — "
+                    + ChatColor.WHITE + "/shop help <subcommand>");
+        }
+        sender.sendMessage(ChatColor.GRAY + "Use /shop help <command> for usage and examples.");
+    }
+
+    /**
+     * {@code /shop help <verb>} — one subcommand's usage and worked examples (#1981).
+     *
+     * <p>The examples ship inside the jar, so they are fetched per verb and cannot drift from the
+     * build the way a second copy in {@code docs/plugins/commands/shop.md} does.</p>
+     */
+    private void showVerbHelp(CommandSender sender, String verb) {
+        SubCommand sub = subCommands.get(verb);
+        if (sub == null) {
+            sender.sendMessage(ChatColor.RED + "Unknown subcommand: " + verb);
+            sender.sendMessage(ChatColor.GRAY + "Use " + ChatColor.WHITE + "/shop help"
+                    + ChatColor.GRAY + " for the list.");
+            return;
+        }
+        if (!sub.hasPermission(sender)) {
+            sender.sendMessage(ChatColor.RED + "You don't have permission to use this command.");
+            return;
+        }
+
+        sender.sendMessage(ChatColor.GOLD + "===== /shop " + verb + " =====");
+        sender.sendMessage(ChatColor.WHITE + sub.getDescription());
+        sender.sendMessage(ChatColor.YELLOW + "Usage: " + ChatColor.WHITE + sub.getUsage());
+        if (sub.requiresPlayer()) {
+            sender.sendMessage(ChatColor.GRAY + "Players only — not available from console.");
+        }
+        if (sub.getPermission() != null && !sub.getPermission().isEmpty()) {
+            sender.sendMessage(ChatColor.GRAY + "Permission: " + sub.getPermission());
+        }
+
+        List<String> examples = sub.getExamples();
+        if (examples.isEmpty()) {
+            sender.sendMessage(ChatColor.GRAY
+                    + "No further examples — the usage line above is the whole grammar.");
+            return;
+        }
+        sender.sendMessage(ChatColor.YELLOW + "Examples:");
+        for (String example : examples) {
+            if (example.startsWith("  ")) {
+                sender.sendMessage(ChatColor.DARK_GRAY + "     " + example.trim());
+            } else {
+                sender.sendMessage(ChatColor.WHITE + "  " + example);
+            }
+        }
     }
 
     @Override
