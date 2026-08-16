@@ -200,4 +200,17 @@ public class ShopAdminSubCommand implements SubCommand {
     private interface AdminAction {
         boolean execute(CommandSender sender, String[] args);
     }
+
+    /** Worked examples served by {@code /shop help <verb>} (#1981). */
+    @Override
+    public java.util.List<String> getExamples() {
+        return java.util.List.of(
+                "/shop admin reload",
+                "/shop admin stats",
+                "/shop admin cleanup",
+                "  reports what it would remove",
+                "/shop admin cleanup confirm",
+                "/shop admin seed minimal",
+                "  minimal 10 / standard 100 / stress 1000 / cleanup / status");
+    }
 }

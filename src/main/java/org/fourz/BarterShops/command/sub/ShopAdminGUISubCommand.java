@@ -156,4 +156,14 @@ public class ShopAdminGUISubCommand implements SubCommand {
         tradeHistoryGUI.shutdown();
         statsGUI.shutdown();
     }
+
+    /** Worked examples served by {@code /shop help <verb>} (#1981). */
+    @Override
+    public java.util.List<String> getExamples() {
+        return java.util.List.of(
+                "/shop admingui",
+                "/shop admingui shops",
+                "/shop admingui trades",
+                "/shop admingui stats");
+    }
 }

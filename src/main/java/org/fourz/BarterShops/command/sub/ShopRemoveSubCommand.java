@@ -204,4 +204,14 @@ public class ShopRemoveSubCommand implements SubCommand {
     public boolean requiresPlayer() {
         return false; // Console can remove with admin permission
     }
+
+    /** Worked examples served by {@code /shop help <verb>} (#1981). */
+    @Override
+    public java.util.List<String> getExamples() {
+        return java.util.List.of(
+                "/shop remove 123",
+                "/shop remove 123 --confirm",
+                "Breaking the chest no longer deletes the shop — use DELETE mode on the sign,",
+                "or this command.");
+    }
 }

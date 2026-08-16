@@ -231,4 +231,15 @@ public class ShopTradeSubCommand implements SubCommand {
 
         return completions;
     }
+
+    /** Worked examples served by {@code /shop help <verb>} (#1981). */
+    @Override
+    public java.util.List<String> getExamples() {
+        return java.util.List.of(
+                "/shop trade Shad0melt 123",
+                "/shop trade Shad0melt 123 5",
+                "  admin force-trade: bypasses payment, logs source ADMIN_OVERRIDE",
+                "Console-capable, which makes it the way to exercise a trade without standing",
+                "at the sign.");
+    }
 }

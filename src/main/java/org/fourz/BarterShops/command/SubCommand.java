@@ -63,6 +63,25 @@ public interface SubCommand {
      *
      * @return true if the command can only be used by players
      */
+    /**
+     * Worked examples for this subcommand, served by {@code /shop help <verb>}.
+     *
+     * <p>Return concrete, runnable lines with real-looking arguments — not a restatement of
+     * {@link #getUsage()}, which the help prints above them. A line beginning with two spaces
+     * renders as an indented note under the example above it.</p>
+     *
+     * <p>Examples ship in the jar rather than in {@code docs/plugins/commands/shop.md} so they are
+     * fetched per verb and cannot drift from the build. The doc page keeps what no command can
+     * print: the sign UI model, the trade flow and the backend detail. (#1981)</p>
+     *
+     * <p>Default is empty; {@code /shop help} marks which verbs carry examples.</p>
+     *
+     * @return example lines, or an empty list
+     */
+    default List<String> getExamples() {
+        return List.of();
+    }
+
     default boolean requiresPlayer() {
         return false;
     }

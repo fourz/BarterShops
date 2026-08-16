@@ -246,4 +246,14 @@ public class ShopStatsSubCommand implements SubCommand {
         // Console can use this command with arguments
         return false;
     }
+
+    /** Worked examples served by {@code /shop help <verb>} (#1981). */
+    @Override
+    public java.util.List<String> getExamples() {
+        return java.util.List.of(
+                "/shop stats",
+                "/shop stats server",
+                "/shop stats Shad0melt",
+                "Needs IStatsService — the verb is only registered when it initialised.");
+    }
 }

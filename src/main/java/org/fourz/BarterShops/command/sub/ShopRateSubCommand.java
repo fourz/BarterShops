@@ -208,4 +208,14 @@ public class ShopRateSubCommand implements SubCommand {
     public boolean requiresPlayer() {
         return false; // Console-friendly with player name parameter
     }
+
+    /** Worked examples served by {@code /shop help <verb>} (#1981). */
+    @Override
+    public java.util.List<String> getExamples() {
+        return java.util.List.of(
+                "/shop rate 123 5",
+                "/shop rate 123 5 Great shop, well stocked",
+                "  rating is 1-5; review text is optional",
+                "Needs IRatingService — the verb is only registered when it initialised.");
+    }
 }

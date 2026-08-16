@@ -201,4 +201,16 @@ public class ShopNotificationsSubCommand implements SubCommand {
     public boolean requiresPlayer() {
         return false;
     }
+
+    /** Worked examples served by {@code /shop help <verb>} (#1981). */
+    @Override
+    public java.util.List<String> getExamples() {
+        return java.util.List.of(
+                "/shop notifications",
+                "/shop notifications on",
+                "/shop notifications off",
+                "/shop notifications toggle trade_complete",
+                "/shop notifications Shad0melt list",
+                "  admin form: read another player's settings");
+    }
 }

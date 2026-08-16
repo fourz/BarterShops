@@ -103,4 +103,14 @@ public class ShopFeeSubCommand implements SubCommand {
     public boolean requiresPlayer() {
         return false;
     }
+
+    /** Worked examples served by {@code /shop help <verb>} (#1981). */
+    @Override
+    public java.util.List<String> getExamples() {
+        return java.util.List.of(
+                "/shop fee",
+                "/shop fee list",
+                "Fees need Vault. Without it the plugin still runs — it is barter-based by",
+                "nature and the economy layer degrades gracefully.");
+    }
 }
