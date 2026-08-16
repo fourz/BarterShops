@@ -110,7 +110,7 @@ public class ShopFeeSubCommand implements SubCommand {
         return java.util.List.of(
                 "/shop fee",
                 "/shop fee list",
-                "Fees need Vault. Without it the plugin still runs — it is barter-based by",
+                "Fees need Vault. Without it the plugin still runs - it is barter-based by",
                 "nature and the economy layer degrades gracefully.");
     }
 }

@@ -117,7 +117,7 @@ public class ShopGroupServiceImpl implements IShopGroupService {
                 List<ShopDataDTO> allShopsCheck = shopRepository.findAllActive().join();
                 boolean anyGrouped = allShopsCheck.stream().anyMatch(s -> s.groupId() != null);
                 if (anyGrouped) {
-                    logger.debug("Shop groups already migrated — skipping");
+                    logger.debug("Shop groups already migrated - skipping");
                     return;
                 }
 

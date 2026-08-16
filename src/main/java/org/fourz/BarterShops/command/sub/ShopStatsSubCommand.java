@@ -254,6 +254,6 @@ public class ShopStatsSubCommand implements SubCommand {
                 "/shop stats",
                 "/shop stats server",
                 "/shop stats Shad0melt",
-                "Needs IStatsService — the verb is only registered when it initialised.");
+                "Needs IStatsService - the verb is only registered when it initialised.");
     }
 }

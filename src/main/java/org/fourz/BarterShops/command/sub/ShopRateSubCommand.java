@@ -216,6 +216,6 @@ public class ShopRateSubCommand implements SubCommand {
                 "/shop rate 123 5",
                 "/shop rate 123 5 Great shop, well stocked",
                 "  rating is 1-5; review text is optional",
-                "Needs IRatingService — the verb is only registered when it initialised.");
+                "Needs IRatingService - the verb is only registered when it initialised.");
     }
 }

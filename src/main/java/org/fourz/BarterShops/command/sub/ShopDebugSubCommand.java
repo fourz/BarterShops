@@ -423,7 +423,7 @@ public class ShopDebugSubCommand implements SubCommand {
                         ItemStack offering = shop.getConfiguredOffering();
                         if (offering == null) {
                             sender.sendMessage(ChatColor.YELLOW + "! Shop #" + shopIdStr
-                                    + " has no configured offering — reporting contents only.");
+                                    + " has no configured offering - reporting contents only.");
                             reportInventoryContents(sender, shop, inv);
                             return;
                         }
@@ -676,12 +676,12 @@ public class ShopDebugSubCommand implements SubCommand {
     private boolean reportValidationResult(CommandSender sender, ShopDataDTO shop, List<String> issues) {
         if (issues.isEmpty()) {
             sender.sendMessage(ChatColor.GREEN + "✓ " + shop.shopName()
-                    + " (#" + shop.shopId() + ") " + ChatColor.GRAY + "— OK");
+                    + " (#" + shop.shopId() + ") " + ChatColor.GRAY + "- OK");
             return true;
         } else {
             sender.sendMessage(ChatColor.RED + "✗ " + shop.shopName()
                     + " (#" + shop.shopId() + ") "
-                    + ChatColor.GRAY + "— " + String.join(", ", issues));
+                    + ChatColor.GRAY + "- " + String.join(", ", issues));
             return false;
         }
     }
@@ -858,7 +858,7 @@ public class ShopDebugSubCommand implements SubCommand {
                                     sender.sendMessage(ChatColor.GREEN + "+ Shop '"
                                             + shopName + "' created (#" + createdShop.shopId()
                                             + ") at " + worldName + ":" + cx + "," + cy + "," + cz
-                                            + " — sign at " + cx + "," + (cy + 1) + "," + cz)
+                                            + " - sign at " + cx + "," + (cy + 1) + "," + cz)
                                 )
                             ).exceptionally(ex -> {
                                 sender.sendMessage(ChatColor.RED + "x Shop created but chest bind failed: "
@@ -932,7 +932,7 @@ public class ShopDebugSubCommand implements SubCommand {
                             + shop.shopName() + ") removed from database.");
                     logger.info("Force-removed shop #" + shopIdStr + " (" + shop.shopName() + ")");
                 } else {
-                    sender.sendMessage(ChatColor.RED + "x Remove failed for shop #" + shopIdStr + " — not found in database.");
+                    sender.sendMessage(ChatColor.RED + "x Remove failed for shop #" + shopIdStr + " - not found in database.");
                 }
             }).exceptionally(ex -> {
                 sender.sendMessage(ChatColor.RED + "x Error removing shop: " + ex.getMessage());
@@ -1262,7 +1262,7 @@ public class ShopDebugSubCommand implements SubCommand {
                 "/shop debug rebind 123 alphac 100 64 -200",
                 "/shop debug create teststall alphac 100 64 -200 Shad0melt",
                 "/shop debug rename 123 New Name",
-                "After hot-deploying TokenEconomy, run 'plugman reload BarterShops' —",
+                "After hot-deploying TokenEconomy, run 'plugman reload BarterShops' -",
                 "/shop reload does NOT rebind the Vault economy provider and leaves a dead one.");
     }
 }
