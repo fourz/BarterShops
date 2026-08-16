@@ -505,7 +505,7 @@ public class InventoryValidationListener implements Listener {
         // This set ensures only one task is scheduled per player+shop per interaction.
         final String depositKey = player.getUniqueId() + ":" + barterSign.getShopId();
         if (!pendingDeposits.add(depositKey)) {
-            logger.debug("Duplicate deposit event suppressed — " + player.getName() + " shop " + barterSign.getShopId());
+            logger.debug("Duplicate deposit event suppressed - " + player.getName() + " shop " + barterSign.getShopId());
             return;
         }
 

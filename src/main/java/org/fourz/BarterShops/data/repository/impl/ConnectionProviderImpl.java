@@ -102,7 +102,7 @@ public class ConnectionProviderImpl implements IConnectionProvider {
                 s.execute();
                 logger.debug("Migration applied: added trade_source to " + tableName);
             } catch (SQLException e) {
-                logger.debug("Migration skip (already applied or table absent): " + tableName + " — " + e.getMessage());
+                logger.debug("Migration skip (already applied or table absent): " + tableName + " - " + e.getMessage());
             }
         }
 
@@ -115,7 +115,7 @@ public class ConnectionProviderImpl implements IConnectionProvider {
                 s.execute();
                 logger.debug("Migration applied: added item_type to " + tableName);
             } catch (SQLException e) {
-                logger.debug("Migration skip (already applied or table absent): " + tableName + " — " + e.getMessage());
+                logger.debug("Migration skip (already applied or table absent): " + tableName + " - " + e.getMessage());
             }
         }
 
@@ -137,7 +137,7 @@ public class ConnectionProviderImpl implements IConnectionProvider {
             s.execute();
             logger.debug("Migration applied: added group_id to " + table(TABLE_SHOPS));
         } catch (SQLException e) {
-            logger.debug("Migration skip (already applied): group_id — " + e.getMessage());
+            logger.debug("Migration skip (already applied): group_id - " + e.getMessage());
         }
 
         String groupIdxSql = "CREATE INDEX IF NOT EXISTS idx_" + getTablePrefix() + "shops_group ON "

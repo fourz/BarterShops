@@ -496,7 +496,7 @@ public class TradeEngine {
                     return null;
                 });
         } else {
-            logger.debug("Trade logged (no persistence — TradeServiceImpl not available): " + transactionId);
+            logger.debug("Trade logged (no persistence - TradeServiceImpl not available): " + transactionId);
             notifyWebhook(shopIdStr);
         }
     }

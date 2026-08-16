@@ -211,7 +211,7 @@ public class ShopRemoveSubCommand implements SubCommand {
         return java.util.List.of(
                 "/shop remove 123",
                 "/shop remove 123 --confirm",
-                "Breaking the chest no longer deletes the shop — use DELETE mode on the sign,",
+                "Breaking the chest no longer deletes the shop - use DELETE mode on the sign,",
                 "or this command.");
     }
 }

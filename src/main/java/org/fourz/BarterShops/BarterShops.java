@@ -228,7 +228,7 @@ public class BarterShops extends JavaPlugin {
      */
     private void initializeRatingService() {
         if (connectionProvider == null || fallbackTracker == null) {
-            logger.info("RatingService skipped — database layer not available");
+            logger.info("RatingService skipped - database layer not available");
             return;
         }
         try {
@@ -246,7 +246,7 @@ public class BarterShops extends JavaPlugin {
     private void initializeStatsService() {
         Object shopServiceObj = createShopService();
         if (shopServiceObj == null) {
-            logger.info("StatsService skipped — ShopServiceImpl not available");
+            logger.info("StatsService skipped - ShopServiceImpl not available");
             return;
         }
         try {
@@ -280,7 +280,7 @@ public class BarterShops extends JavaPlugin {
      */
     private void initializeShopGroupService() {
         if (shopGroupRepository == null || shopRepository == null) {
-            logger.info("ShopGroupService skipped — database layer not available");
+            logger.info("ShopGroupService skipped - database layer not available");
             return;
         }
         try {
@@ -374,7 +374,7 @@ public class BarterShops extends JavaPlugin {
 
             rvnkCoreAvailable = true;
             rvnkCoreInstance = coreInstance;
-            logger.info("RVNKCore integration enabled — " + registered + " services registered");
+            logger.info("RVNKCore integration enabled - " + registered + " services registered");
 
             // Pass ServiceRegistry to TradeEngine for webhook notifications
             if (tradeEngine != null) {

@@ -95,7 +95,7 @@ public class ShopHistorySubCommand implements SubCommand {
             int toIndex = Math.min(fromIndex + PAGE_SIZE, trades.size());
             List<TradeRecordDTO> pageTrades = trades.subList(fromIndex, toIndex);
 
-            sender.sendMessage(ChatColor.GOLD + "===== Trade History — Shop #" + shopId
+            sender.sendMessage(ChatColor.GOLD + "===== Trade History - Shop #" + shopId
                     + " (Page " + displayPage + "/" + totalPages + ") =====");
 
             for (int i = 0; i < pageTrades.size(); i++) {

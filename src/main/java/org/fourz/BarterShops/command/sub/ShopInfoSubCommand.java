@@ -51,7 +51,7 @@ public class ShopInfoSubCommand implements SubCommand {
                     Optional<ShopDataDTO> dbShop = plugin.getShopRepository().findById(numericId).join();
                     if (dbShop.isPresent()) {
                         ShopDataDTO dto = dbShop.get();
-                        sender.sendMessage(ChatColor.GOLD + "===== Shop Info (DB record — sign unloaded) =====");
+                        sender.sendMessage(ChatColor.GOLD + "===== Shop Info (DB record - sign unloaded) =====");
                         sender.sendMessage(ChatColor.YELLOW + "ID: " + ChatColor.WHITE + dto.shopId());
                         sender.sendMessage(ChatColor.YELLOW + "Name: " + ChatColor.WHITE +
                                 (dto.shopName() != null ? dto.shopName() : "(unnamed)"));
@@ -62,7 +62,7 @@ public class ShopInfoSubCommand implements SubCommand {
                                 String.format("%s: %.0f, %.0f, %.0f",
                                         dto.locationWorld(), dto.locationX(), dto.locationY(), dto.locationZ()));
                         sender.sendMessage(ChatColor.YELLOW + "Active: " + ChatColor.WHITE + dto.isActive());
-                        sender.sendMessage(ChatColor.RED + "Note: Sign chunk not loaded — live details unavailable.");
+                        sender.sendMessage(ChatColor.RED + "Note: Sign chunk not loaded - live details unavailable.");
                         sender.sendMessage(ChatColor.GOLD + "================================================");
                         return true;
                     }

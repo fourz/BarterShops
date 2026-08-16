@@ -199,7 +199,7 @@ public class ShopCommand implements CommandExecutor, TabCompleter {
         }
 
         if (anyExamples) {
-            sender.sendMessage(ChatColor.AQUA + "*" + ChatColor.GRAY + " has worked examples — "
+            sender.sendMessage(ChatColor.AQUA + "*" + ChatColor.GRAY + " has worked examples - "
                     + ChatColor.WHITE + "/shop help <subcommand>");
         }
         sender.sendMessage(ChatColor.GRAY + "Use /shop help <command> for usage and examples.");
@@ -228,7 +228,7 @@ public class ShopCommand implements CommandExecutor, TabCompleter {
         sender.sendMessage(ChatColor.WHITE + sub.getDescription());
         sender.sendMessage(ChatColor.YELLOW + "Usage: " + ChatColor.WHITE + sub.getUsage());
         if (sub.requiresPlayer()) {
-            sender.sendMessage(ChatColor.GRAY + "Players only — not available from console.");
+            sender.sendMessage(ChatColor.GRAY + "Players only - not available from console.");
         }
         if (sub.getPermission() != null && !sub.getPermission().isEmpty()) {
             sender.sendMessage(ChatColor.GRAY + "Permission: " + sub.getPermission());
@@ -237,7 +237,7 @@ public class ShopCommand implements CommandExecutor, TabCompleter {
         List<String> examples = sub.getExamples();
         if (examples.isEmpty()) {
             sender.sendMessage(ChatColor.GRAY
-                    + "No further examples — the usage line above is the whole grammar.");
+                    + "No further examples - the usage line above is the whole grammar.");
             return;
         }
         sender.sendMessage(ChatColor.YELLOW + "Examples:");
