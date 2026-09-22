@@ -16,6 +16,7 @@ import java.sql.SQLException;
 import java.sql.Statement;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
@@ -47,6 +48,7 @@ class ConnectionProviderSqliteFallbackTest {
              Statement stmt = conn.createStatement();
              ResultSet rs = stmt.executeQuery(
                      "SELECT count(*) FROM sqlite_master WHERE type = 'table' AND name LIKE 'bs_%'")) {
+            assertTrue(rs.next(), "query returned no rows");
             assertEquals(9, rs.getInt(1));
         }
     }
