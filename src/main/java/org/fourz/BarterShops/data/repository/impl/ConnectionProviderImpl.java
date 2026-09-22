@@ -55,18 +55,25 @@ public class ConnectionProviderImpl implements IConnectionProvider {
     public void initialize() throws SQLException {
         String mode = plugin.getConfigManager().getDatabaseMode();
         logger.debug("Initializing database layer (mode=" + mode + ", type=" + databaseType + ")");
+        PoolDelegate pool;
         if ("shared".equalsIgnoreCase(mode)) {
             try {
-                delegate = new SharedPoolDelegate(plugin);
-                delegate.initialize();
+                pool = new SharedPoolDelegate(plugin);
+                pool.initialize();
             } catch (NoClassDefFoundError e) {
                 throw new IllegalStateException(
                     "database.mode=shared but RVNKCore classes are not on the classpath: " + e.getMessage());
             }
         } else {
-            delegate = new StandalonePoolDelegate(plugin);
-            delegate.initialize();
+            pool = new StandalonePoolDelegate(plugin);
+            pool.initialize();
         }
+        initializeWith(pool);
+    }
+
+    /** Adopts an initialized pool and builds the schema for that pool's dialect. */
+    void initializeWith(PoolDelegate pool) throws SQLException {
+        delegate = pool;
         createSchema();
         logger.debug("Database layer ready");
     }
@@ -75,7 +82,7 @@ public class ConnectionProviderImpl implements IConnectionProvider {
         try (Connection conn = getConnection();
              Statement stmt = conn.createStatement()) {
 
-            if ("mysql".equals(databaseType)) {
+            if (isMySql()) {
                 createMySQLSchema(stmt);
             } else {
                 createSQLiteSchema(stmt);
@@ -95,7 +102,7 @@ public class ConnectionProviderImpl implements IConnectionProvider {
     private void runMigrations(Connection conn) {
         // v1.0.27: add trade_source column to active and archive tables
         for (String tableName : new String[]{ table(TABLE_TRADE_RECORDS), table(TABLE_TRADE_RECORDS_ARCHIVE) }) {
-            String alterSql = "mysql".equals(databaseType)
+            String alterSql = isMySql()
                 ? "ALTER TABLE " + tableName + " ADD COLUMN IF NOT EXISTS trade_source VARCHAR(32) NOT NULL DEFAULT 'UNKNOWN'"
                 : "ALTER TABLE " + tableName + " ADD COLUMN trade_source TEXT NOT NULL DEFAULT 'UNKNOWN'";
             try (PreparedStatement s = conn.prepareStatement(alterSql)) {
@@ -108,7 +115,7 @@ public class ConnectionProviderImpl implements IConnectionProvider {
 
         // #191: add item_type column to active and archive tables
         for (String tableName : new String[]{ table(TABLE_TRADE_RECORDS), table(TABLE_TRADE_RECORDS_ARCHIVE) }) {
-            String alterSql = "mysql".equals(databaseType)
+            String alterSql = isMySql()
                 ? "ALTER TABLE " + tableName + " ADD COLUMN IF NOT EXISTS item_type VARCHAR(64)"
                 : "ALTER TABLE " + tableName + " ADD COLUMN item_type TEXT";
             try (PreparedStatement s = conn.prepareStatement(alterSql)) {
@@ -130,7 +137,7 @@ public class ConnectionProviderImpl implements IConnectionProvider {
         }
 
         // Shop grouping: add group_id column to shops table
-        String groupColSql = "mysql".equals(databaseType)
+        String groupColSql = isMySql()
             ? "ALTER TABLE " + table(TABLE_SHOPS) + " ADD COLUMN IF NOT EXISTS group_id INT DEFAULT NULL"
             : "ALTER TABLE " + table(TABLE_SHOPS) + " ADD COLUMN group_id INTEGER DEFAULT NULL";
         try (PreparedStatement s = conn.prepareStatement(groupColSql)) {
@@ -502,6 +509,17 @@ public class ConnectionProviderImpl implements IConnectionProvider {
     @Override
     public int getMaxPoolSize() {
         return 0;
+    }
+
+    /**
+     * Dialect of the pool actually in use. In shared mode that is RVNKCore's pool, which serves
+     * SQLite when RVNKCore falls back - while this plugin's own config still says mysql. Choosing
+     * the schema from the config sent MySQL DDL to SQLite and dropped BarterShops to in-memory
+     * storage (#2103).
+     */
+    private boolean isMySql() {
+        String type = getDatabaseType();
+        return org.fourz.BarterShops.data.Dialects.isMySql(type);
     }
 
     @Override

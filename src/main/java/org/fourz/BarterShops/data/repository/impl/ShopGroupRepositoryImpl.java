@@ -537,7 +537,7 @@ public class ShopGroupRepositoryImpl implements IShopGroupRepository {
 
     private boolean isMysql() {
         String type = connectionProvider.getDatabaseType();
-        return type != null && (type.equalsIgnoreCase("mysql") || type.equalsIgnoreCase("mariadb"));
+        return org.fourz.BarterShops.data.Dialects.isMySql(type);
     }
 
     private ShopGroupDTO mapRowToGroup(ResultSet rs, List<UUID> coOwners) throws SQLException {
