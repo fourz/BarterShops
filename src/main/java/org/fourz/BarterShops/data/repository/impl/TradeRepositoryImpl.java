@@ -2,6 +2,7 @@ package org.fourz.BarterShops.data.repository.impl;
 
 import org.fourz.BarterShops.BarterShops;
 import org.fourz.rvnkcore.data.FallbackTracker;
+import org.fourz.BarterShops.data.Dialects;
 import org.fourz.BarterShops.data.IConnectionProvider;
 import org.fourz.BarterShops.data.dto.TradeRecordDTO;
 import org.fourz.BarterShops.data.repository.ITradeRepository;
@@ -717,7 +718,7 @@ public class TradeRepositoryImpl implements ITradeRepository {
         }
 
         return CompletableFuture.supplyAsync(() -> {
-            boolean isMySQL = "mysql".equalsIgnoreCase(connectionProvider.getDatabaseType());
+            boolean isMySQL = Dialects.isMySql(connectionProvider.getDatabaseType());
             String dailyTable = connectionProvider.table("trade_daily_summary");
             String tradeTable = connectionProvider.table("trade_records");
             String sql;
@@ -760,7 +761,7 @@ public class TradeRepositoryImpl implements ITradeRepository {
         }
 
         return CompletableFuture.supplyAsync(() -> {
-            boolean isMySQL = "mysql".equalsIgnoreCase(connectionProvider.getDatabaseType());
+            boolean isMySQL = Dialects.isMySql(connectionProvider.getDatabaseType());
             String monthlyTable = connectionProvider.table("trade_monthly_summary");
             String dailyTable = connectionProvider.table("trade_daily_summary");
             String sql;

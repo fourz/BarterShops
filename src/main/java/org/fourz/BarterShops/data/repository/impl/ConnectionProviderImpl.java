@@ -519,7 +519,7 @@ public class ConnectionProviderImpl implements IConnectionProvider {
      */
     private boolean isMySql() {
         String type = getDatabaseType();
-        return type != null && (type.equalsIgnoreCase("mysql") || type.equalsIgnoreCase("mariadb"));
+        return org.fourz.BarterShops.data.Dialects.isMySql(type);
     }
 
     @Override

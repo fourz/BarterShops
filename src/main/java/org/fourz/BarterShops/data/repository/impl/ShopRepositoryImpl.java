@@ -654,7 +654,7 @@ public class ShopRepositoryImpl implements IShopRepository {
 
     private boolean isMysql() {
         String type = connectionProvider.getDatabaseType();
-        return type != null && (type.equalsIgnoreCase("mysql") || type.equalsIgnoreCase("mariadb"));
+        return org.fourz.BarterShops.data.Dialects.isMySql(type);
     }
 
     private ShopDataDTO mapRowToShop(ResultSet rs, Map<String, String> metadata) throws SQLException {
