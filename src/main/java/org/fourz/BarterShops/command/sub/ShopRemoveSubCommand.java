@@ -91,13 +91,19 @@ public class ShopRemoveSubCommand implements SubCommand {
         }
 
         // Remove from in-memory map and database
-        plugin.getSignManager().getBarterSigns().remove(location);
+        // getBarterSigns() is a read-only view - removing through it threw
+        // UnsupportedOperationException before the DB delete ever ran.
+        plugin.getSignManager().removeBarterSign(location);
 
         int dbShopId = sign.getShopId();
         if (dbShopId > 0 && plugin.getShopRepository() != null) {
-            plugin.getShopRepository().deleteById(dbShopId).exceptionally(ex -> {
+            plugin.getShopRepository().deleteById(dbShopId).thenAccept(deleted -> {
+                if (deleted) {
+                    plugin.getSignManager().notifyShopWebhook(String.valueOf(dbShopId));
+                }
+            }).exceptionally(ex -> {
                 plugin.getLogger().warning("ShopRemoveSubCommand: DB delete failed for shopId " + dbShopId + ": " + ex.getMessage());
-                return false;
+                return null;
             });
         }
 

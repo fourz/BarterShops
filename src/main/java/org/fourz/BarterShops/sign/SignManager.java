@@ -679,7 +679,7 @@ public class SignManager implements Listener {
      * Notifies the WebhookNotifier of a shop change after sign creation or removal.
      * Resolves WebhookNotifier lazily from ServiceRegistry.
      */
-    private void notifyShopWebhook(String shopId) {
+    public void notifyShopWebhook(String shopId) {
         org.fourz.rvnkcore.service.registry.ServiceRegistry registry = plugin.getServiceRegistry();
         if (registry == null) return;
         org.fourz.rvnkcore.api.webhook.WebhookNotifier notifier =
