@@ -1101,14 +1101,24 @@ public class SignInteraction {
             // Delete from database asynchronously
             plugin.getServer().getScheduler().runTaskAsynchronously(plugin, () -> {
                 try {
-                    // Look up shop by location to get the integer shop ID
-                    String world = signLocation.getWorld() != null ? signLocation.getWorld().getName() : "unknown";
-                    var shopOptional = plugin.getShopRepository()
-                        .findBySignLocation(world, signLocation.getX(), signLocation.getY(), signLocation.getZ())
-                        .get();
+                    // Prefer the sign's own shop id. The location lookup has no is_active filter
+                    // and no ordering, so with an old inactive row at the same block it could
+                    // delete that row and leave the live one orphaned (#2117).
+                    java.util.OptionalInt knownId = barterSign.getShopId() > 0
+                        ? java.util.OptionalInt.of(barterSign.getShopId())
+                        : java.util.OptionalInt.empty();
+                    if (knownId.isEmpty()) {
+                        String world = signLocation.getWorld() != null ? signLocation.getWorld().getName() : "unknown";
+                        var byLocation = plugin.getShopRepository()
+                            .findBySignLocation(world, signLocation.getX(), signLocation.getY(), signLocation.getZ())
+                            .get();
+                        if (byLocation.isPresent()) {
+                            knownId = java.util.OptionalInt.of(byLocation.get().shopId());
+                        }
+                    }
 
-                    if (shopOptional.isPresent()) {
-                        int shopId = shopOptional.get().shopId();
+                    if (knownId.isPresent()) {
+                        int shopId = knownId.getAsInt();
                         logger.debug("Found shop in database with ID: " + shopId);
 
                         // Remove shop from database (items in chest remain untouched)

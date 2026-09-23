@@ -41,7 +41,7 @@ public class ShopInfoSubCommand implements SubCommand {
         String shopArg = args[0];
 
         // Find shop by ID or username from in-memory SignManager
-        Optional<Map.Entry<Location, BarterSign>> shopEntry = findShopByIdOrUsername(shopArg);
+        Optional<Map.Entry<Location, BarterSign>> shopEntry = findShopByIdOrUsername(shopArg, sender);
 
         if (shopEntry.isEmpty()) {
             // Cache miss — fall back to database for numeric IDs (sign may be in unloaded chunk)
@@ -98,17 +98,13 @@ public class ShopInfoSubCommand implements SubCommand {
      * @param arg Shop ID (numeric 1-based) or owner username
      * @return Optional containing the shop entry if found
      */
-    private Optional<Map.Entry<Location, BarterSign>> findShopByIdOrUsername(String arg) {
+    private Optional<Map.Entry<Location, BarterSign>> findShopByIdOrUsername(String arg, org.bukkit.command.CommandSender sender) {
         Map<Location, BarterSign> shops = plugin.getSignManager().getBarterSigns();
 
-        // Try numeric shop ID first (1-based index)
-        try {
-            int index = Integer.parseInt(arg) - 1;
-            List<Map.Entry<Location, BarterSign>> shopList = new ArrayList<>(shops.entrySet());
-            if (index >= 0 && index < shopList.size()) {
-                return Optional.of(shopList.get(index));
-            }
-        } catch (NumberFormatException ignored) {
+        // Shop id or coordinates first - the same lookup as /shop remove and /shop clear (#2117)
+        Optional<Map.Entry<Location, BarterSign>> byId = plugin.getSignManager().findShop(arg, sender);
+        if (byId.isPresent()) {
+            return byId;
         }
 
         // Try username lookup (O(n) scan)

@@ -42,6 +42,7 @@ import org.fourz.BarterShops.service.ShopConfigManager;
 import org.fourz.rvnkcore.util.log.LogManager;
 
 import java.util.UUID;
+import java.util.Optional;
 
 public class SignManager implements Listener {
     private static final String CLASS_NAME = "SignManager";
@@ -153,8 +154,7 @@ public class SignManager implements Listener {
 
         // INTEGRATION POINT 2: Register ShopContainer from persisted configuration
         if (container != null) {
-            // Create stable UUID from numeric shop ID (database compatibility)
-            UUID shopUuid = UUID.nameUUIDFromBytes(("bartershop:" + shop.shopId()).getBytes());
+            UUID shopUuid = containerUuidFor(shop.shopId());
             ShopContainer shopContainer = createShopContainerFromBarterSign(barterSign, container, shopUuid);
             plugin.getContainerManager().getValidationListener().registerContainer(shopContainer);
             barterSign.setShopContainerWrapper(shopContainer); // CRITICAL: Set on BarterSign for TradeValidator access
@@ -373,8 +373,10 @@ public class SignManager implements Listener {
             return;
         }
 
-        // Authorized break - cleanup
+        // Authorized break - cache, container guard AND the DB row. This used to clear the cache
+        // only, so every shop deleted this way stayed active in the DB and on the WebUI (#2117).
         removeBarterSign(loc);
+        deleteShopRecord(barterSign.getShopId());
         player.sendMessage(ChatColor.GREEN + "Shop removed.");
         logger.info("Shop sign removed by " + player.getName() + " at " + loc);
     }
@@ -488,6 +490,101 @@ public class SignManager implements Listener {
         }
     }
 
+    /** Stable ShopContainer UUID for a shop loaded from the database. */
+    public static UUID containerUuidFor(int shopId) {
+        return UUID.nameUUIDFromBytes(("bartershop:" + shopId).getBytes());
+    }
+
+    private void unregisterContainerGuard(BarterSign barterSign) {
+        UUID registered = barterSign.getShopContainerWrapper() != null
+            ? barterSign.getShopContainerWrapper().getShopId()
+            : (barterSign.getShopId() > 0 ? containerUuidFor(barterSign.getShopId()) : null);
+        if (registered != null) {
+            plugin.getContainerManager().getValidationListener().unregisterContainer(registered);
+        }
+    }
+
+    /** Deletes a shop's DB row by id and notifies the WebUI webhook on success. */
+    public void deleteShopRecord(int shopId) {
+        if (shopId <= 0 || plugin.getShopRepository() == null) return;
+        plugin.getShopRepository().deleteById(shopId).thenAccept(deleted -> {
+            if (deleted) {
+                notifyShopWebhook(String.valueOf(shopId));
+            } else {
+                logger.warning("Shop " + shopId + " was not in the database when its sign was removed");
+            }
+        }).exceptionally(ex -> {
+            logger.warning("DB delete failed for shop " + shopId + ": " + ex.getMessage());
+            return null;
+        });
+    }
+
+    /**
+     * Resolves a command argument to a cached shop. Accepts a database shop id ("12"), "x,y,z" in
+     * the sender's world, or "world,x,y,z". One lookup for remove/clear/info: clear and info used to
+     * read the number as a position in hash order and act on an arbitrary shop (#2117).
+     */
+    public Optional<Map.Entry<Location, BarterSign>> findShop(String arg, org.bukkit.command.CommandSender sender) {
+        if (arg == null || arg.isEmpty()) return Optional.empty();
+        if (arg.contains(",")) {
+            String[] parts = arg.split(",");
+            try {
+                String worldName;
+                int offset;
+                if (parts.length == 4) {
+                    worldName = parts[0].trim();
+                    offset = 1;
+                } else if (parts.length == 3 && sender instanceof Player p) {
+                    worldName = p.getWorld().getName();
+                    offset = 0;
+                } else {
+                    return Optional.empty();
+                }
+                int x = Integer.parseInt(parts[offset].trim());
+                int y = Integer.parseInt(parts[offset + 1].trim());
+                int z = Integer.parseInt(parts[offset + 2].trim());
+                return barterSigns.entrySet().stream()
+                    .filter(e -> {
+                        Location l = e.getKey();
+                        return l.getWorld() != null && l.getWorld().getName().equals(worldName)
+                            && l.getBlockX() == x && l.getBlockY() == y && l.getBlockZ() == z;
+                    })
+                    .findFirst();
+            } catch (NumberFormatException e) {
+                return Optional.empty();
+            }
+        }
+        try {
+            int shopId = Integer.parseInt(arg.trim());
+            return barterSigns.entrySet().stream()
+                .filter(e -> e.getValue().getShopId() == shopId)
+                .findFirst();
+        } catch (NumberFormatException e) {
+            return Optional.empty();
+        }
+    }
+
+    /**
+     * Loads one shop from the database into the cache, e.g. after /shop debug create, which
+     * writes only the row. Without this the shop exists but no command can find it.
+     */
+    public void hydrateById(int shopId) {
+        if (plugin.getShopRepository() == null) return;
+        plugin.getShopRepository().findById(shopId).thenAccept(opt -> opt.ifPresent(dto ->
+            plugin.getServer().getScheduler().runTask(plugin, () -> {
+                Location signLoc = dto.getSignLocation();
+                if (signLoc != null && signLoc.getWorld() != null && !barterSigns.containsKey(signLoc)) {
+                    if (!hydrateShop(dto, signLoc)) {
+                        logger.warning("Shop " + shopId + " has no sign block at " + signLoc + " - not cached");
+                    }
+                }
+            })
+        )).exceptionally(ex -> {
+            logger.warning("Could not hydrate shop " + shopId + ": " + ex.getMessage());
+            return null;
+        });
+    }
+
     public void removeBarterSign(Location loc) {
         BarterSign barterSign = barterSigns.remove(loc);
         if (barterSign == null) return;
@@ -497,13 +594,11 @@ public class SignManager implements Listener {
         // This method only handles cache cleanup and validation unregistration
         int shopId = barterSign.getShopId();
 
-        // INTEGRATION POINT 4: Unregister ShopContainer from validation listener
-        // Use same UUID generation as registration (nameUUIDFromBytes with shopId)
-        if (shopId > 0) {
-            UUID shopUuid = UUID.nameUUIDFromBytes(("bartershop:" + shopId).getBytes());
-            plugin.getContainerManager().getValidationListener().unregisterContainer(shopUuid);
-            logger.debug("Unregistered shop container validation for shop " + shopId);
-        }
+        // INTEGRATION POINT 4: Unregister ShopContainer from validation listener.
+        // Use the UUID the wrapper was registered under: shops created this session register a
+        // random UUID, so re-deriving it from the shop id missed them and leaked the guard (#2117).
+        unregisterContainerGuard(barterSign);
+        logger.debug("Unregistered shop container validation for shop " + shopId);
 
         // Clean up PDC data from sign block by removing sign block entirely
         // (Bukkit will handle PDC cleanup when block is broken)
@@ -521,6 +616,7 @@ public class SignManager implements Listener {
      */
     public void clearSigns() {
         int count = barterSigns.size();
+        barterSigns.values().forEach(this::unregisterContainerGuard);
         barterSigns.clear();
         logger.debug("Cleared " + count + " barter signs from memory");
     }

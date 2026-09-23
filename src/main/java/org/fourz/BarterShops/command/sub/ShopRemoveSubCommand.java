@@ -38,7 +38,7 @@ public class ShopRemoveSubCommand implements SubCommand {
         String shopId = args[0];
 
         // Find shop by ID
-        Optional<Map.Entry<Location, BarterSign>> shopEntry = findShopById(shopId);
+        Optional<Map.Entry<Location, BarterSign>> shopEntry = plugin.getSignManager().findShop(shopId, sender);
 
         if (shopEntry.isEmpty()) {
             // Cache miss — fall back to database (sign may be in unloaded chunk)
@@ -47,6 +47,19 @@ public class ShopRemoveSubCommand implements SubCommand {
                     Optional<ShopDataDTO> dbShop = plugin.getShopRepository().findById(shopId).join();
                     if (dbShop.isPresent()) {
                         ShopDataDTO dto = dbShop.get();
+                        Location signLoc = dto.getSignLocation();
+                        boolean chunkLoaded = signLoc != null && signLoc.getWorld() != null
+                                && signLoc.getWorld().isChunkLoaded(signLoc.getBlockX() >> 4, signLoc.getBlockZ() >> 4);
+                        if (chunkLoaded) {
+                            // Loaded but not cached: the row has no live sign (e.g. /shop debug create
+                            // before 1.1.37, or the sign was removed by hand). Say so instead of
+                            // sending the admin to load a chunk that is already loaded (#2117).
+                            sender.sendMessage(ChatColor.RED + "Shop exists in DB but has no registered sign.");
+                            sender.sendMessage(ChatColor.YELLOW + "Shop ID: " + dto.shopId() + " | Owner: " +
+                                    plugin.getPlayerLookup().getPlayerName(dto.ownerUuid()));
+                            sender.sendMessage(ChatColor.GRAY + "Use /shop debug remove " + dto.shopId() + " to delete the record.");
+                            return true;
+                        }
                         sender.sendMessage(ChatColor.RED + "Shop exists in DB but its sign chunk is not loaded.");
                         sender.sendMessage(ChatColor.YELLOW + "Shop ID: " + dto.shopId() + " | Owner: " +
                                 plugin.getPlayerLookup().getPlayerName(dto.ownerUuid()));
@@ -95,58 +108,13 @@ public class ShopRemoveSubCommand implements SubCommand {
         // UnsupportedOperationException before the DB delete ever ran.
         plugin.getSignManager().removeBarterSign(location);
 
-        int dbShopId = sign.getShopId();
-        if (dbShopId > 0 && plugin.getShopRepository() != null) {
-            plugin.getShopRepository().deleteById(dbShopId).thenAccept(deleted -> {
-                if (deleted) {
-                    plugin.getSignManager().notifyShopWebhook(String.valueOf(dbShopId));
-                }
-            }).exceptionally(ex -> {
-                plugin.getLogger().warning("ShopRemoveSubCommand: DB delete failed for shopId " + dbShopId + ": " + ex.getMessage());
-                return null;
-            });
-        }
+        plugin.getSignManager().deleteShopRecord(sign.getShopId());
 
         sender.sendMessage(ChatColor.GREEN + "Shop removed successfully.");
         sender.sendMessage(ChatColor.GRAY + "Location: " +
                 location.getBlockX() + ", " + location.getBlockY() + ", " + location.getBlockZ());
 
         return true;
-    }
-
-    private Optional<Map.Entry<Location, BarterSign>> findShopById(String id) {
-        Map<Location, BarterSign> shops = plugin.getSignManager().getBarterSigns();
-
-        // Try to match by location coordinates (x,y,z format)
-        if (id.contains(",")) {
-            String[] parts = id.split(",");
-            if (parts.length >= 3) {
-                try {
-                    int x = Integer.parseInt(parts[0].trim());
-                    int y = Integer.parseInt(parts[1].trim());
-                    int z = Integer.parseInt(parts[2].trim());
-
-                    return shops.entrySet().stream()
-                            .filter(entry -> {
-                                Location loc = entry.getKey();
-                                return loc.getBlockX() == x && loc.getBlockY() == y && loc.getBlockZ() == z;
-                            })
-                            .findFirst();
-                } catch (NumberFormatException ignored) {
-                }
-            }
-        }
-
-        // Try to match by database shop ID
-        try {
-            int targetId = Integer.parseInt(id);
-            return shops.entrySet().stream()
-                    .filter(entry -> entry.getValue().getShopId() == targetId)
-                    .findFirst();
-        } catch (NumberFormatException ignored) {
-        }
-
-        return Optional.empty();
     }
 
     @Override

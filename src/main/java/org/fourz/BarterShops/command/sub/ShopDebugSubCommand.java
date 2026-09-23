@@ -83,7 +83,6 @@ public class ShopDebugSubCommand implements SubCommand {
             Material.BLACK_SHULKER_BOX);
 
     /** Console owner UUID used when no player name is specified for {@code create}. */
-    private static final UUID CONSOLE_UUID = UUID.fromString("00000000-0000-0000-0000-000000000000");
 
     private final BarterShops plugin;
     private final LogManager logger;
@@ -761,14 +760,19 @@ public class ShopDebugSubCommand implements SubCommand {
 
     /**
      * Handle the create subcommand.
-     * Usage: /shop debug create <name> <world> <x> <y> <z> [ownerName]
+     * Usage: /shop debug create <name> <world> <x> <y> <z> <ownerName>
      *
      * <p>Programmatically creates a shop. The sign is placed at (x, y+1, z) as a standing OAK_SIGN.
      * If no owner is specified the console UUID ({@code 00000000-...}) is used.</p>
      */
     private boolean handleCreate(CommandSender sender, String[] args) {
+        if (!plugin.getConfigManager().getBoolean("debug.allow-test-data", false)) {
+            sender.sendMessage(ChatColor.RED + "x /shop debug create is disabled on this server.");
+            sender.sendMessage(ChatColor.GRAY + "Set debug.allow-test-data: true in BarterShops config.yml (Dev only).");
+            return true;
+        }
         if (args.length < 5) {
-            sender.sendMessage(ChatColor.RED + "> Usage: /shop debug create <name> <world> <x> <y> <z> [ownerName]");
+            sender.sendMessage(ChatColor.RED + "> Usage: /shop debug create <name> <world> <x> <y> <z> <ownerName>");
             return true;
         }
 
@@ -802,7 +806,10 @@ public class ShopDebugSubCommand implements SubCommand {
                 ownerUuid = offline.getUniqueId();
             }
         } else {
-            ownerUuid = CONSOLE_UUID;
+            // Never create an owner of 00000000-...: a console-created shop with no owner sat on
+            // the live Event server for five months (#2117). Name a real player.
+            sender.sendMessage(ChatColor.RED + "x An owner name is required: /shop debug create <name> <world> <x> <y> <z> <ownerName>");
+            return true;
         }
 
         World world = Bukkit.getWorld(worldName);
@@ -854,12 +861,15 @@ public class ShopDebugSubCommand implements SubCommand {
 
                         shopService.updateShop(String.valueOf(createdShop.shopId()), update)
                             .thenRun(() ->
-                                Bukkit.getScheduler().runTask(plugin, () ->
+                                Bukkit.getScheduler().runTask(plugin, () -> {
+                                    // Register the new shop in the sign cache; without this no
+                                    // command could find it until a restart (#2117).
+                                    plugin.getSignManager().hydrateById(createdShop.shopId());
                                     sender.sendMessage(ChatColor.GREEN + "+ Shop '"
                                             + shopName + "' created (#" + createdShop.shopId()
                                             + ") at " + worldName + ":" + cx + "," + cy + "," + cz
-                                            + " - sign at " + cx + "," + (cy + 1) + "," + cz)
-                                )
+                                            + " - sign at " + cx + "," + (cy + 1) + "," + cz);
+                                })
                             ).exceptionally(ex -> {
                                 sender.sendMessage(ChatColor.RED + "x Shop created but chest bind failed: "
                                         + ex.getMessage());
