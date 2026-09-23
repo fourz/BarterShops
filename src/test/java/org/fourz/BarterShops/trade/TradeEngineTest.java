@@ -101,6 +101,13 @@ class TradeEngineTest {
 
         // Setup plugin mocks
         when(plugin.getServer()).thenReturn(server);
+        // executeTrade runs on the main thread via runTask (#2116); run the task inline here
+        org.bukkit.scheduler.BukkitScheduler scheduler = mock(org.bukkit.scheduler.BukkitScheduler.class);
+        when(server.getScheduler()).thenReturn(scheduler);
+        when(scheduler.runTask(any(org.bukkit.plugin.Plugin.class), any(Runnable.class))).thenAnswer(inv -> {
+            inv.<Runnable>getArgument(1).run();
+            return null;
+        });
         when(plugin.getTradeService()).thenReturn(tradeService);
         when(plugin.getConfigManager()).thenReturn(configManager);
         when(configManager.getInt(anyString(), anyInt())).thenAnswer(inv -> inv.getArgument(1));

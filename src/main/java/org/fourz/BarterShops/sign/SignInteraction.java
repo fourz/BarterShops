@@ -114,7 +114,7 @@ public class SignInteraction {
                         // BARTER: Add/update payment option
                         if (player.isSneaking()) {
                             // Shift+L-Click: Decrement payment amount, or remove if at/below 0
-                            int currentAmount = barterSign.getPaymentAmount(itemInHand.getType());
+                            int currentAmount = barterSign.getPaymentAmount(itemInHand);
                             if (currentAmount <= 0) {
                                 player.sendMessage(ChatColor.YELLOW + "Not in payment list");
                             } else {
@@ -122,7 +122,7 @@ public class SignInteraction {
                                 int newAmount = currentAmount - step;
                                 if (newAmount <= 0) {
                                     // Decrement to zero: remove entirely
-                                    barterSign.removePaymentOption(itemInHand.getType());
+                                    barterSign.removePaymentOption(itemInHand);
                                     refreshSignState(sign, barterSign);
                                     player.sendMessage(ChatColor.RED + "- Removed: " + itemInHand.getType().name());
                                 } else {
@@ -140,7 +140,7 @@ public class SignInteraction {
                             }
                         } else {
                             // L-Click: Increment payment option (add if new, accumulate if existing)
-                            int currentAmount = barterSign.getPaymentAmount(itemInHand.getType());
+                            int currentAmount = barterSign.getPaymentAmount(itemInHand);
                             int step = itemInHand.getAmount();
                             int newAmount = currentAmount + step;
                             logger.info("[PAYMENT] " + (currentAmount > 0 ? "Updating" : "Adding") + " option " + itemInHand.getType() + " (" + currentAmount + " -> " + newAmount + ", step=" + step + ")");
@@ -687,9 +687,9 @@ public class SignInteraction {
                 return;
             }
 
-            // Get payment amount for this material
-            paymentAmount = barterSign.getPaymentAmount(customerHand.getType());
-            paymentItem = customerHand.clone();
+            // Take the configured item, not the held one - the held item is only proof of a match
+            paymentAmount = barterSign.getPaymentAmount(customerHand);
+            paymentItem = barterSign.findPaymentOption(customerHand).orElse(customerHand.clone());
             paymentItem.setAmount(1);
 
         } else {
@@ -796,10 +796,12 @@ public class SignInteraction {
             return;
         }
 
-        // Get first non-air item from chest (any item)
+        // Get first non-air item from chest that is not payment. Payments land in this same
+        // chest, so without the skip buyer B was sold buyer A's diamonds (#2116).
         ItemStack offering = null;
         for (ItemStack item : nsStockInv.getContents()) {
-            if (item != null && item.getType() != Material.AIR) {
+            if (item != null && item.getType() != Material.AIR
+                    && !item.isSimilar(paymentItem) && !barterSign.isPaymentAccepted(item)) {
                 offering = item.clone();
                 offering.setAmount(1); // Non-stackable: quantity 1
                 break;

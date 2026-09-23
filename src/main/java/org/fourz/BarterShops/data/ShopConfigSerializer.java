@@ -1,9 +1,11 @@
 package org.fourz.BarterShops.data;
 
 import org.bukkit.Material;
+import org.bukkit.configuration.file.YamlConfiguration;
 import org.bukkit.inventory.ItemStack;
 import org.bukkit.inventory.meta.ItemMeta;
 
+import java.nio.charset.StandardCharsets;
 import java.util.*;
 
 /**
@@ -25,6 +27,13 @@ public class ShopConfigSerializer {
         sb.append("{");
         sb.append("\"type\":\"").append(item.getType().name()).append("\",");
         sb.append("\"amount\":").append(item.getAmount()).append(",");
+
+        // Full-fidelity copy (potion data, stored enchants, damage, PDC). The readable fields
+        // around it are kept for the WebUI; deserializeItemStack prefers this one (#2116).
+        String full = encodeFull(item);
+        if (full != null) {
+            sb.append("\"b64\":\"").append(full).append("\",");
+        }
 
         if (item.hasItemMeta()) {
             ItemMeta meta = item.getItemMeta();
@@ -93,6 +102,15 @@ public class ShopConfigSerializer {
 
             Material type = Material.valueOf(typeStr);
             int amount = extractJsonInt(json, "\"amount\":");
+
+            String full = extractJsonString(json, "\"b64\":\"", "\"");
+            if (full != null && !full.isEmpty()) {
+                ItemStack restored = decodeFull(full);
+                if (restored != null && restored.getType() == type) {
+                    restored.setAmount(Math.max(1, amount));
+                    return restored;
+                }
+            }
 
             ItemStack item = new ItemStack(type, Math.max(1, amount));
 
@@ -184,6 +202,28 @@ public class ShopConfigSerializer {
 
         } catch (Exception e) {
             return items;
+        }
+    }
+
+    /** Bukkit's own ItemStack serialization, Base64-wrapped so it is safe inside the JSON string. */
+    private static String encodeFull(ItemStack item) {
+        try {
+            YamlConfiguration yaml = new YamlConfiguration();
+            yaml.set("item", item);
+            return Base64.getEncoder().encodeToString(yaml.saveToString().getBytes(StandardCharsets.UTF_8));
+        } catch (Throwable t) {
+            // No server runtime (unit tests) or an unserializable meta - the readable fields still apply
+            return null;
+        }
+    }
+
+    private static ItemStack decodeFull(String encoded) {
+        try {
+            YamlConfiguration yaml = new YamlConfiguration();
+            yaml.loadFromString(new String(Base64.getDecoder().decode(encoded), StandardCharsets.UTF_8));
+            return yaml.getItemStack("item");
+        } catch (Throwable t) {
+            return null;
         }
     }
 

@@ -545,6 +545,16 @@ public class ShopApiEndpointImpl implements IBarterShopsApiService {
     private List<ShopDataDTO> applyFilters(List<ShopDataDTO> shops, Map<String, String> filters) {
         List<ShopDataDTO> result = new ArrayList<>(shops);
 
+        // Deactivated shops stay out of listings unless asked for: ?active=false or ?active=all.
+        // findAll has no is_active filter, so dead rows reached the WebUI (#2116).
+        String activeFilter = filters.getOrDefault("active", "true");
+        if (!"all".equalsIgnoreCase(activeFilter)) {
+            boolean wantActive = !"false".equalsIgnoreCase(activeFilter);
+            result = result.stream()
+                .filter(shop -> shop.isActive() == wantActive)
+                .collect(Collectors.toList());
+        }
+
         String ownerFilter = filters.get("owner");
         if (ownerFilter != null && !ownerFilter.isEmpty()) {
             try {

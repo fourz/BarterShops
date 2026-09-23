@@ -460,7 +460,7 @@ public class InventoryValidationListener implements Listener {
         }
 
         // Validate quantity is an exact multiple of the required payment amount
-        int requiredQty = barterSign.getPaymentAmount(depositedItem.getType());
+        int requiredQty = barterSign.getPaymentAmount(depositedItem);
         if (requiredQty > 0) {
             int depositedAmount = depositedItem.getAmount();
             if (depositedAmount == 0 || depositedAmount % requiredQty != 0) {

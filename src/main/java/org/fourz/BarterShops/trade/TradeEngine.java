@@ -135,43 +135,53 @@ public class TradeEngine {
      * @return CompletableFuture with the trade result
      */
     public CompletableFuture<TradeResultDTO> executeTrade(String sessionId) {
-        return CompletableFuture.supplyAsync(() -> {
-            TradeSession session = activeSessions.get(sessionId);
-            if (session == null) {
-                return TradeResultDTO.failure("Trade session not found");
+        // Validate and exchange on the main thread, same as executeDirectTrade. This ran in
+        // supplyAsync: two buyers confirming against one stock could both validate and both
+        // be paid out, and an async snapshot restore could overwrite a player's inventory (#2116).
+        CompletableFuture<TradeResultDTO> future = new CompletableFuture<>();
+        plugin.getServer().getScheduler().runTask(plugin, () -> {
+            try {
+                future.complete(executeSessionTrade(sessionId));
+            } catch (Exception ex) {
+                logger.error("Trade execution failed: " + ex.getMessage());
+                fallbackTracker.recordFailure("Trade execution: " + ex.getMessage());
+                future.complete(TradeResultDTO.failure("Internal error: " + ex.getMessage()));
             }
-
-            if (session.isExpired()) {
-                cancelSession(sessionId);
-                return TradeResultDTO.failure("Trade session expired");
-            }
-
-            // Get buyer player
-            Player buyer = Bukkit.getPlayer(session.getBuyerUuid());
-            if (buyer == null || !buyer.isOnline()) {
-                session.setState(TradeSession.TradeState.FAILED);
-                return TradeResultDTO.failure("Buyer is not online");
-            }
-
-            // Validate the trade
-            session.setState(TradeSession.TradeState.VALIDATING);
-            TradeValidator.ValidationResult validation = validator.validate(session, buyer);
-
-            if (!validation.valid()) {
-                session.setState(TradeSession.TradeState.FAILED);
-                String errors = String.join(", ", validation.errors());
-                return TradeResultDTO.failure("Validation failed: " + errors);
-            }
-
-            // Execute the item exchange
-            session.setState(TradeSession.TradeState.PROCESSING);
-            return executeItemExchange(session, buyer, TradeSource.GUI_CONFIRMATION);
-
-        }).exceptionally(ex -> {
-            logger.error("Trade execution failed: " + ex.getMessage());
-            fallbackTracker.recordFailure("Trade execution: " + ex.getMessage());
-            return TradeResultDTO.failure("Internal error: " + ex.getMessage());
         });
+        return future;
+    }
+
+    private TradeResultDTO executeSessionTrade(String sessionId) {
+        TradeSession session = activeSessions.get(sessionId);
+        if (session == null) {
+            return TradeResultDTO.failure("Trade session not found");
+        }
+
+        if (session.isExpired()) {
+            cancelSession(sessionId);
+            return TradeResultDTO.failure("Trade session expired");
+        }
+
+        // Get buyer player
+        Player buyer = Bukkit.getPlayer(session.getBuyerUuid());
+        if (buyer == null || !buyer.isOnline()) {
+            session.setState(TradeSession.TradeState.FAILED);
+            return TradeResultDTO.failure("Buyer is not online");
+        }
+
+        // Validate the trade
+        session.setState(TradeSession.TradeState.VALIDATING);
+        TradeValidator.ValidationResult validation = validator.validate(session, buyer);
+
+        if (!validation.valid()) {
+            session.setState(TradeSession.TradeState.FAILED);
+            String errors = String.join(", ", validation.errors());
+            return TradeResultDTO.failure("Validation failed: " + errors);
+        }
+
+        // Execute the item exchange
+        session.setState(TradeSession.TradeState.PROCESSING);
+        return executeItemExchange(session, buyer, TradeSource.GUI_CONFIRMATION);
     }
 
     /**

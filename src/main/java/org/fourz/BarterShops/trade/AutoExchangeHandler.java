@@ -92,7 +92,7 @@ public class AutoExchangeHandler {
             );
         }
         int baseOfferedQty = offering.getAmount();
-        int basePaymentQty = shop.getPaymentAmount(depositedItem.getType());
+        int basePaymentQty = shop.getPaymentAmount(depositedItem);
 
         if (basePaymentQty == 0) {
             return CompletableFuture.completedFuture(
@@ -211,7 +211,7 @@ public class AutoExchangeHandler {
         if (shop.getType() == org.fourz.BarterShops.sign.SignType.BARTER) {
             // Check player inventory for any accepted payment
             for (ItemStack acceptedPayment : shop.getAcceptedPayments()) {
-                int baseRequired = shop.getPaymentAmount(acceptedPayment.getType());
+                int baseRequired = shop.getPaymentAmount(acceptedPayment);
                 int totalRequired = baseRequired * increments;
                 int available = countItems(player.getInventory(), acceptedPayment);
                 if (available >= totalRequired) {
