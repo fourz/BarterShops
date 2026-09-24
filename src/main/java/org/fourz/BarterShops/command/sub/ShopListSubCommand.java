@@ -73,21 +73,30 @@ public class ShopListSubCommand implements SubCommand {
             }
         }
 
-        List<ShopDataDTO> allShops;
-        try {
-            allShops = filterOwner != null
-                    ? plugin.getShopRepository().findByOwner(filterOwner).join()
-                    : plugin.getShopRepository().findAllActive().join();
-        } catch (Exception e) {
-            sender.sendMessage(ChatColor.RED + "Failed to query shops from database.");
-            return true;
-        }
+        // Query off the main thread and render back on it; the join() here froze the server
+        // for the length of the query (#2118)
+        final UUID owner = filterOwner;
+        final int requestedPage = page;
+        var query = owner != null
+                ? plugin.getShopRepository().findByOwner(owner)
+                : plugin.getShopRepository().findAllActive();
+        query.whenComplete((allShops, ex) -> plugin.getServer().getScheduler().runTask(plugin, () -> {
+            if (ex != null || allShops == null) {
+                sender.sendMessage(ChatColor.RED + "Failed to query shops from database.");
+                return;
+            }
+            renderPage(sender, allShops, owner, requestedPage);
+        }));
 
+        return true;
+    }
+
+    private void renderPage(CommandSender sender, List<ShopDataDTO> allShops, UUID filterOwner, int page) {
         if (allShops.isEmpty()) {
             sender.sendMessage(ChatColor.YELLOW + (filterOwner != null
                     ? "No shops found for that player."
                     : "No shops found!"));
-            return true;
+            return;
         }
 
         // Pagination
@@ -112,8 +121,6 @@ public class ShopListSubCommand implements SubCommand {
                     : "/shop list <page>";
             sender.sendMessage(ChatColor.GRAY + "Use " + navHint + " to navigate pages");
         }
-
-        return true;
     }
 
     @Override

@@ -70,14 +70,23 @@ public class StatsServiceImpl implements IStatsService {
         }
 
         String playerName = plugin.getPlayerLookup().getPlayerName(playerUuid);
-        int tradesCompleted = calculatePlayerTrades(playerUuid);
-        int itemsTraded = calculatePlayerItems(playerUuid);
-        Map<String, Integer> tradedItems = getMostTradedItemsForPlayer(playerUuid);
+        // Trade totals are composed, not join()ed: three blocking queries ran on the caller's
+        // thread (the main thread for /shop stats) before this future was even returned (#2118)
+        CompletableFuture<Integer> tradesFuture = playerTradeCountAsync(playerUuid);
+        CompletableFuture<List<TradeRecordDTO>> historyFuture = playerTradeHistoryAsync(playerUuid);
 
         CompletableFuture<Integer> shopCountFuture = shopService.getShopCountByOwner(playerUuid);
         CompletableFuture<List<ShopDataDTO>> ownedShopsFuture = shopService.getShopsByOwner(playerUuid);
 
-        return shopCountFuture.thenCombine(ownedShopsFuture, (shopsOwned, ownedShops) -> {
+        return CompletableFuture.allOf(tradesFuture, historyFuture, shopCountFuture, ownedShopsFuture).thenCompose(done -> {
+            // allOf has completed every future; getNow never blocks here
+            int tradesCompleted = tradesFuture.getNow(0);
+            List<TradeRecordDTO> history = historyFuture.getNow(List.of());
+            int itemsTraded = sumQuantities(history);
+            Map<String, Integer> tradedItems = groupByItemType(history);
+            int shopsOwned = shopCountFuture.getNow(0);
+            List<ShopDataDTO> ownedShops = ownedShopsFuture.getNow(List.of());
+
             if (ratingService == null || ownedShops.isEmpty()) {
                 StatsDataDTO stats = StatsDataDTO.playerStats(
                     playerUuid, playerName, shopsOwned, tradesCompleted, itemsTraded, 0.0, 0, tradedItems
@@ -107,7 +116,7 @@ public class StatsServiceImpl implements IStatsService {
                     }
                     return stats;
                 });
-        }).thenCompose(f -> f);
+        });
     }
 
     @Override
@@ -155,8 +164,14 @@ public class StatsServiceImpl implements IStatsService {
             return CompletableFuture.completedFuture((StatsDataDTO) serverStatsCache.data);
         }
 
-        return shopService.getAllShops().thenCompose(allShops -> {
+        // Composed rather than join()ed inside the callback, for the same reason as getPlayerStats (#2118)
+        CompletableFuture<List<ShopDataDTO>> shopsFuture = shopService.getAllShops();
+        CompletableFuture<Integer> totalTradesFuture = totalTradeCountAsync();
+        CompletableFuture<List<TradeRecordDTO>> recentFuture = recentTradesAsync();
+
+        return CompletableFuture.allOf(shopsFuture, totalTradesFuture, recentFuture).thenCompose(done -> {
             logger.debug("Calculating server stats");
+            List<ShopDataDTO> allShops = shopsFuture.getNow(List.of());
 
             int totalShops = allShops.size();
             int activeShops = (int) allShops.stream().filter(ShopDataDTO::isActive).count();
@@ -166,10 +181,11 @@ public class StatsServiceImpl implements IStatsService {
                 .collect(Collectors.toSet());
             int totalPlayers = uniquePlayers.size();
 
-            int totalTrades = calculateTotalTrades();
-            int totalItemsTraded = calculateTotalItems();
+            List<TradeRecordDTO> recentTrades = recentFuture.getNow(List.of());
+            int totalTrades = totalTradesFuture.getNow(0);
+            int totalItemsTraded = sumQuantities(recentTrades);
             double avgTradesPerShop = totalShops > 0 ? (double) totalTrades / totalShops : 0.0;
-            Map<String, Integer> mostTradedItems = getMostTradedItemsGlobal();
+            Map<String, Integer> mostTradedItems = groupByItemType(recentTrades);
 
             return getTopShopsByTrades(5).thenApply(topShops -> {
                 StatsDataDTO.ServerStats serverStats = StatsDataDTO.ServerStats.create(
@@ -422,11 +438,41 @@ public class StatsServiceImpl implements IStatsService {
         return ts.getPlayerTradeCount(playerUuid).join().intValue();
     }
 
-    private int calculatePlayerItems(UUID playerUuid) {
+    private CompletableFuture<Integer> playerTradeCountAsync(UUID playerUuid) {
         TradeServiceImpl ts = getTradeService();
-        if (ts == null) return 0;
-        List<TradeRecordDTO> trades = ts.getTradeHistory(playerUuid, 1000).join();
+        if (ts == null) return CompletableFuture.completedFuture(0);
+        return ts.getPlayerTradeCount(playerUuid).thenApply(Long::intValue).exceptionally(e -> 0);
+    }
+
+    private CompletableFuture<List<TradeRecordDTO>> playerTradeHistoryAsync(UUID playerUuid) {
+        TradeServiceImpl ts = getTradeService();
+        if (ts == null) return CompletableFuture.completedFuture(List.of());
+        return ts.getTradeHistory(playerUuid, 1000).exceptionally(e -> List.of());
+    }
+
+    private CompletableFuture<Integer> totalTradeCountAsync() {
+        TradeServiceImpl ts = getTradeService();
+        if (ts == null) return CompletableFuture.completedFuture(0);
+        return ts.getTotalTradeCount().thenApply(Long::intValue).exceptionally(e -> 0);
+    }
+
+    private CompletableFuture<List<TradeRecordDTO>> recentTradesAsync() {
+        TradeServiceImpl ts = getTradeService();
+        if (ts == null) return CompletableFuture.completedFuture(List.of());
+        return ts.getRecentTrades(10000).exceptionally(e -> List.of());
+    }
+
+    private static int sumQuantities(List<TradeRecordDTO> trades) {
         return trades.stream().mapToInt(TradeRecordDTO::quantity).sum();
+    }
+
+    private Map<String, Integer> groupByItemType(List<TradeRecordDTO> trades) {
+        return trades.stream()
+            .filter(t -> t.itemStackData() != null)
+            .collect(Collectors.groupingBy(
+                t -> extractItemType(t.itemStackData()),
+                Collectors.summingInt(TradeRecordDTO::quantity)
+            ));
     }
 
     private int calculateTotalTrades() {
@@ -446,18 +492,6 @@ public class StatsServiceImpl implements IStatsService {
         TradeServiceImpl ts = getTradeService();
         if (ts == null) return 0;
         return ts.getShopTradeCount(shopId).join().intValue();
-    }
-
-    private Map<String, Integer> getMostTradedItemsForPlayer(UUID playerUuid) {
-        TradeServiceImpl ts = getTradeService();
-        if (ts == null) return Map.of();
-        List<TradeRecordDTO> trades = ts.getTradeHistory(playerUuid, 1000).join();
-        return trades.stream()
-            .filter(t -> t.itemStackData() != null)
-            .collect(Collectors.groupingBy(
-                t -> extractItemType(t.itemStackData()),
-                Collectors.summingInt(TradeRecordDTO::quantity)
-            ));
     }
 
     private Map<String, Integer> getMostTradedItemsGlobal() {

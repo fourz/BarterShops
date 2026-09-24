@@ -325,11 +325,11 @@ public class ShopApiEndpointImpl implements IBarterShopsApiService {
 
         String worldFilter = filters.get("world");
 
+        // Compose the per-group shop counts instead of join()ing them inside the callback: that
+        // callback runs on the 2-thread group repository executor, and the joined query queued on
+        // the same executor, so two concurrent requests deadlocked the pool (#2118)
         return shopGroupService.getPlayerGroups(ownerUuid)
-            .<ApiResponse<?>>handle((groups, ex) -> {
-                if (ex != null) return ApiResponse.error("INTERNAL_ERROR",
-                    "Failed to retrieve groups: " + ex.getMessage());
-
+            .thenCompose(groups -> {
                 List<ShopGroupDTO> filtered = groups;
                 if (worldFilter != null && !worldFilter.isEmpty()) {
                     filtered = groups.stream()
@@ -345,33 +345,43 @@ public class ShopApiEndpointImpl implements IBarterShopsApiService {
                 List<ShopGroupDTO> paginated = startIndex >= total
                     ? List.of() : filtered.subList(startIndex, endIndex);
 
-                List<Map<String, Object>> enriched = paginated.stream().map(group -> {
-                    Map<String, Object> m = new LinkedHashMap<>();
-                    m.put("groupId", group.groupId());
-                    m.put("groupName", group.groupName());
-                    m.put("ownerUuid", group.ownerUuid().toString());
-                    m.put("ownerName", resolvePlayerName(group.ownerUuid()));
-                    m.put("world", group.world());
-                    m.put("isActive", group.isActive());
-                    m.put("createdAt", group.createdAt() != null
-                        ? group.createdAt().toInstant().toString() : null);
-                    m.put("coOwners", group.coOwners().stream().map(uuid -> {
-                        Map<String, String> co = new LinkedHashMap<>();
-                        co.put("uuid", uuid.toString());
-                        co.put("name", resolvePlayerName(uuid));
-                        return co;
-                    }).toList());
-                    // Shop count fetched synchronously from the future (already completed by service layer)
-                    try {
-                        List<ShopDataDTO> shops = shopGroupService.getGroupShops(group.groupId()).join();
-                        m.put("shopCount", shops.size());
-                    } catch (Exception e) {
-                        m.put("shopCount", 0);
-                    }
-                    return m;
-                }).toList();
+                List<CompletableFuture<Integer>> shopCounts = paginated.stream()
+                    .map(group -> shopGroupService.getGroupShops(group.groupId())
+                        .thenApply(List::size)
+                        .exceptionally(e -> 0))
+                    .toList();
 
-                return ApiResponse.success(enriched, page, limit, total);
+                return CompletableFuture.allOf(shopCounts.toArray(new CompletableFuture[0]))
+                    .thenApply(done -> {
+                        List<Map<String, Object>> enriched = new ArrayList<>();
+                        for (int i = 0; i < paginated.size(); i++) {
+                            ShopGroupDTO group = paginated.get(i);
+                            Map<String, Object> m = new LinkedHashMap<>();
+                            m.put("groupId", group.groupId());
+                            m.put("groupName", group.groupName());
+                            m.put("ownerUuid", group.ownerUuid().toString());
+                            m.put("ownerName", resolvePlayerName(group.ownerUuid()));
+                            m.put("world", group.world());
+                            m.put("isActive", group.isActive());
+                            m.put("createdAt", group.createdAt() != null
+                                ? group.createdAt().toInstant().toString() : null);
+                            m.put("coOwners", group.coOwners().stream().map(uuid -> {
+                                Map<String, String> co = new LinkedHashMap<>();
+                                co.put("uuid", uuid.toString());
+                                co.put("name", resolvePlayerName(uuid));
+                                return co;
+                            }).toList());
+                            // allOf has completed every count; getNow never blocks here
+                            m.put("shopCount", shopCounts.get(i).getNow(0));
+                            enriched.add(m);
+                        }
+                        return (ApiResponse<?>) ApiResponse.success(enriched, page, limit, total);
+                    });
+            })
+            .<ApiResponse<?>>handle((response, ex) -> {
+                if (ex != null) return ApiResponse.error("INTERNAL_ERROR",
+                    "Failed to retrieve groups: " + ex.getMessage());
+                return response;
             });
     }
 

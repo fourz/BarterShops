@@ -29,6 +29,17 @@ public interface IShopRepository {
     CompletableFuture<ShopDataDTO> save(ShopDataDTO shop);
 
     /**
+     * Updates an existing shop's row and its sign configuration in one transaction.
+     * Unlike {@link #save}, any {@link ShopDataDTO#CONFIG_METADATA_KEYS} key missing from the
+     * DTO is deleted, so removed configuration does not come back on restart. Metadata outside
+     * that set is left untouched.
+     *
+     * @param shop The shop data to save (shopId must be set)
+     * @return CompletableFuture containing the saved shop
+     */
+    CompletableFuture<ShopDataDTO> saveConfiguration(ShopDataDTO shop);
+
+    /**
      * Finds a shop by its unique ID.
      *
      * @param shopId The shop ID to find

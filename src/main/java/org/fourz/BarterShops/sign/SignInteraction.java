@@ -1205,8 +1205,9 @@ public class SignInteraction {
     }
 
     /**
-     * Checks if a player is a co-owner of the shop's group.
-     * Uses canManageShop from ShopGroupService with a short timeout.
+     * Checks if a player is the owner or a co-owner of the shop's group.
+     * Reads the in-memory co-owner cache only: the old DB check blocked the main thread for up
+     * to 2 s on every non-owner click on a grouped shop (#2118).
      * Returns false if group service is unavailable or shop is ungrouped.
      */
     private boolean isCoOwner(BarterSign barterSign, UUID playerUuid) {
@@ -1215,13 +1216,7 @@ public class SignInteraction {
         org.fourz.BarterShops.service.IShopGroupService groupService = plugin.getShopGroupService();
         if (groupService == null) return false;
 
-        try {
-            return groupService.canManageShop(barterSign.getShopId(), playerUuid)
-                .get(2, java.util.concurrent.TimeUnit.SECONDS);
-        } catch (Exception e) {
-            logger.debug("Co-owner check failed for shop " + barterSign.getShopId() + ": " + e.getMessage());
-            return false;
-        }
+        return groupService.canManageGroupCached(barterSign.getGroupId(), playerUuid);
     }
 
     /**

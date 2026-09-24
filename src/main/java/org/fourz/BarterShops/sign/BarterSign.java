@@ -24,7 +24,7 @@ public class BarterSign implements ISignData {
     private final String id;
     private final UUID owner;
     private final Location signLocation;
-    private int groupId;
+    private volatile int groupId;  // written from DB callbacks by group commands and transfers (#2118)
     private SignType type;
     private Container container;
     private Container shopContainer;

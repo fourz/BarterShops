@@ -143,6 +143,43 @@ public class ShopRepositoryImpl implements IShopRepository {
     }
 
     @Override
+    public CompletableFuture<ShopDataDTO> saveConfiguration(ShopDataDTO shop) {
+        if (fallbackTracker.isInFallbackMode()) {
+            return CompletableFuture.completedFuture(shop);
+        }
+        if (shop.shopId() <= 0) {
+            return save(shop);
+        }
+
+        return CompletableFuture.supplyAsync(() -> {
+            try (Connection conn = connectionProvider.getConnection()) {
+                boolean autoCommit = conn.getAutoCommit();
+                conn.setAutoCommit(false);
+                try {
+                    updateShopRowInternal(conn, shop);
+                    // Config keys the sign no longer carries are deleted, not left behind: the
+                    // upsert-only save brought a removed payment or price back on restart (#2118)
+                    deleteAbsentConfigKeysInternal(conn, shop.shopId(), shop.metadata());
+                    saveMetadataInternal(conn, shop.shopId(), shop.metadata());
+                    conn.commit();
+                } catch (SQLException e) {
+                    conn.rollback();
+                    throw e;
+                } finally {
+                    conn.setAutoCommit(autoCommit);
+                }
+                fallbackTracker.recordSuccess();
+                return shop;
+
+            } catch (SQLException e) {
+                fallbackTracker.recordFailure("Save shop configuration failed: " + e.getMessage());
+                logger.error("Failed to save shop configuration: " + e.getMessage());
+                throw new RuntimeException("Failed to save shop configuration", e);
+            }
+        }, executor);
+    }
+
+    @Override
     public CompletableFuture<Optional<ShopDataDTO>> findById(int shopId) {
         if (fallbackTracker.isInFallbackMode()) {
             return CompletableFuture.completedFuture(Optional.empty());
@@ -698,6 +735,54 @@ public class ShopRepositoryImpl implements IShopRepository {
                 stmt.addBatch();
             }
             stmt.executeBatch();
+        }
+    }
+
+    private void updateShopRowInternal(Connection conn, ShopDataDTO shop) throws SQLException {
+        String sql = "UPDATE " + t("shops") + " SET owner_uuid = ?, shop_name = ?, shop_type = ?, " +
+            "location_world = ?, location_x = ?, location_y = ?, location_z = ?, " +
+            "chest_location_world = ?, chest_location_x = ?, chest_location_y = ?, " +
+            "chest_location_z = ?, is_active = ?, last_modified = CURRENT_TIMESTAMP " +
+            "WHERE shop_id = ?";
+
+        try (PreparedStatement stmt = conn.prepareStatement(sql)) {
+            stmt.setString(1, shop.ownerUuid().toString());
+            stmt.setString(2, shop.shopName());
+            stmt.setString(3, shop.shopType().name());
+            stmt.setString(4, shop.locationWorld());
+            stmt.setDouble(5, shop.locationX());
+            stmt.setDouble(6, shop.locationY());
+            stmt.setDouble(7, shop.locationZ());
+            stmt.setString(8, shop.chestLocationWorld());
+            stmt.setDouble(9, shop.chestLocationX());
+            stmt.setDouble(10, shop.chestLocationY());
+            stmt.setDouble(11, shop.chestLocationZ());
+            stmt.setBoolean(12, shop.isActive());
+            stmt.setInt(13, shop.shopId());
+            stmt.executeUpdate();
+        }
+    }
+
+    private void deleteAbsentConfigKeysInternal(Connection conn, int shopId, Map<String, String> metadata)
+            throws SQLException {
+        List<String> absent = new ArrayList<>();
+        for (String key : ShopDataDTO.CONFIG_METADATA_KEYS) {
+            if (metadata == null || !metadata.containsKey(key)) {
+                absent.add(key);
+            }
+        }
+        if (absent.isEmpty()) {
+            return;
+        }
+
+        String placeholders = String.join(", ", Collections.nCopies(absent.size(), "?"));
+        String sql = "DELETE FROM " + t("shop_metadata") + " WHERE shop_id = ? AND meta_key IN (" + placeholders + ")";
+        try (PreparedStatement stmt = conn.prepareStatement(sql)) {
+            stmt.setInt(1, shopId);
+            for (int i = 0; i < absent.size(); i++) {
+                stmt.setString(i + 2, absent.get(i));
+            }
+            stmt.executeUpdate();
         }
     }
 

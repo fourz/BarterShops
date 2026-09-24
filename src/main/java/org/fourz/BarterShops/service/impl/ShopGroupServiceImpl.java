@@ -5,7 +5,9 @@ import org.fourz.BarterShops.data.dto.ShopDataDTO;
 import org.fourz.BarterShops.data.dto.ShopGroupDTO;
 import org.fourz.BarterShops.data.repository.IShopGroupRepository;
 import org.fourz.BarterShops.data.repository.IShopRepository;
+import org.fourz.BarterShops.service.GroupAccessCache;
 import org.fourz.BarterShops.service.IShopGroupService;
+import org.fourz.BarterShops.sign.SignManager;
 import org.fourz.rvnkcore.util.log.LogManager;
 
 import java.util.*;
@@ -25,6 +27,10 @@ public class ShopGroupServiceImpl implements IShopGroupService {
 
     // Per-owner lock to prevent race conditions during auto-grouping
     private final ConcurrentHashMap<UUID, Object> ownerLocks = new ConcurrentHashMap<>();
+
+    // groupId -> owner + co-owners, read by sign clicks instead of the database (#2118)
+    private final GroupAccessCache accessCache = new GroupAccessCache();
+    private static final int CACHE_RELOAD_ATTEMPTS = 3;
 
     public ShopGroupServiceImpl(BarterShops plugin, IShopGroupRepository groupRepository,
                                  IShopRepository shopRepository) {
@@ -87,6 +93,10 @@ public class ShopGroupServiceImpl implements IShopGroupService {
                     ownerLocks.remove(ownerUuid, lock);
                 }
             }
+        }).thenApply(assigned -> {
+            // A new shop's group (often just created) must be in the co-owner cache (#2118)
+            assigned.ifPresent(accessCache::put);
+            return assigned;
         });
     }
 
@@ -166,8 +176,11 @@ public class ShopGroupServiceImpl implements IShopGroupService {
 
                     for (ShopDataDTO shop : clusterShops) {
                         groupRepository.assignShopToGroup(shop.shopId(), group.groupId()).join();
+                        // Signs were hydrated before this ran; give them the new group (#2118)
+                        withSignManager(sm -> sm.setShopGroupId(shop.shopId(), group.groupId()));
                         shopCount++;
                     }
+                    accessCache.put(group);
                     groupCount++;
                 }
 
@@ -190,7 +203,11 @@ public class ShopGroupServiceImpl implements IShopGroupService {
                 .ownerUuid(ownerUuid)
                 .world(world)
                 .isActive(true)
-                .build());
+                .build())
+            .thenApply(group -> {
+                accessCache.put(group); // keep the co-owner cache in step (#2118)
+                return group;
+            });
     }
 
     @Override
@@ -219,7 +236,14 @@ public class ShopGroupServiceImpl implements IShopGroupService {
             if (opt.isEmpty()) return CompletableFuture.completedFuture(false);
             ShopGroupDTO group = opt.get();
             if (!group.ownerUuid().equals(requester)) return CompletableFuture.completedFuture(false);
-            return groupRepository.deleteById(groupId);
+            return groupRepository.deleteById(groupId).thenApply(deleted -> {
+                if (deleted) {
+                    // The DB unassigns the group's shops; do the same to the caches (#2118)
+                    accessCache.remove(groupId);
+                    withSignManager(sm -> sm.clearGroup(groupId));
+                }
+                return deleted;
+            });
         });
     }
 
@@ -234,7 +258,12 @@ public class ShopGroupServiceImpl implements IShopGroupService {
             ShopDataDTO shop = shopOpt.get();
             // Only the shop owner can assign their shop to a group
             if (!shop.ownerUuid().equals(requester)) return CompletableFuture.completedFuture(false);
-            return groupRepository.assignShopToGroup(shopId, groupId);
+            return withAccessRefresh(groupRepository.assignShopToGroup(shopId, groupId), groupId)
+                .thenApply(assigned -> {
+                    // The cached sign kept its old group until restart (#2118)
+                    if (assigned) withSignManager(sm -> sm.setShopGroupId(shopId, groupId));
+                    return assigned;
+                });
         });
     }
 
@@ -244,7 +273,11 @@ public class ShopGroupServiceImpl implements IShopGroupService {
             if (shopOpt.isEmpty()) return CompletableFuture.completedFuture(false);
             ShopDataDTO shop = shopOpt.get();
             if (!shop.ownerUuid().equals(requester)) return CompletableFuture.completedFuture(false);
-            return groupRepository.removeShopFromGroup(shopId);
+            return groupRepository.removeShopFromGroup(shopId).thenApply(removed -> {
+                // Without this the old co-owners kept access to the cached sign (#2118)
+                if (removed) withSignManager(sm -> sm.setShopGroupId(shopId, 0));
+                return removed;
+            });
         });
     }
 
@@ -273,7 +306,7 @@ public class ShopGroupServiceImpl implements IShopGroupService {
             // Cannot add self as co-owner
             if (requester.equals(coOwner)) return CompletableFuture.completedFuture(false);
 
-            return groupRepository.addCoOwner(groupId, coOwner);
+            return withAccessRefresh(groupRepository.addCoOwner(groupId, coOwner), groupId);
         });
     }
 
@@ -283,7 +316,7 @@ public class ShopGroupServiceImpl implements IShopGroupService {
             if (opt.isEmpty()) return CompletableFuture.completedFuture(false);
             ShopGroupDTO group = opt.get();
             if (!group.ownerUuid().equals(requester)) return CompletableFuture.completedFuture(false);
-            return groupRepository.removeCoOwner(groupId, coOwner);
+            return withAccessRefresh(groupRepository.removeCoOwner(groupId, coOwner), groupId);
         });
     }
 
@@ -305,7 +338,7 @@ public class ShopGroupServiceImpl implements IShopGroupService {
                     .coOwners(group.coOwners())
                     .build();
 
-            return groupRepository.save(updated).thenApply(saved -> true);
+            return withAccessRefresh(groupRepository.save(updated).thenApply(saved -> true), groupId);
         });
     }
 
@@ -333,6 +366,70 @@ public class ShopGroupServiceImpl implements IShopGroupService {
                 return groupOpt.get().canManage(playerUuid);
             });
         });
+    }
+
+    // ========================================================
+    // Co-Owner Cache (#2118)
+    // ========================================================
+
+    @Override
+    public boolean canManageGroupCached(int groupId, UUID playerUuid) {
+        return accessCache.canManage(groupId, playerUuid);
+    }
+
+    @Override
+    public CompletableFuture<Void> refreshAccessCache() {
+        return reloadAccessCache(CACHE_RELOAD_ATTEMPTS);
+    }
+
+    private CompletableFuture<Void> reloadAccessCache(int attemptsLeft) {
+        long token = accessCache.beginReload();
+        return groupRepository.findAllActive().thenCompose(groups -> {
+            if (accessCache.replaceAll(groups, token)) {
+                logger.debug("Co-owner cache loaded: " + groups.size() + " groups");
+                return CompletableFuture.<Void>completedFuture(null);
+            }
+            // A group changed while this snapshot loaded; it may be stale, so load again
+            return attemptsLeft > 1
+                ? reloadAccessCache(attemptsLeft - 1)
+                : CompletableFuture.<Void>completedFuture(null);
+        }).exceptionally(ex -> {
+            // Keep the previous cache: an empty one would lock every co-owner out
+            logger.warning("Co-owner cache reload failed, keeping previous entries: " + ex.getMessage());
+            return null;
+        });
+    }
+
+    @Override
+    public CompletableFuture<Void> refreshGroupAccess(int groupId) {
+        return groupRepository.findById(groupId).thenAccept(opt -> {
+            // findById returns only active groups; absent means deleted or deactivated
+            if (opt.isPresent()) {
+                accessCache.put(opt.get());
+            } else {
+                accessCache.remove(groupId);
+            }
+        }).exceptionally(ex -> {
+            logger.warning("Co-owner cache refresh failed for group " + groupId + ": " + ex.getMessage());
+            return null;
+        });
+    }
+
+    @Override
+    public void clearAccessCache() {
+        accessCache.clear();
+    }
+
+    /** Runs the mutation, then refreshes that group's cache entry before reporting the result. */
+    private <T> CompletableFuture<T> withAccessRefresh(CompletableFuture<T> mutation, int groupId) {
+        return mutation.thenCompose(result -> refreshGroupAccess(groupId).thenApply(v -> result));
+    }
+
+    private void withSignManager(java.util.function.Consumer<SignManager> action) {
+        SignManager signManager = plugin.getSignManager();
+        if (signManager != null) {
+            action.accept(signManager);
+        }
     }
 
     // ========================================================

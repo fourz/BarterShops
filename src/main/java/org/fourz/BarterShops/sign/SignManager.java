@@ -141,13 +141,15 @@ public class SignManager implements Listener {
             .signLocation(signLoc)
             .container(container)
             .mode(ShopMode.BOARD)
-            .type(SignType.BARTER)
+            .type(SignType.fromShopType(shop.shopType())) // was hardcoded BARTER; SELL/BUY reset on restart (#2118)
             .signSideDisplayFront(sign.getSide(org.bukkit.block.sign.Side.FRONT))
             .signSideDisplayBack(sign.getSide(org.bukkit.block.sign.Side.BACK))
             .build();
 
         // Set shop ID for database reference
         barterSign.setShopId(shop.shopId());
+        // Restore the group: without it co-owner access died on every restart (#2118)
+        barterSign.setGroupId(shop.groupId() != null ? shop.groupId() : 0);
 
         // Load persisted configuration
         configManager.loadSignConfiguration(barterSign, shop);
@@ -585,6 +587,28 @@ public class SignManager implements Listener {
         });
     }
 
+    /**
+     * Sets the group on the cached sign for a shop (0 = ungrouped). Group commands wrote only
+     * the DB row, so the cached sign kept its old group until restart (#2118).
+     */
+    public void setShopGroupId(int shopId, int groupId) {
+        for (BarterSign sign : barterSigns.values()) {
+            if (sign.getShopId() == shopId) {
+                sign.setGroupId(groupId);
+            }
+        }
+    }
+
+    /** Ungroups every cached sign in a deleted group, matching the DB unassign (#2118). */
+    public void clearGroup(int groupId) {
+        if (groupId <= 0) return;
+        for (BarterSign sign : barterSigns.values()) {
+            if (sign.getGroupId() == groupId) {
+                sign.setGroupId(0);
+            }
+        }
+    }
+
     public void removeBarterSign(Location loc) {
         BarterSign barterSign = barterSigns.remove(loc);
         if (barterSign == null) return;
@@ -697,12 +721,15 @@ public class SignManager implements Listener {
                     newSign.addPaymentOption(payment, payment.getAmount());
                 }
                 newSign.setTypeDetected(oldSign.isTypeDetected());
+                // Admin flag and group were dropped here, so a reload demoted admin shops and
+                // lost co-owner access. Group comes from the fresh row: a transfer clears it (#2118).
+                newSign.setAdmin(oldSign.isAdmin());
+                newSign.setGroupId(shopData.groupId() != null ? shopData.groupId() : 0);
 
-                // Step 4: CRITICAL - Unregister old ShopContainer wrapper
+                // Step 4: CRITICAL - Unregister old ShopContainer wrapper under the UUID it was
+                // registered with (a session-created shop uses a random one, #2117)
                 if (oldSign.getShopContainerWrapper() != null) {
-                    UUID oldShopUuid = java.util.UUID.nameUUIDFromBytes(("bartershop:" + oldSign.getShopId()).getBytes());
-                    plugin.getContainerManager().getValidationListener()
-                        .unregisterContainer(oldShopUuid);
+                    unregisterContainerGuard(oldSign);
                 }
 
                 // Step 5: Rebuild ShopContainer wrapper with new BarterSign
