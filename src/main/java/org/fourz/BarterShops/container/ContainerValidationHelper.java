@@ -95,7 +95,7 @@ public class ContainerValidationHelper {
         // Reject offering items - customers shouldn't place what they're supposed to receive
         if (barterSign.getItemOffering() != null &&
             item.getType() == barterSign.getItemOffering().getType()) {
-            String offeringName = barterSign.getItemOffering().getType().name().toLowerCase().replace('_', ' ');
+            String offeringName = org.fourz.BarterShops.sign.renderer.SignRenderUtil.formatItemName(barterSign.getItemOffering());
             return ValidationResult.failure(
                 "Can't place offering here - that's what you'll receive!",
                 item

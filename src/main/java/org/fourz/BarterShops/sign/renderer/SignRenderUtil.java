@@ -59,7 +59,50 @@ public final class SignRenderUtil {
         if (item.hasItemMeta() && item.getItemMeta().hasDisplayName()) {
             return item.getItemMeta().getDisplayName();
         }
-        String[] words = item.getType().name().toLowerCase().split("_");
+        // Items whose identity lives in their meta, not their material: every potion used to
+        // read "Potion" and every book "Enchanted Book", so a player could not tell which one a
+        // shop wanted (#2118, Dev QA).
+        if (item.getItemMeta() instanceof org.bukkit.inventory.meta.PotionMeta potion
+                && potion.getBasePotionType() != null) {
+            String effect = describePotion(potion.getBasePotionType().name());
+            return switch (item.getType()) {
+                case POTION -> "WATER".equals(potion.getBasePotionType().name()) ? "Water Bottle" : effect + " Potion";
+                case SPLASH_POTION -> "Splash " + effect;
+                case LINGERING_POTION -> "Lingering " + effect;
+                case TIPPED_ARROW -> effect + " Arrow";
+                default -> titleCase(item.getType().name()) + " (" + effect + ")";
+            };
+        }
+        if (item.getItemMeta() instanceof org.bukkit.inventory.meta.EnchantmentStorageMeta book
+                && book.hasStoredEnchants()) {
+            var first = book.getStoredEnchants().entrySet().iterator().next();
+            String enchant = titleCase(first.getKey().getKey().getKey()) + roman(first.getValue());
+            return book.getStoredEnchants().size() > 1 ? enchant + " +" + (book.getStoredEnchants().size() - 1) + " Book"
+                    : enchant + " Book";
+        }
+        return titleCase(item.getType().name());
+    }
+
+    /** STRONG_STRENGTH -> "Strength II", LONG_SWIFTNESS -> "Swiftness+", WATER -> "Water". */
+    private static String describePotion(String potionType) {
+        if (potionType.startsWith("STRONG_")) return titleCase(potionType.substring(7)) + " II";
+        if (potionType.startsWith("LONG_")) return titleCase(potionType.substring(5)) + "+";
+        return titleCase(potionType);
+    }
+
+    private static String roman(int level) {
+        return switch (level) {
+            case 1 -> "";
+            case 2 -> " II";
+            case 3 -> " III";
+            case 4 -> " IV";
+            case 5 -> " V";
+            default -> " " + level;
+        };
+    }
+
+    private static String titleCase(String enumName) {
+        String[] words = enumName.toLowerCase().split("_");
         StringBuilder sb = new StringBuilder();
         for (String word : words) {
             if (!word.isEmpty()) {

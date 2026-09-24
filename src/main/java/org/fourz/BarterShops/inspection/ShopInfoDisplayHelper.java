@@ -166,7 +166,7 @@ public class ShopInfoDisplayHelper {
         if (shop.getItemOffering() != null) {
             ItemStack offering = shop.getItemOffering();
             player.sendMessage(ChatColor.YELLOW + "Offering: " + ChatColor.WHITE +
-                    offering.getAmount() + "x " + offering.getType().name());
+                    offering.getAmount() + "x " + org.fourz.BarterShops.sign.renderer.SignRenderUtil.formatItemName(offering));
         }
 
         // Payment options (shown in both views)
@@ -176,7 +176,7 @@ public class ShopInfoDisplayHelper {
             for (int i = 0; i < payments.size(); i++) {
                 ItemStack payment = payments.get(i);
                 player.sendMessage(ChatColor.WHITE + "  " + (i + 1) + ". " +
-                        payment.getAmount() + "x " + payment.getType().name());
+                        payment.getAmount() + "x " + org.fourz.BarterShops.sign.renderer.SignRenderUtil.formatItemName(payment));
             }
         }
 
@@ -219,7 +219,7 @@ public class ShopInfoDisplayHelper {
             if (shop.getItemOffering() != null) {
                 ItemStack offering = shop.getItemOffering();
                 message.append(ChatColor.YELLOW).append("Offering: ").append(ChatColor.WHITE)
-                        .append(offering.getAmount()).append("x ").append(offering.getType().name());
+                        .append(offering.getAmount()).append("x ").append(org.fourz.BarterShops.sign.renderer.SignRenderUtil.formatItemName(offering));
             }
 
             List<ItemStack> payments = shop.getAcceptedPayments();
@@ -228,7 +228,7 @@ public class ShopInfoDisplayHelper {
                 for (int i = 0; i < payments.size(); i++) {
                     if (i > 0) message.append(", ");
                     ItemStack payment = payments.get(i);
-                    message.append(payment.getAmount()).append("x ").append(payment.getType().name());
+                    message.append(payment.getAmount()).append("x ").append(org.fourz.BarterShops.sign.renderer.SignRenderUtil.formatItemName(payment));
                 }
             }
         }

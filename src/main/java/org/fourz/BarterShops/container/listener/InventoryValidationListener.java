@@ -466,7 +466,7 @@ public class InventoryValidationListener implements Listener {
             if (depositedAmount == 0 || depositedAmount % requiredQty != 0) {
                 event.setCancelled(true);
                 player.sendMessage(ChatColor.RED + "x Must deposit " + requiredQty + "x "
-                    + depositedItem.getType().name().toLowerCase().replace('_', ' ')
+                    + org.fourz.BarterShops.sign.renderer.SignRenderUtil.formatItemName(depositedItem)
                     + ChatColor.GRAY + " (or an exact multiple)");
                 return;
             }
@@ -523,7 +523,7 @@ public class InventoryValidationListener implements Listener {
                         if (result.success()) {
                             player.sendMessage(ChatColor.GREEN + "+ Purchased " +
                                 barterSign.getItemOffering().getAmount() + "x " +
-                                barterSign.getItemOffering().getType().name());
+                                org.fourz.BarterShops.sign.renderer.SignRenderUtil.formatItemName(barterSign.getItemOffering()));
                             logger.debug("Deposit auto-exchange completed: " + result.transactionId());
                         } else {
                             logger.debug("Deposit auto-exchange failed: " + result.message());
@@ -698,7 +698,7 @@ public class InventoryValidationListener implements Listener {
                 plugin.getServer().getScheduler().runTask(plugin, () -> {
                     if (result.success()) {
                         // Payment deducted successfully
-                        player.sendMessage(ChatColor.GREEN + "+ Purchased " + takenQty + "x " + takenItem.getType().name());
+                        player.sendMessage(ChatColor.GREEN + "+ Purchased " + takenQty + "x " + org.fourz.BarterShops.sign.renderer.SignRenderUtil.formatItemName(takenItem));
                         logger.debug("Withdrawal auto-deduct completed: " + result.transactionId());
                     } else {
                         // Payment deduction failed - cancel the take (return item to chest)

@@ -209,7 +209,7 @@ public class TradeConfirmationGUI implements Listener {
         if (item.hasItemMeta() && item.getItemMeta().hasDisplayName()) {
             return item.getItemMeta().getDisplayName();
         }
-        return item.getType().name().toLowerCase().replace('_', ' ');
+        return org.fourz.BarterShops.sign.renderer.SignRenderUtil.formatItemName(item);
     }
 
     /**

@@ -210,7 +210,7 @@ public class ShopInfoSubCommand implements SubCommand {
         if (shop.getItemOffering() != null) {
             ItemStack offering = shop.getItemOffering();
             sender.sendMessage(ChatColor.YELLOW + "Offering: " + ChatColor.WHITE +
-                    offering.getAmount() + "x " + offering.getType().name());
+                    offering.getAmount() + "x " + org.fourz.BarterShops.sign.renderer.SignRenderUtil.formatItemName(offering));
         }
 
         // Show payment options
@@ -220,7 +220,7 @@ public class ShopInfoSubCommand implements SubCommand {
             for (int i = 0; i < payments.size(); i++) {
                 ItemStack payment = payments.get(i);
                 sender.sendMessage(ChatColor.WHITE + "  " + (i + 1) + ". " +
-                        payment.getAmount() + "x " + payment.getType().name());
+                        payment.getAmount() + "x " + org.fourz.BarterShops.sign.renderer.SignRenderUtil.formatItemName(payment));
             }
         }
 

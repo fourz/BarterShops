@@ -98,7 +98,7 @@ public class SignInteraction {
 
                     int ruleCount = barterSign.getShopContainerWrapper() != null ? barterSign.getShopContainerWrapper().getValidationRules().size() : 0;
                     logger.info("[VALIDATION] Sign state refreshed - Container has " + ruleCount + " RULES");
-                    player.sendMessage(ChatColor.GREEN + "+ Offering set: " + itemInHand.getAmount() + "x " + itemInHand.getType().name());
+                    player.sendMessage(ChatColor.GREEN + "+ Offering set: " + itemInHand.getAmount() + "x " + formatItemName(itemInHand));
                     player.sendMessage(ChatColor.GRAY + "Now set payment/price");
 
                     // Save configuration to database
@@ -124,12 +124,12 @@ public class SignInteraction {
                                     // Decrement to zero: remove entirely
                                     barterSign.removePaymentOption(itemInHand);
                                     refreshSignState(sign, barterSign);
-                                    player.sendMessage(ChatColor.RED + "- Removed: " + itemInHand.getType().name());
+                                    player.sendMessage(ChatColor.RED + "- Removed: " + formatItemName(itemInHand));
                                 } else {
                                     // Decrement: update with reduced amount
                                     barterSign.addPaymentOption(itemInHand, newAmount);
                                     refreshSignState(sign, barterSign);
-                                    player.sendMessage(ChatColor.AQUA + "Payment: " + newAmount + "x " + itemInHand.getType().name() +
+                                    player.sendMessage(ChatColor.AQUA + "Payment: " + newAmount + "x " + formatItemName(itemInHand) +
                                         ChatColor.GRAY + " (-" + step + ")");
                                 }
                                 barterSign.resetCustomerViewState(); // Reset pagination
@@ -152,10 +152,10 @@ public class SignInteraction {
                             int ruleCount = barterSign.getShopContainerWrapper() != null ? barterSign.getShopContainerWrapper().getValidationRules().size() : 0;
                             logger.info("[VALIDATION] Sign state refreshed - Container has " + ruleCount + " RULES");
                             if (currentAmount > 0) {
-                                player.sendMessage(ChatColor.AQUA + "Payment: " + newAmount + "x " + itemInHand.getType().name() +
+                                player.sendMessage(ChatColor.AQUA + "Payment: " + newAmount + "x " + formatItemName(itemInHand) +
                                     ChatColor.GRAY + " (+" + step + ")");
                             } else {
-                                player.sendMessage(ChatColor.GREEN + "+ Payment added: " + newAmount + "x " + itemInHand.getType().name());
+                                player.sendMessage(ChatColor.GREEN + "+ Payment added: " + newAmount + "x " + formatItemName(itemInHand));
                             }
                             barterSign.resetCustomerViewState(); // Reset pagination
 
@@ -175,7 +175,7 @@ public class SignInteraction {
                             // UNIFIED: Refresh sign state (updates rules + displays sign immediately)
                             refreshSignState(sign, barterSign);
 
-                            player.sendMessage(ChatColor.GREEN + "+ Currency set: " + itemInHand.getType().name());
+                            player.sendMessage(ChatColor.GREEN + "+ Currency set: " + formatItemName(itemInHand));
                             player.sendMessage(ChatColor.GRAY + "L-Click to adjust (step = held amount)");
 
                             // Save configuration to database
@@ -201,7 +201,7 @@ public class SignInteraction {
                             // UNIFIED: Refresh sign state (updates rules + displays sign immediately)
                             refreshSignState(sign, barterSign);
 
-                            player.sendMessage(ChatColor.AQUA + "Price: " + newAmount + "x " + itemInHand.getType().name());
+                            player.sendMessage(ChatColor.AQUA + "Price: " + newAmount + "x " + formatItemName(itemInHand));
 
                             // Save configuration to database
                             if (barterSign.getShopId() > 0) {
@@ -209,7 +209,7 @@ public class SignInteraction {
                             }
                         } else {
                             // Different currency - confirm change
-                            player.sendMessage(ChatColor.YELLOW + "! Currency change: " + currentPrice.getType().name() + " → " + itemInHand.getType().name());
+                            player.sendMessage(ChatColor.YELLOW + "! Currency change: " + formatItemName(currentPrice) + " → " + formatItemName(itemInHand));
                             barterSign.configurePrice(itemInHand, 1);
 
                             // UNIFIED: Refresh sign state (updates rules + displays sign immediately)
@@ -443,7 +443,7 @@ public class SignInteraction {
         ItemStack offering = barterSign.getItemOffering();
         if (offering == null || offering.getType() != itemInHand.getType()) {
             player.sendMessage(ChatColor.RED + "Hold the offering item (" +
-                (offering != null ? offering.getType().name() : "not set") + ")");
+                (offering != null ? formatItemName(offering) : "not set") + ")");
             return;
         }
 
@@ -463,7 +463,7 @@ public class SignInteraction {
         barterSign.configureStackableShop(offering, newQty);
         barterSign.updateValidationRules(); // CRITICAL: Update validation rules after quantity change
 
-        player.sendMessage(ChatColor.AQUA + "Quantity: " + newQty + "x " + offering.getType().name() +
+        player.sendMessage(ChatColor.AQUA + "Quantity: " + newQty + "x " + formatItemName(offering) +
             ChatColor.GRAY + " (±" + step + ")");
 
         // Save configuration to database
@@ -682,7 +682,7 @@ public class SignInteraction {
                 List<ItemStack> accepted = barterSign.getAcceptedPayments();
                 if (!accepted.isEmpty()) {
                     showTemporaryStatus(sign, barterSign, "\u00A7cNot accepted",
-                        "\u00A7c" + customerHand.getType().name());
+                        "\u00A7c" + formatItemName(customerHand));
                 }
                 return;
             }
@@ -748,7 +748,7 @@ public class SignInteraction {
 
         if (playerPayment < paymentAmount) {
             showTemporaryStatus(sign, barterSign, "\u00A7eNeed: " + paymentAmount,
-                               "\u00A7e" + paymentItem.getType().name());
+                               "\u00A7e" + formatItemName(paymentItem));
             return;
         }
 
@@ -788,7 +788,7 @@ public class SignInteraction {
             }
             Optional<ItemStack> option = barterSign.findPaymentOption(hand);
             if (option.isEmpty()) {
-                showTemporaryStatus(sign, barterSign, "§cNot accepted", "§c" + hand.getType().name());
+                showTemporaryStatus(sign, barterSign, "§cNot accepted", "§c" + formatItemName(hand));
                 return;
             }
             paymentItem = option.get();
@@ -864,7 +864,7 @@ public class SignInteraction {
 
         if (playerPayment < paymentAmount) {
             showTemporaryStatus(sign, barterSign, "\u00A7eNeed: " + paymentAmount,
-                               "\u00A7e" + paymentItem.getType().name());
+                               "\u00A7e" + formatItemName(paymentItem));
             logger.debug("Trade rejected - insufficient payment. Have: " + playerPayment +
                         ", Required: " + paymentAmount);
             return;
@@ -914,8 +914,8 @@ public class SignInteraction {
         session.setState(TradeSession.TradeState.AWAITING_BUYER_CONFIRM);
 
         logger.debug("Trade session created: " + session.getSessionId() +
-                    " | Offering: " + offering.getAmount() + "x " + offering.getType().name() +
-                    " | Payment: " + paymentAmount + "x " + paymentItem.getType().name());
+                    " | Offering: " + offering.getAmount() + "x " + formatItemName(offering) +
+                    " | Payment: " + paymentAmount + "x " + formatItemName(paymentItem));
 
         // Open confirmation GUI
         confirmationGUI.openConfirmation(player, session,
