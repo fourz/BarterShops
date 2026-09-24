@@ -108,6 +108,14 @@ public class SignInteraction {
                 }
                 // Step 2: Configure payment (type-dependent)
                 else {
+                    // A payment identical to the offering makes a shop that trades an item for
+                    // itself, and the chest cannot tell stock from payment. Refuse it; shift-click
+                    // removal stays open so an existing bad option can still be taken off.
+                    if (!player.isSneaking() && barterSign.getItemOffering().isSimilar(itemInHand)) {
+                        player.sendMessage(ChatColor.RED + "x Payment can't be the same item as the offering ("
+                                + formatItemName(itemInHand) + ")");
+                        break;
+                    }
                     SignType type = barterSign.getType();
 
                     if (type == SignType.BARTER) {
