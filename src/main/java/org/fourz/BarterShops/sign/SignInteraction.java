@@ -770,8 +770,34 @@ public class SignInteraction {
     private void processNonStackableTrade(Player player, Sign sign, BarterSign barterSign, TradeEngine tradeEngine) {
         logger.debug("Processing non-stackable trade for " + player.getName());
 
-        ItemStack paymentItem = barterSign.getPriceItem();
-        int paymentAmount = barterSign.getPriceAmount();
+        ItemStack paymentItem;
+        int paymentAmount;
+        if (barterSign.getType() == SignType.BARTER) {
+            // BARTER keeps its prices as payment options, never in priceItem, so reading priceItem
+            // here made every non-stackable BARTER shop (potions, tools) report "Not configured"
+            // (#2118, found in Dev QA). Match the held item against the options, as the stackable
+            // path does.
+            if (barterSign.getAcceptedPayments().isEmpty()) {
+                showTemporaryStatus(sign, barterSign, "§cNot", "§cconfigured");
+                return;
+            }
+            ItemStack hand = player.getInventory().getItemInMainHand();
+            if (hand == null || hand.getType().isAir()) {
+                showTemporaryStatus(sign, barterSign, "§eHold payment", "§eitem");
+                return;
+            }
+            Optional<ItemStack> option = barterSign.findPaymentOption(hand);
+            if (option.isEmpty()) {
+                showTemporaryStatus(sign, barterSign, "§cNot accepted", "§c" + hand.getType().name());
+                return;
+            }
+            paymentItem = option.get();
+            paymentAmount = paymentItem.getAmount();
+            paymentItem.setAmount(1);
+        } else {
+            paymentItem = barterSign.getPriceItem();
+            paymentAmount = barterSign.getPriceAmount();
+        }
 
         // Validate configuration
         if (paymentItem == null || paymentAmount <= 0) {
@@ -798,13 +824,27 @@ public class SignInteraction {
 
         // Get first non-air item from chest that is not payment. Payments land in this same
         // chest, so without the skip buyer B was sold buyer A's diamonds (#2116).
+        // A configured offering wins first: a shop that sells the same item it accepts (water for
+        // water) would otherwise find nothing to sell.
         ItemStack offering = null;
-        for (ItemStack item : nsStockInv.getContents()) {
-            if (item != null && item.getType() != Material.AIR
-                    && !item.isSimilar(paymentItem) && !barterSign.isPaymentAccepted(item)) {
-                offering = item.clone();
-                offering.setAmount(1); // Non-stackable: quantity 1
-                break;
+        ItemStack configured = barterSign.getItemOffering();
+        if (configured != null) {
+            for (ItemStack item : nsStockInv.getContents()) {
+                if (item != null && item.isSimilar(configured)) {
+                    offering = item.clone();
+                    offering.setAmount(1); // Non-stackable: quantity 1
+                    break;
+                }
+            }
+        }
+        if (offering == null) {
+            for (ItemStack item : nsStockInv.getContents()) {
+                if (item != null && item.getType() != Material.AIR
+                        && !item.isSimilar(paymentItem) && !barterSign.isPaymentAccepted(item)) {
+                    offering = item.clone();
+                    offering.setAmount(1); // Non-stackable: quantity 1
+                    break;
+                }
             }
         }
 
