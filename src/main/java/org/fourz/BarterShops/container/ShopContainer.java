@@ -59,7 +59,7 @@ public class ShopContainer {
      * Gets the Bukkit container (chest, barrel, etc).
      */
     public Container getContainer() {
-        return container;
+        return LiveContainer.resolve(location, container);
     }
 
     /**
@@ -80,7 +80,7 @@ public class ShopContainer {
      * Gets the container's inventory.
      */
     public Inventory getInventory() {
-        return container.getInventory();
+        return getContainer().getInventory();
     }
 
     /**

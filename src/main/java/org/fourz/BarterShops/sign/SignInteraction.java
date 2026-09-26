@@ -940,9 +940,12 @@ public class SignInteraction {
                                 // (GUI confirmation already shows result)
                                 logger.info("Trade completed: " + result.transactionId());
                             } else {
-                                // Trade failed feedback removed per user request
-                                // (GUI confirmation already shows error)
+                                // The GUI closes before the trade runs, so a failure is otherwise
+                                // silent (e.g. shop chest full of payments). Success stays quiet.
                                 logger.debug("Trade failed: " + result.message());
+                                if (player.isOnline()) {
+                                    player.sendMessage(ChatColor.RED + "✗ Trade failed: " + result.message());
+                                }
                             }
                         });
                     });

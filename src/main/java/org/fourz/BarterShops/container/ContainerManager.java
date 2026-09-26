@@ -78,8 +78,8 @@ public class ContainerManager implements Listener {
             return;
         }
 
-        // Find if this container belongs to a shop
-        BarterSign barterSign = plugin.getSignManager().findSignByContainerLocation(block.getLocation());
+        // Find if this container belongs to a shop (either half of a double chest)
+        BarterSign barterSign = plugin.getSignManager().findSignByContainerBlock(block);
 
         // If no sign exists, allow normal vanilla chest break
         if (barterSign == null) {
@@ -104,7 +104,7 @@ public class ContainerManager implements Listener {
     public void onContainerExplode(BlockExplodeEvent event) {
         event.blockList().removeIf(block -> {
             if (!(block.getState() instanceof Container)) return false;
-            return plugin.getSignManager().findSignByContainerLocation(block.getLocation()) != null;
+            return plugin.getSignManager().findSignByContainerBlock(block) != null;
         });
     }
 
@@ -112,7 +112,7 @@ public class ContainerManager implements Listener {
     public void onContainerEntityExplode(EntityExplodeEvent event) {
         event.blockList().removeIf(block -> {
             if (!(block.getState() instanceof Container)) return false;
-            return plugin.getSignManager().findSignByContainerLocation(block.getLocation()) != null;
+            return plugin.getSignManager().findSignByContainerBlock(block) != null;
         });
     }
 

@@ -16,6 +16,7 @@ import org.bukkit.event.block.BlockBurnEvent;
 import org.bukkit.event.block.BlockExplodeEvent;
 import org.bukkit.event.block.BlockPistonExtendEvent;
 import org.bukkit.event.block.BlockPistonRetractEvent;
+import org.bukkit.event.block.BlockPlaceEvent;
 import org.bukkit.event.block.SignChangeEvent;
 import org.bukkit.event.entity.EntityExplodeEvent;
 import org.bukkit.event.player.PlayerInteractEvent;
@@ -303,7 +304,17 @@ public class SignManager implements Listener {
 
                     if (qualifySign(sign)) {
                         Container container = findAssociatedContainer(sign);
-                        if (container != null) {
+                        if (container != null && !(container instanceof org.bukkit.block.Chest
+                                || container instanceof org.bukkit.block.Barrel)) {
+                            // Shulker boxes break to a piston, droppers and dispensers empty to a button
+                            player.sendMessage(ChatColor.RED + "Shops can only be made on a chest or barrel.");
+                            event.setCancelled(true);
+                        } else if (container != null
+                                && findSignByContainerBlock(container.getBlock()) != null) {
+                            // One container, one shop: a second sign would sell the first shop's stock
+                            player.sendMessage(ChatColor.RED + "That container already belongs to a shop.");
+                            event.setCancelled(true);
+                        } else if (container != null) {
                             createBarterSign(player, sign, container);
                             player.sendMessage(ChatColor.GREEN + "Shop created!");
                         } else {
@@ -956,15 +967,56 @@ public class SignManager implements Listener {
         if (containerLocation == null) return null;
 
         for (BarterSign sign : barterSigns.values()) {
-            Container shopContainer = sign.getShopContainer();
-            if (shopContainer == null) {
-                shopContainer = sign.getContainer();
-            }
-
-            if (shopContainer != null && shopContainer.getLocation().equals(containerLocation)) {
+            Location loc = sign.getContainerLocation();
+            if (loc != null && loc.equals(containerLocation)) {
                 return sign;
             }
         }
         return null;
+    }
+
+    /**
+     * Finds the shop owning a container block, checking both halves of a double chest.
+     * A shop registers only the half its sign is on; the other half holds half the stock.
+     */
+    public BarterSign findSignByContainerBlock(Block block) {
+        if (block == null) return null;
+        BarterSign direct = findSignByContainerLocation(block.getLocation());
+        if (direct != null) return direct;
+        if (block.getState() instanceof org.bukkit.block.Chest chest
+                && chest.getInventory().getHolder() instanceof org.bukkit.block.DoubleChest dc) {
+            for (org.bukkit.inventory.InventoryHolder side : new org.bukkit.inventory.InventoryHolder[]{dc.getLeftSide(), dc.getRightSide()}) {
+                if (side instanceof Container half) {
+                    BarterSign found = findSignByContainerLocation(half.getLocation());
+                    if (found != null) return found;
+                }
+            }
+        }
+        return null;
+    }
+
+    /**
+     * Stops a non-owner placing a chest beside a shop chest. The new chest would merge into a
+     * double chest whose added half is unprotected and receives the shop's payments.
+     */
+    @EventHandler(priority = EventPriority.HIGH, ignoreCancelled = true)
+    public void onChestPlaceBesideShop(BlockPlaceEvent event) {
+        Material type = event.getBlockPlaced().getType();
+        if (type != Material.CHEST && type != Material.TRAPPED_CHEST) return;
+        if (barterSigns.isEmpty()) return;
+
+        Player player = event.getPlayer();
+        if (player.hasPermission("bartershops.admin")) return;
+
+        for (BlockFace face : new BlockFace[]{BlockFace.NORTH, BlockFace.SOUTH, BlockFace.EAST, BlockFace.WEST}) {
+            Block neighbour = event.getBlockPlaced().getRelative(face);
+            if (neighbour.getType() != type) continue;
+            BarterSign shop = findSignByContainerBlock(neighbour);
+            if (shop != null && !shop.getOwner().equals(player.getUniqueId())) {
+                event.setCancelled(true);
+                player.sendMessage(ChatColor.RED + "You can't place a chest next to another player's shop.");
+                return;
+            }
+        }
     }
 }

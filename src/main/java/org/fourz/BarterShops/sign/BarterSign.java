@@ -8,6 +8,7 @@ import org.bukkit.block.sign.SignSide;
 import org.bukkit.entity.Player;
 import org.bukkit.inventory.ItemStack;
 import org.fourz.BarterShops.shop.ShopMode;
+import org.fourz.BarterShops.container.LiveContainer;
 import org.fourz.BarterShops.container.ShopContainer;
 import org.fourz.BarterShops.container.validation.MultiTypeItemRule;
 import org.fourz.BarterShops.container.validation.UnstackableItemOnlyRule;
@@ -70,8 +71,14 @@ public class BarterSign implements ISignData {
     public int getGroupId() { return groupId; }
     public void setGroupId(int groupId) { this.groupId = groupId; }
     public SignType getType() { return type; }
-    public Container getContainer() { return container; }
-    public Container getShopContainer() { return shopContainer; }
+    // Resolved from the world on each call: a stored BlockState goes stale when its chunk unloads.
+    public Container getContainer() { return LiveContainer.resolve(container); }
+    public Container getShopContainer() { return LiveContainer.resolve(shopContainer); }
+    /** Location of the shop container, without touching the world (safe in loops and off-thread). */
+    public Location getContainerLocation() {
+        Container stored = shopContainer != null ? shopContainer : container;
+        return stored != null ? stored.getLocation() : null;
+    }
     public ShopMode getMode() { return mode; }
     public void setMode(ShopMode mode) { this.mode = mode; }
     public void setType(SignType type) { this.type = type; }

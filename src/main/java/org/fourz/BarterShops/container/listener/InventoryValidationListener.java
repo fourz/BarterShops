@@ -40,6 +40,10 @@ import java.util.UUID;
 public class InventoryValidationListener implements Listener {
     private final Map<UUID, ShopContainer> shopContainers = new HashMap<>();
     private final Map<Location, ShopContainer> shopContainersByLocation = new HashMap<>();
+    // Chunks within one block of a shop container, counted. Lets the hopper handler skip the
+    // holder snapshot for every inventory that cannot be a shop (a double chest's inventory
+    // location may sit on the neighbouring half, hence the one-block margin).
+    private final Map<String, Integer> shopChunks = new HashMap<>();
     private final Set<String> pendingDeposits = new HashSet<>();
     private final long creationTime = System.currentTimeMillis();
     private final BarterShops plugin;
@@ -56,8 +60,13 @@ public class InventoryValidationListener implements Listener {
      * @param shopContainer The container to monitor
      */
     public void registerContainer(ShopContainer shopContainer) {
-        shopContainers.put(shopContainer.getShopId(), shopContainer);
+        ShopContainer previous = shopContainers.put(shopContainer.getShopId(), shopContainer);
+        if (previous != null) {
+            shopContainersByLocation.remove(previous.getLocation());
+            adjustShopChunks(previous.getLocation(), -1);
+        }
         shopContainersByLocation.put(shopContainer.getLocation(), shopContainer);
+        adjustShopChunks(shopContainer.getLocation(), 1);
         logger.debug("Registered shop container: " + shopContainer.getShopId() +
                    " at " + shopContainer.getLocation() +
                    " with " + shopContainer.getValidationRules().size() + " validation rules");
@@ -72,7 +81,35 @@ public class InventoryValidationListener implements Listener {
         ShopContainer removed = shopContainers.remove(shopId);
         if (removed != null) {
             shopContainersByLocation.remove(removed.getLocation());
+            adjustShopChunks(removed.getLocation(), -1);
         }
+    }
+
+    private void adjustShopChunks(Location loc, int delta) {
+        if (loc == null || loc.getWorld() == null) return;
+        Set<String> keys = new HashSet<>();
+        for (int dx = -1; dx <= 1; dx++) {
+            for (int dz = -1; dz <= 1; dz++) {
+                keys.add(chunkKey(loc.getWorld().getName(), (loc.getBlockX() + dx) >> 4, (loc.getBlockZ() + dz) >> 4));
+            }
+        }
+        for (String key : keys) {
+            shopChunks.merge(key, delta, (a, b) -> a + b <= 0 ? null : a + b);
+        }
+    }
+
+    private static String chunkKey(String world, int chunkX, int chunkZ) {
+        return world + ':' + chunkX + ':' + chunkZ;
+    }
+
+    /**
+     * Cheap pre-check: false when the inventory cannot belong to a shop container.
+     * Avoids getHolder(), which snapshots the block state, on every hopper move.
+     */
+    private boolean mayBeShopInventory(org.bukkit.inventory.Inventory inventory) {
+        Location loc = inventory.getLocation();
+        if (loc == null || loc.getWorld() == null) return false;
+        return shopChunks.containsKey(chunkKey(loc.getWorld().getName(), loc.getBlockX() >> 4, loc.getBlockZ() >> 4));
     }
 
     /**
@@ -168,8 +205,10 @@ public class InventoryValidationListener implements Listener {
         // Also update wrapper on the BarterSign so trade engine uses the right container
         barterSign.setShopContainerWrapper(newContainer);
 
-        // Re-register in our map
+        // Re-register in both maps: the location map feeds hopper validation, which kept the
+        // pre-detection (empty) rules when only the id map was updated
         shopContainers.put(shopUuid, newContainer);
+        shopContainersByLocation.put(newContainer.getLocation(), newContainer);
 
         logger.debug("Rebuilt ShopContainer for shop " + barterSign.getShopId() +
                 ": rules=" + newContainer.getValidationRules().size());
@@ -553,11 +592,20 @@ public class InventoryValidationListener implements Listener {
     @EventHandler(priority = EventPriority.HIGH, ignoreCancelled = true)
     public void onInventoryMoveItem(InventoryMoveItemEvent event) {
         if (shopContainers.isEmpty()) return;
+
+        // A shop container never feeds a hopper or hopper minecart: stock and payments leave
+        // only through a trade. Without this a hopper under the chest drains it.
+        if (mayBeShopInventory(event.getSource()) && getShopContainerFromInventory(event.getSource()) != null) {
+            event.setCancelled(true);
+            return;
+        }
+
+        if (!mayBeShopInventory(event.getDestination())) return;
         ShopContainer shopContainer = getShopContainerFromInventory(event.getDestination());
         if (shopContainer == null) return;
 
         ItemStack item = event.getItem();
-        logger.info("InventoryMoveItemEvent: Automated item move detected: " + item.getType() +
+        logger.debug("InventoryMoveItemEvent: Automated item move detected: " + item.getType() +
                    " (qty=" + item.getAmount() + ") to shop at " + shopContainer.getLocation());
 
         // UNIFIED: Validate with user context (null player = automated system like hopper)
@@ -872,6 +920,7 @@ public class InventoryValidationListener implements Listener {
     public void cleanup() {
         shopContainers.clear();
         shopContainersByLocation.clear();
+        shopChunks.clear();
         pendingDeposits.clear();
     }
 }

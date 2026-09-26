@@ -72,7 +72,7 @@ class SignManagerTest {
     private Block signBlock;
 
     @Mock
-    private Container container;
+    private org.bukkit.block.Chest container;  // shops are refused on other container types
 
     @Mock
     private SignSide signSide;
