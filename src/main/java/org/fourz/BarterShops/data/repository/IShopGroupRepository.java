@@ -38,6 +38,14 @@ public interface IShopGroupRepository {
     CompletableFuture<Optional<ShopGroupDTO>> findById(int groupId);
 
     /**
+     * Loads every active group with its co-owners in two queries.
+     * Feeds the in-memory co-owner cache (#2118).
+     *
+     * @return CompletableFuture containing all active groups
+     */
+    CompletableFuture<List<ShopGroupDTO>> findAllActive();
+
+    /**
      * Finds all groups owned by a player.
      *
      * @param ownerUuid The owner's UUID

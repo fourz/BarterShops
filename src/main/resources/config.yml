@@ -216,3 +216,9 @@ sign:
   - '(right-click)'
   - '&9%1'
   - '&9%2'
+
+debug:
+  # Allows /shop debug seed and /shop debug create, which write and delete real rows in the
+  # shared database. Keep false everywhere except RVNK Dev. A server whose config has no such
+  # key reads false, so existing Event/prod configs are safe without editing.
+  allow-test-data: false

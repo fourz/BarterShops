@@ -98,7 +98,7 @@ public class SignInteraction {
 
                     int ruleCount = barterSign.getShopContainerWrapper() != null ? barterSign.getShopContainerWrapper().getValidationRules().size() : 0;
                     logger.info("[VALIDATION] Sign state refreshed - Container has " + ruleCount + " RULES");
-                    player.sendMessage(ChatColor.GREEN + "+ Offering set: " + itemInHand.getAmount() + "x " + itemInHand.getType().name());
+                    player.sendMessage(ChatColor.GREEN + "+ Offering set: " + itemInHand.getAmount() + "x " + formatItemName(itemInHand));
                     player.sendMessage(ChatColor.GRAY + "Now set payment/price");
 
                     // Save configuration to database
@@ -108,13 +108,21 @@ public class SignInteraction {
                 }
                 // Step 2: Configure payment (type-dependent)
                 else {
+                    // A payment identical to the offering makes a shop that trades an item for
+                    // itself, and the chest cannot tell stock from payment. Refuse it; shift-click
+                    // removal stays open so an existing bad option can still be taken off.
+                    if (!player.isSneaking() && barterSign.getItemOffering().isSimilar(itemInHand)) {
+                        player.sendMessage(ChatColor.RED + "x Payment can't be the same item as the offering ("
+                                + formatItemName(itemInHand) + ")");
+                        break;
+                    }
                     SignType type = barterSign.getType();
 
                     if (type == SignType.BARTER) {
                         // BARTER: Add/update payment option
                         if (player.isSneaking()) {
                             // Shift+L-Click: Decrement payment amount, or remove if at/below 0
-                            int currentAmount = barterSign.getPaymentAmount(itemInHand.getType());
+                            int currentAmount = barterSign.getPaymentAmount(itemInHand);
                             if (currentAmount <= 0) {
                                 player.sendMessage(ChatColor.YELLOW + "Not in payment list");
                             } else {
@@ -122,14 +130,14 @@ public class SignInteraction {
                                 int newAmount = currentAmount - step;
                                 if (newAmount <= 0) {
                                     // Decrement to zero: remove entirely
-                                    barterSign.removePaymentOption(itemInHand.getType());
+                                    barterSign.removePaymentOption(itemInHand);
                                     refreshSignState(sign, barterSign);
-                                    player.sendMessage(ChatColor.RED + "- Removed: " + itemInHand.getType().name());
+                                    player.sendMessage(ChatColor.RED + "- Removed: " + formatItemName(itemInHand));
                                 } else {
                                     // Decrement: update with reduced amount
                                     barterSign.addPaymentOption(itemInHand, newAmount);
                                     refreshSignState(sign, barterSign);
-                                    player.sendMessage(ChatColor.AQUA + "Payment: " + newAmount + "x " + itemInHand.getType().name() +
+                                    player.sendMessage(ChatColor.AQUA + "Payment: " + newAmount + "x " + formatItemName(itemInHand) +
                                         ChatColor.GRAY + " (-" + step + ")");
                                 }
                                 barterSign.resetCustomerViewState(); // Reset pagination
@@ -140,7 +148,7 @@ public class SignInteraction {
                             }
                         } else {
                             // L-Click: Increment payment option (add if new, accumulate if existing)
-                            int currentAmount = barterSign.getPaymentAmount(itemInHand.getType());
+                            int currentAmount = barterSign.getPaymentAmount(itemInHand);
                             int step = itemInHand.getAmount();
                             int newAmount = currentAmount + step;
                             logger.info("[PAYMENT] " + (currentAmount > 0 ? "Updating" : "Adding") + " option " + itemInHand.getType() + " (" + currentAmount + " -> " + newAmount + ", step=" + step + ")");
@@ -152,10 +160,10 @@ public class SignInteraction {
                             int ruleCount = barterSign.getShopContainerWrapper() != null ? barterSign.getShopContainerWrapper().getValidationRules().size() : 0;
                             logger.info("[VALIDATION] Sign state refreshed - Container has " + ruleCount + " RULES");
                             if (currentAmount > 0) {
-                                player.sendMessage(ChatColor.AQUA + "Payment: " + newAmount + "x " + itemInHand.getType().name() +
+                                player.sendMessage(ChatColor.AQUA + "Payment: " + newAmount + "x " + formatItemName(itemInHand) +
                                     ChatColor.GRAY + " (+" + step + ")");
                             } else {
-                                player.sendMessage(ChatColor.GREEN + "+ Payment added: " + newAmount + "x " + itemInHand.getType().name());
+                                player.sendMessage(ChatColor.GREEN + "+ Payment added: " + newAmount + "x " + formatItemName(itemInHand));
                             }
                             barterSign.resetCustomerViewState(); // Reset pagination
 
@@ -175,7 +183,7 @@ public class SignInteraction {
                             // UNIFIED: Refresh sign state (updates rules + displays sign immediately)
                             refreshSignState(sign, barterSign);
 
-                            player.sendMessage(ChatColor.GREEN + "+ Currency set: " + itemInHand.getType().name());
+                            player.sendMessage(ChatColor.GREEN + "+ Currency set: " + formatItemName(itemInHand));
                             player.sendMessage(ChatColor.GRAY + "L-Click to adjust (step = held amount)");
 
                             // Save configuration to database
@@ -201,7 +209,7 @@ public class SignInteraction {
                             // UNIFIED: Refresh sign state (updates rules + displays sign immediately)
                             refreshSignState(sign, barterSign);
 
-                            player.sendMessage(ChatColor.AQUA + "Price: " + newAmount + "x " + itemInHand.getType().name());
+                            player.sendMessage(ChatColor.AQUA + "Price: " + newAmount + "x " + formatItemName(itemInHand));
 
                             // Save configuration to database
                             if (barterSign.getShopId() > 0) {
@@ -209,7 +217,7 @@ public class SignInteraction {
                             }
                         } else {
                             // Different currency - confirm change
-                            player.sendMessage(ChatColor.YELLOW + "! Currency change: " + currentPrice.getType().name() + " → " + itemInHand.getType().name());
+                            player.sendMessage(ChatColor.YELLOW + "! Currency change: " + formatItemName(currentPrice) + " → " + formatItemName(itemInHand));
                             barterSign.configurePrice(itemInHand, 1);
 
                             // UNIFIED: Refresh sign state (updates rules + displays sign immediately)
@@ -443,7 +451,7 @@ public class SignInteraction {
         ItemStack offering = barterSign.getItemOffering();
         if (offering == null || offering.getType() != itemInHand.getType()) {
             player.sendMessage(ChatColor.RED + "Hold the offering item (" +
-                (offering != null ? offering.getType().name() : "not set") + ")");
+                (offering != null ? formatItemName(offering) : "not set") + ")");
             return;
         }
 
@@ -463,7 +471,7 @@ public class SignInteraction {
         barterSign.configureStackableShop(offering, newQty);
         barterSign.updateValidationRules(); // CRITICAL: Update validation rules after quantity change
 
-        player.sendMessage(ChatColor.AQUA + "Quantity: " + newQty + "x " + offering.getType().name() +
+        player.sendMessage(ChatColor.AQUA + "Quantity: " + newQty + "x " + formatItemName(offering) +
             ChatColor.GRAY + " (±" + step + ")");
 
         // Save configuration to database
@@ -682,14 +690,14 @@ public class SignInteraction {
                 List<ItemStack> accepted = barterSign.getAcceptedPayments();
                 if (!accepted.isEmpty()) {
                     showTemporaryStatus(sign, barterSign, "\u00A7cNot accepted",
-                        "\u00A7c" + customerHand.getType().name());
+                        "\u00A7c" + formatItemName(customerHand));
                 }
                 return;
             }
 
-            // Get payment amount for this material
-            paymentAmount = barterSign.getPaymentAmount(customerHand.getType());
-            paymentItem = customerHand.clone();
+            // Take the configured item, not the held one - the held item is only proof of a match
+            paymentAmount = barterSign.getPaymentAmount(customerHand);
+            paymentItem = barterSign.findPaymentOption(customerHand).orElse(customerHand.clone());
             paymentItem.setAmount(1);
 
         } else {
@@ -748,7 +756,7 @@ public class SignInteraction {
 
         if (playerPayment < paymentAmount) {
             showTemporaryStatus(sign, barterSign, "\u00A7eNeed: " + paymentAmount,
-                               "\u00A7e" + paymentItem.getType().name());
+                               "\u00A7e" + formatItemName(paymentItem));
             return;
         }
 
@@ -770,8 +778,34 @@ public class SignInteraction {
     private void processNonStackableTrade(Player player, Sign sign, BarterSign barterSign, TradeEngine tradeEngine) {
         logger.debug("Processing non-stackable trade for " + player.getName());
 
-        ItemStack paymentItem = barterSign.getPriceItem();
-        int paymentAmount = barterSign.getPriceAmount();
+        ItemStack paymentItem;
+        int paymentAmount;
+        if (barterSign.getType() == SignType.BARTER) {
+            // BARTER keeps its prices as payment options, never in priceItem, so reading priceItem
+            // here made every non-stackable BARTER shop (potions, tools) report "Not configured"
+            // (#2118, found in Dev QA). Match the held item against the options, as the stackable
+            // path does.
+            if (barterSign.getAcceptedPayments().isEmpty()) {
+                showTemporaryStatus(sign, barterSign, "§cNot", "§cconfigured");
+                return;
+            }
+            ItemStack hand = player.getInventory().getItemInMainHand();
+            if (hand == null || hand.getType().isAir()) {
+                showTemporaryStatus(sign, barterSign, "§eHold payment", "§eitem");
+                return;
+            }
+            Optional<ItemStack> option = barterSign.findPaymentOption(hand);
+            if (option.isEmpty()) {
+                showTemporaryStatus(sign, barterSign, "§cNot accepted", "§c" + formatItemName(hand));
+                return;
+            }
+            paymentItem = option.get();
+            paymentAmount = paymentItem.getAmount();
+            paymentItem.setAmount(1);
+        } else {
+            paymentItem = barterSign.getPriceItem();
+            paymentAmount = barterSign.getPriceAmount();
+        }
 
         // Validate configuration
         if (paymentItem == null || paymentAmount <= 0) {
@@ -796,13 +830,29 @@ public class SignInteraction {
             return;
         }
 
-        // Get first non-air item from chest (any item)
+        // Get first non-air item from chest that is not payment. Payments land in this same
+        // chest, so without the skip buyer B was sold buyer A's diamonds (#2116).
+        // A configured offering wins first: a shop that sells the same item it accepts (water for
+        // water) would otherwise find nothing to sell.
         ItemStack offering = null;
-        for (ItemStack item : nsStockInv.getContents()) {
-            if (item != null && item.getType() != Material.AIR) {
-                offering = item.clone();
-                offering.setAmount(1); // Non-stackable: quantity 1
-                break;
+        ItemStack configured = barterSign.getItemOffering();
+        if (configured != null) {
+            for (ItemStack item : nsStockInv.getContents()) {
+                if (item != null && item.isSimilar(configured)) {
+                    offering = item.clone();
+                    offering.setAmount(1); // Non-stackable: quantity 1
+                    break;
+                }
+            }
+        }
+        if (offering == null) {
+            for (ItemStack item : nsStockInv.getContents()) {
+                if (item != null && item.getType() != Material.AIR
+                        && !item.isSimilar(paymentItem) && !barterSign.isPaymentAccepted(item)) {
+                    offering = item.clone();
+                    offering.setAmount(1); // Non-stackable: quantity 1
+                    break;
+                }
             }
         }
 
@@ -822,7 +872,7 @@ public class SignInteraction {
 
         if (playerPayment < paymentAmount) {
             showTemporaryStatus(sign, barterSign, "\u00A7eNeed: " + paymentAmount,
-                               "\u00A7e" + paymentItem.getType().name());
+                               "\u00A7e" + formatItemName(paymentItem));
             logger.debug("Trade rejected - insufficient payment. Have: " + playerPayment +
                         ", Required: " + paymentAmount);
             return;
@@ -872,8 +922,8 @@ public class SignInteraction {
         session.setState(TradeSession.TradeState.AWAITING_BUYER_CONFIRM);
 
         logger.debug("Trade session created: " + session.getSessionId() +
-                    " | Offering: " + offering.getAmount() + "x " + offering.getType().name() +
-                    " | Payment: " + paymentAmount + "x " + paymentItem.getType().name());
+                    " | Offering: " + offering.getAmount() + "x " + formatItemName(offering) +
+                    " | Payment: " + paymentAmount + "x " + formatItemName(paymentItem));
 
         // Open confirmation GUI
         confirmationGUI.openConfirmation(player, session,
@@ -890,9 +940,12 @@ public class SignInteraction {
                                 // (GUI confirmation already shows result)
                                 logger.info("Trade completed: " + result.transactionId());
                             } else {
-                                // Trade failed feedback removed per user request
-                                // (GUI confirmation already shows error)
+                                // The GUI closes before the trade runs, so a failure is otherwise
+                                // silent (e.g. shop chest full of payments). Success stays quiet.
                                 logger.debug("Trade failed: " + result.message());
+                                if (player.isOnline()) {
+                                    player.sendMessage(ChatColor.RED + "✗ Trade failed: " + result.message());
+                                }
                             }
                         });
                     });
@@ -1099,14 +1152,24 @@ public class SignInteraction {
             // Delete from database asynchronously
             plugin.getServer().getScheduler().runTaskAsynchronously(plugin, () -> {
                 try {
-                    // Look up shop by location to get the integer shop ID
-                    String world = signLocation.getWorld() != null ? signLocation.getWorld().getName() : "unknown";
-                    var shopOptional = plugin.getShopRepository()
-                        .findBySignLocation(world, signLocation.getX(), signLocation.getY(), signLocation.getZ())
-                        .get();
+                    // Prefer the sign's own shop id. The location lookup has no is_active filter
+                    // and no ordering, so with an old inactive row at the same block it could
+                    // delete that row and leave the live one orphaned (#2117).
+                    java.util.OptionalInt knownId = barterSign.getShopId() > 0
+                        ? java.util.OptionalInt.of(barterSign.getShopId())
+                        : java.util.OptionalInt.empty();
+                    if (knownId.isEmpty()) {
+                        String world = signLocation.getWorld() != null ? signLocation.getWorld().getName() : "unknown";
+                        var byLocation = plugin.getShopRepository()
+                            .findBySignLocation(world, signLocation.getX(), signLocation.getY(), signLocation.getZ())
+                            .get();
+                        if (byLocation.isPresent()) {
+                            knownId = java.util.OptionalInt.of(byLocation.get().shopId());
+                        }
+                    }
 
-                    if (shopOptional.isPresent()) {
-                        int shopId = shopOptional.get().shopId();
+                    if (knownId.isPresent()) {
+                        int shopId = knownId.getAsInt();
                         logger.debug("Found shop in database with ID: " + shopId);
 
                         // Remove shop from database (items in chest remain untouched)
@@ -1193,8 +1256,9 @@ public class SignInteraction {
     }
 
     /**
-     * Checks if a player is a co-owner of the shop's group.
-     * Uses canManageShop from ShopGroupService with a short timeout.
+     * Checks if a player is the owner or a co-owner of the shop's group.
+     * Reads the in-memory co-owner cache only: the old DB check blocked the main thread for up
+     * to 2 s on every non-owner click on a grouped shop (#2118).
      * Returns false if group service is unavailable or shop is ungrouped.
      */
     private boolean isCoOwner(BarterSign barterSign, UUID playerUuid) {
@@ -1203,13 +1267,7 @@ public class SignInteraction {
         org.fourz.BarterShops.service.IShopGroupService groupService = plugin.getShopGroupService();
         if (groupService == null) return false;
 
-        try {
-            return groupService.canManageShop(barterSign.getShopId(), playerUuid)
-                .get(2, java.util.concurrent.TimeUnit.SECONDS);
-        } catch (Exception e) {
-            logger.debug("Co-owner check failed for shop " + barterSign.getShopId() + ": " + e.getMessage());
-            return false;
-        }
+        return groupService.canManageGroupCached(barterSign.getGroupId(), playerUuid);
     }
 
     /**

@@ -16,6 +16,7 @@ import org.bukkit.event.block.BlockBurnEvent;
 import org.bukkit.event.block.BlockExplodeEvent;
 import org.bukkit.event.block.BlockPistonExtendEvent;
 import org.bukkit.event.block.BlockPistonRetractEvent;
+import org.bukkit.event.block.BlockPlaceEvent;
 import org.bukkit.event.block.SignChangeEvent;
 import org.bukkit.event.entity.EntityExplodeEvent;
 import org.bukkit.event.player.PlayerInteractEvent;
@@ -42,6 +43,7 @@ import org.fourz.BarterShops.service.ShopConfigManager;
 import org.fourz.rvnkcore.util.log.LogManager;
 
 import java.util.UUID;
+import java.util.Optional;
 
 public class SignManager implements Listener {
     private static final String CLASS_NAME = "SignManager";
@@ -140,21 +142,22 @@ public class SignManager implements Listener {
             .signLocation(signLoc)
             .container(container)
             .mode(ShopMode.BOARD)
-            .type(SignType.BARTER)
+            .type(SignType.fromShopType(shop.shopType())) // was hardcoded BARTER; SELL/BUY reset on restart (#2118)
             .signSideDisplayFront(sign.getSide(org.bukkit.block.sign.Side.FRONT))
             .signSideDisplayBack(sign.getSide(org.bukkit.block.sign.Side.BACK))
             .build();
 
         // Set shop ID for database reference
         barterSign.setShopId(shop.shopId());
+        // Restore the group: without it co-owner access died on every restart (#2118)
+        barterSign.setGroupId(shop.groupId() != null ? shop.groupId() : 0);
 
         // Load persisted configuration
         configManager.loadSignConfiguration(barterSign, shop);
 
         // INTEGRATION POINT 2: Register ShopContainer from persisted configuration
         if (container != null) {
-            // Create stable UUID from numeric shop ID (database compatibility)
-            UUID shopUuid = UUID.nameUUIDFromBytes(("bartershop:" + shop.shopId()).getBytes());
+            UUID shopUuid = containerUuidFor(shop.shopId());
             ShopContainer shopContainer = createShopContainerFromBarterSign(barterSign, container, shopUuid);
             plugin.getContainerManager().getValidationListener().registerContainer(shopContainer);
             barterSign.setShopContainerWrapper(shopContainer); // CRITICAL: Set on BarterSign for TradeValidator access
@@ -301,7 +304,17 @@ public class SignManager implements Listener {
 
                     if (qualifySign(sign)) {
                         Container container = findAssociatedContainer(sign);
-                        if (container != null) {
+                        if (container != null && !(container instanceof org.bukkit.block.Chest
+                                || container instanceof org.bukkit.block.Barrel)) {
+                            // Shulker boxes break to a piston, droppers and dispensers empty to a button
+                            player.sendMessage(ChatColor.RED + "Shops can only be made on a chest or barrel.");
+                            event.setCancelled(true);
+                        } else if (container != null
+                                && findSignByContainerBlock(container.getBlock()) != null) {
+                            // One container, one shop: a second sign would sell the first shop's stock
+                            player.sendMessage(ChatColor.RED + "That container already belongs to a shop.");
+                            event.setCancelled(true);
+                        } else if (container != null) {
                             createBarterSign(player, sign, container);
                             player.sendMessage(ChatColor.GREEN + "Shop created!");
                         } else {
@@ -373,8 +386,10 @@ public class SignManager implements Listener {
             return;
         }
 
-        // Authorized break - cleanup
+        // Authorized break - cache, container guard AND the DB row. This used to clear the cache
+        // only, so every shop deleted this way stayed active in the DB and on the WebUI (#2117).
         removeBarterSign(loc);
+        deleteShopRecord(barterSign.getShopId());
         player.sendMessage(ChatColor.GREEN + "Shop removed.");
         logger.info("Shop sign removed by " + player.getName() + " at " + loc);
     }
@@ -488,6 +503,123 @@ public class SignManager implements Listener {
         }
     }
 
+    /** Stable ShopContainer UUID for a shop loaded from the database. */
+    public static UUID containerUuidFor(int shopId) {
+        return UUID.nameUUIDFromBytes(("bartershop:" + shopId).getBytes());
+    }
+
+    private void unregisterContainerGuard(BarterSign barterSign) {
+        UUID registered = barterSign.getShopContainerWrapper() != null
+            ? barterSign.getShopContainerWrapper().getShopId()
+            : (barterSign.getShopId() > 0 ? containerUuidFor(barterSign.getShopId()) : null);
+        if (registered != null) {
+            plugin.getContainerManager().getValidationListener().unregisterContainer(registered);
+        }
+    }
+
+    /** Deletes a shop's DB row by id and notifies the WebUI webhook on success. */
+    public void deleteShopRecord(int shopId) {
+        if (shopId <= 0 || plugin.getShopRepository() == null) return;
+        plugin.getShopRepository().deleteById(shopId).thenAccept(deleted -> {
+            if (deleted) {
+                notifyShopWebhook(String.valueOf(shopId));
+            } else {
+                logger.warning("Shop " + shopId + " was not in the database when its sign was removed");
+            }
+        }).exceptionally(ex -> {
+            logger.warning("DB delete failed for shop " + shopId + ": " + ex.getMessage());
+            return null;
+        });
+    }
+
+    /**
+     * Resolves a command argument to a cached shop. Accepts a database shop id ("12"), "x,y,z" in
+     * the sender's world, or "world,x,y,z". One lookup for remove/clear/info: clear and info used to
+     * read the number as a position in hash order and act on an arbitrary shop (#2117).
+     */
+    public Optional<Map.Entry<Location, BarterSign>> findShop(String arg, org.bukkit.command.CommandSender sender) {
+        if (arg == null || arg.isEmpty()) return Optional.empty();
+        if (arg.contains(",")) {
+            String[] parts = arg.split(",");
+            try {
+                String worldName;
+                int offset;
+                if (parts.length == 4) {
+                    worldName = parts[0].trim();
+                    offset = 1;
+                } else if (parts.length == 3 && sender instanceof Player p) {
+                    worldName = p.getWorld().getName();
+                    offset = 0;
+                } else {
+                    return Optional.empty();
+                }
+                int x = Integer.parseInt(parts[offset].trim());
+                int y = Integer.parseInt(parts[offset + 1].trim());
+                int z = Integer.parseInt(parts[offset + 2].trim());
+                return barterSigns.entrySet().stream()
+                    .filter(e -> {
+                        Location l = e.getKey();
+                        return l.getWorld() != null && l.getWorld().getName().equals(worldName)
+                            && l.getBlockX() == x && l.getBlockY() == y && l.getBlockZ() == z;
+                    })
+                    .findFirst();
+            } catch (NumberFormatException e) {
+                return Optional.empty();
+            }
+        }
+        try {
+            int shopId = Integer.parseInt(arg.trim());
+            return barterSigns.entrySet().stream()
+                .filter(e -> e.getValue().getShopId() == shopId)
+                .findFirst();
+        } catch (NumberFormatException e) {
+            return Optional.empty();
+        }
+    }
+
+    /**
+     * Loads one shop from the database into the cache, e.g. after /shop debug create, which
+     * writes only the row. Without this the shop exists but no command can find it.
+     */
+    public void hydrateById(int shopId) {
+        if (plugin.getShopRepository() == null) return;
+        plugin.getShopRepository().findById(shopId).thenAccept(opt -> opt.ifPresent(dto ->
+            plugin.getServer().getScheduler().runTask(plugin, () -> {
+                Location signLoc = dto.getSignLocation();
+                if (signLoc != null && signLoc.getWorld() != null && !barterSigns.containsKey(signLoc)) {
+                    if (!hydrateShop(dto, signLoc)) {
+                        logger.warning("Shop " + shopId + " has no sign block at " + signLoc + " - not cached");
+                    }
+                }
+            })
+        )).exceptionally(ex -> {
+            logger.warning("Could not hydrate shop " + shopId + ": " + ex.getMessage());
+            return null;
+        });
+    }
+
+    /**
+     * Sets the group on the cached sign for a shop (0 = ungrouped). Group commands wrote only
+     * the DB row, so the cached sign kept its old group until restart (#2118).
+     */
+    public void setShopGroupId(int shopId, int groupId) {
+        for (BarterSign sign : barterSigns.values()) {
+            if (sign.getShopId() == shopId) {
+                sign.setGroupId(groupId);
+            }
+        }
+    }
+
+    /** Ungroups every cached sign in a deleted group, matching the DB unassign (#2118). */
+    public void clearGroup(int groupId) {
+        if (groupId <= 0) return;
+        for (BarterSign sign : barterSigns.values()) {
+            if (sign.getGroupId() == groupId) {
+                sign.setGroupId(0);
+            }
+        }
+    }
+
     public void removeBarterSign(Location loc) {
         BarterSign barterSign = barterSigns.remove(loc);
         if (barterSign == null) return;
@@ -497,13 +629,11 @@ public class SignManager implements Listener {
         // This method only handles cache cleanup and validation unregistration
         int shopId = barterSign.getShopId();
 
-        // INTEGRATION POINT 4: Unregister ShopContainer from validation listener
-        // Use same UUID generation as registration (nameUUIDFromBytes with shopId)
-        if (shopId > 0) {
-            UUID shopUuid = UUID.nameUUIDFromBytes(("bartershop:" + shopId).getBytes());
-            plugin.getContainerManager().getValidationListener().unregisterContainer(shopUuid);
-            logger.debug("Unregistered shop container validation for shop " + shopId);
-        }
+        // INTEGRATION POINT 4: Unregister ShopContainer from validation listener.
+        // Use the UUID the wrapper was registered under: shops created this session register a
+        // random UUID, so re-deriving it from the shop id missed them and leaked the guard (#2117).
+        unregisterContainerGuard(barterSign);
+        logger.debug("Unregistered shop container validation for shop " + shopId);
 
         // Clean up PDC data from sign block by removing sign block entirely
         // (Bukkit will handle PDC cleanup when block is broken)
@@ -521,6 +651,7 @@ public class SignManager implements Listener {
      */
     public void clearSigns() {
         int count = barterSigns.size();
+        barterSigns.values().forEach(this::unregisterContainerGuard);
         barterSigns.clear();
         logger.debug("Cleared " + count + " barter signs from memory");
     }
@@ -601,12 +732,15 @@ public class SignManager implements Listener {
                     newSign.addPaymentOption(payment, payment.getAmount());
                 }
                 newSign.setTypeDetected(oldSign.isTypeDetected());
+                // Admin flag and group were dropped here, so a reload demoted admin shops and
+                // lost co-owner access. Group comes from the fresh row: a transfer clears it (#2118).
+                newSign.setAdmin(oldSign.isAdmin());
+                newSign.setGroupId(shopData.groupId() != null ? shopData.groupId() : 0);
 
-                // Step 4: CRITICAL - Unregister old ShopContainer wrapper
+                // Step 4: CRITICAL - Unregister old ShopContainer wrapper under the UUID it was
+                // registered with (a session-created shop uses a random one, #2117)
                 if (oldSign.getShopContainerWrapper() != null) {
-                    UUID oldShopUuid = java.util.UUID.nameUUIDFromBytes(("bartershop:" + oldSign.getShopId()).getBytes());
-                    plugin.getContainerManager().getValidationListener()
-                        .unregisterContainer(oldShopUuid);
+                    unregisterContainerGuard(oldSign);
                 }
 
                 // Step 5: Rebuild ShopContainer wrapper with new BarterSign
@@ -679,7 +813,7 @@ public class SignManager implements Listener {
      * Notifies the WebhookNotifier of a shop change after sign creation or removal.
      * Resolves WebhookNotifier lazily from ServiceRegistry.
      */
-    private void notifyShopWebhook(String shopId) {
+    public void notifyShopWebhook(String shopId) {
         org.fourz.rvnkcore.service.registry.ServiceRegistry registry = plugin.getServiceRegistry();
         if (registry == null) return;
         org.fourz.rvnkcore.api.webhook.WebhookNotifier notifier =
@@ -833,15 +967,56 @@ public class SignManager implements Listener {
         if (containerLocation == null) return null;
 
         for (BarterSign sign : barterSigns.values()) {
-            Container shopContainer = sign.getShopContainer();
-            if (shopContainer == null) {
-                shopContainer = sign.getContainer();
-            }
-
-            if (shopContainer != null && shopContainer.getLocation().equals(containerLocation)) {
+            Location loc = sign.getContainerLocation();
+            if (loc != null && loc.equals(containerLocation)) {
                 return sign;
             }
         }
         return null;
+    }
+
+    /**
+     * Finds the shop owning a container block, checking both halves of a double chest.
+     * A shop registers only the half its sign is on; the other half holds half the stock.
+     */
+    public BarterSign findSignByContainerBlock(Block block) {
+        if (block == null) return null;
+        BarterSign direct = findSignByContainerLocation(block.getLocation());
+        if (direct != null) return direct;
+        if (block.getState() instanceof org.bukkit.block.Chest chest
+                && chest.getInventory().getHolder() instanceof org.bukkit.block.DoubleChest dc) {
+            for (org.bukkit.inventory.InventoryHolder side : new org.bukkit.inventory.InventoryHolder[]{dc.getLeftSide(), dc.getRightSide()}) {
+                if (side instanceof Container half) {
+                    BarterSign found = findSignByContainerLocation(half.getLocation());
+                    if (found != null) return found;
+                }
+            }
+        }
+        return null;
+    }
+
+    /**
+     * Stops a non-owner placing a chest beside a shop chest. The new chest would merge into a
+     * double chest whose added half is unprotected and receives the shop's payments.
+     */
+    @EventHandler(priority = EventPriority.HIGH, ignoreCancelled = true)
+    public void onChestPlaceBesideShop(BlockPlaceEvent event) {
+        Material type = event.getBlockPlaced().getType();
+        if (type != Material.CHEST && type != Material.TRAPPED_CHEST) return;
+        if (barterSigns.isEmpty()) return;
+
+        Player player = event.getPlayer();
+        if (player.hasPermission("bartershops.admin")) return;
+
+        for (BlockFace face : new BlockFace[]{BlockFace.NORTH, BlockFace.SOUTH, BlockFace.EAST, BlockFace.WEST}) {
+            Block neighbour = event.getBlockPlaced().getRelative(face);
+            if (neighbour.getType() != type) continue;
+            BarterSign shop = findSignByContainerBlock(neighbour);
+            if (shop != null && !shop.getOwner().equals(player.getUniqueId())) {
+                event.setCancelled(true);
+                player.sendMessage(ChatColor.RED + "You can't place a chest next to another player's shop.");
+                return;
+            }
+        }
     }
 }

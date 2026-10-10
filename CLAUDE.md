@@ -239,8 +239,8 @@ Use consistent message prefixes in command handlers:
 
 | Dependency | Version | Purpose |
 |------------|---------|---------|
-| spigot-api | 1.21-R0.1-SNAPSHOT | Bukkit API |
-| RVNKCore | 1.5.2-alpha | Shared logging, ServiceRegistry (depend) |
+| spigot-api | 26.1.2-R0.1-SNAPSHOT | Bukkit API |
+| RVNKCore | see `pom.xml` (provided) | Shared logging, ServiceRegistry (depend) |
 | Vault | 1.7+ | Economy integration (softdepend) |
 | snakeyaml | 2.0 | YAML configuration |
 | jetty-servlet | 9.4.44.v20210927 | Web integration (REST API) |
@@ -298,56 +298,17 @@ Use consistent message prefixes in command handlers:
 - [Admin Guide](docs/admin-guide.md) - Installation, configuration, permissions
 - [Developer Guide](docs/developer-guide.md) - API usage, integration
 - [API Reference](docs/api-reference.md) - REST API endpoints
-- **Graph Memory** — For BarterShops status and history: `search_nodes("BarterShops")`
+- **sql-memory** — status and history: `python scripts/sql-memory/recall.py --bank ravenkraftdev --entity BarterShops`
 
 ### Parent Repo Standards
 
-- [Coding Standards](../../docs/standard/coding-standards.md) - Java 17+ conventions
+- [Coding Standards](../../docs/standard/coding-standards.md) - Java 21 conventions
 - [RVNKCore Integration](../../docs/standard/rvnkcore-integration.md) - ServiceRegistry usage patterns
 - [Database Patterns](../../docs/standard/database-patterns.md) - Repository pattern, HikariCP
 
 ## Development Status
 
-**Current Version**: 1.1.16 (Mar 3, 2026)
-
-For plugin status and history, search Graph Memory: `search_nodes("BarterShops")`
-
-**Latest Completions** (Feb 21):
-- v1.0.27: `trade_source` persisted across all TradeEngine paths — ALTER TABLE migration for existing installs; `TradeRecordDTO.tradeSource` field; TradeEngine.logTrade() wires source; `TradeServiceImpl.serializeItem()` marked `@Deprecated` (dead code)
-- v1.0.28: 30-day trade archive scheduler — `RetentionManager` Bukkit async repeating task; `retention:` config section; calls `ITradeRepository.archiveOlderThan()`
-- v1.0.28: `/shop trade <player> <shopId> [qty]` admin force-trade — console-capable, bypasses payment, `ADMIN_OVERRIDE` source, 20th subcommand
-- v1.0.29: Sign debounce fix — `PURCHASE_DEBOUNCE_MS = STATUS_DISPLAY_TICKS * 50L`; debounce check moved before null/air item check in `handleCustomerLeftClick()` to prevent "Hold payment item" overwriting "Purchased" feedback
-
-**Sign Display Optimization Phases (v1.0.1+)**:
-- **Phase 8** (Feb 12): Customer pagination for multi-payment BARTER shops — `currentPaymentPage` session field on `BarterSign`; right-click cycles pages; chat feedback "Payment option N/M". Owner preview mode — sneak+right-click in BOARD toggles `ownerPreviewMode` flag, sign switches to customer view.
-- **Phase 8.5** (Feb 12): 1 payment per page rendering — `renderPaginatedPayment()` in `BoardModeRenderer`; summary page (index 0) + N payment pages; page indicator `§6page N of M` on line 3.
-- **Phase 9** (Feb 13): Offering name wrapping — `displayOfferingWithWrapping(side, offering, startLine)` in `SignRenderUtil`; names >15 chars word-split across two lines; `computeNameSplit()` helper for word-boundary detection.
-- **Phases 10–13** (Feb 13): Dual-wrap mode for single-payment BARTER shops — `displayDualWrapMode()` in `SignRenderUtil`; when both offering AND payment exceed 15 chars, the [Barter] header is removed and all 4 sign lines are used for content. Payment wrapping added via `displayPaymentWithWrapping()`.
-
-**Sign Display Architecture (post-Phase 13)**:
-- `SignDisplay.java`: Thin dispatcher routing to `ISignModeRenderer` implementations via `EnumMap`
-- `BoardModeRenderer.java`: All BOARD mode rendering logic (customer/owner paths, pagination, wrapping)
-- `SignRenderUtil.java`: Shared rendering helpers (`getTypeHeader`, `formatItemName`, `displayOfferingWithWrapping`, `displayPaymentWithWrapping`, `displayDualWrapMode`, `computeNameSplit`, `applyLayoutToSign`)
-- `SignLayoutFactory.java`: Legacy layout builders (`MAX_LINE_LENGTH = 15`, `truncateForSign`, type/setup/board/delete layouts)
-
-**Known Issues**:
-- **bug-32/33**: Auto-revert scheduler — fixed in commit 89f2e23, regression testing pending
-
-**Resolved Issues** (closed 2026-03-04):
-- ~~**bug-30**: Chest break prevention deletes shop from database~~ — resolved; use DELETE mode is now enforced
-- ~~**bug-34**: Owner preview mode (sneak+right-click) shows owner summary instead of customer pagination view~~ — resolved in v1.1.x sign display refactor
-
-**Latest Completions** (Mar 3):
-- v1.1.16: SignDisplay refactor (#193) — all 5 ISignModeRenderer renderers delegate to SignLayoutFactory; TypeModeRenderer and BoardModeRenderer.renderNotConfigured() updated; factory createTypeLayout/createNotConfiguredLayout aligned to current output
-- v1.1.16: `/shop history <id> [page]` — paginated trade history command; async via ITradeRepository.findByShop(); buyer/seller/item/currency display; console-friendly; REST endpoint already existed at GET /api/trades/recent?shop={id}
-
-**In Development**:
-- Review follow-ups: debounce on trade-failure path; config caching consistency in RetentionManager; redundant null check in TradeRepositoryImpl.save()
-
-**Planned Next**:
-- feat: economic history aggregate tables (daily/monthly summaries, archive pruning, item_type column)
-- feat-23: Shop config persistence across server restarts
-- refactor-01: Mode enum unification (SignMode vs ShopMode)
+Status, version and history: `python scripts/sql-memory/recall.py --bank ravenkraftdev --entity BarterShops`. Open work: `gh issue list --repo fourz/Ravenkaft-Dev --label board:bartershops`.
 
 ## Development Checklist
 

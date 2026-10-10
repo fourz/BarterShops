@@ -74,6 +74,15 @@ public class SeedSubCommand implements SubCommand {
 
         String action = args[0].toLowerCase();
 
+        // Seed and cleanup write/delete real rows on the shared database. Off unless the server
+        // opts in: a missing key reads false, so Event and prod refuse without any config change.
+        if (!"status".equals(action)
+                && !plugin.getConfigManager().getBoolean("debug.allow-test-data", false)) {
+            sender.sendMessage(ChatColor.RED + "Test-data commands are disabled on this server.");
+            sender.sendMessage(ChatColor.GRAY + "Set debug.allow-test-data: true in BarterShops config.yml (Dev only).");
+            return true;
+        }
+
         // Initialize generator if needed
         IConnectionProvider connProvider = plugin.getConnectionProvider();
         if (connProvider == null) {

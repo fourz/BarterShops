@@ -94,6 +94,15 @@ public class ShopOwnershipServiceImpl implements IShopOwnershipService {
                         return OwnershipChangeResult.failure("Database save failed");
                     }
 
+                    // Step 4b: Ungroup the shop. save() never writes group_id, so the old owner's
+                    // group - and its co-owners - kept managing the transferred shop (#2118)
+                    Integer oldGroupId = existingShop.groupId();
+                    if (oldGroupId != null && plugin.getShopGroupRepository() != null) {
+                        plugin.getShopGroupRepository()
+                            .removeShopFromGroup(shopId)
+                            .get(5, TimeUnit.SECONDS);
+                    }
+
                     // Step 5: Reload BarterSign from database (updates in-memory owner)
                     BarterSign reloadedSign = plugin.getSignManager()
                         .reloadShopFromDatabase(shopId)
@@ -103,11 +112,18 @@ public class ShopOwnershipServiceImpl implements IShopOwnershipService {
                         // CRITICAL: Rollback database if cache reload fails
                         try {
                             plugin.getShopRepository().save(existingShop).join();
+                            if (oldGroupId != null && plugin.getShopGroupRepository() != null) {
+                                plugin.getShopGroupRepository().assignShopToGroup(shopId, oldGroupId).join();
+                            }
                         } catch (Exception e) {
                             logger.error("Failed to rollback database after reload failure", e);
                         }
                         return OwnershipChangeResult.failure("Cache reload failed - rolled back");
                     }
+
+                    // The reload read group_id back as NULL; set it anyway so no co-owner check
+                    // can match the old group through this sign (#2118)
+                    reloadedSign.setGroupId(0);
 
                     // Step 6: Invalidate active sessions
                     int tradesInvalidated = plugin.getTradeEngine().invalidateSessionsForShop(shopId);

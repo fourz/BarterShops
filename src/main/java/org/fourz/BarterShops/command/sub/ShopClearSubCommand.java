@@ -35,7 +35,7 @@ public class ShopClearSubCommand implements SubCommand {
         }
 
         String shopId = args[0];
-        Optional<Map.Entry<Location, BarterSign>> shopEntry = findShopById(shopId);
+        Optional<Map.Entry<Location, BarterSign>> shopEntry = plugin.getSignManager().findShop(shopId, sender);
 
         if (shopEntry.isEmpty()) {
             // Cache miss — fall back to database (sign may be in unloaded chunk)
@@ -97,38 +97,6 @@ public class ShopClearSubCommand implements SubCommand {
         return true;
     }
 
-    private Optional<Map.Entry<Location, BarterSign>> findShopById(String id) {
-        Map<Location, BarterSign> shops = plugin.getSignManager().getBarterSigns();
-
-        if (id.contains(",")) {
-            String[] parts = id.split(",");
-            if (parts.length >= 3) {
-                try {
-                    int x = Integer.parseInt(parts[0].trim());
-                    int y = Integer.parseInt(parts[1].trim());
-                    int z = Integer.parseInt(parts[2].trim());
-
-                    return shops.entrySet().stream()
-                            .filter(entry -> {
-                                Location loc = entry.getKey();
-                                return loc.getBlockX() == x && loc.getBlockY() == y && loc.getBlockZ() == z;
-                            })
-                            .findFirst();
-                } catch (NumberFormatException ignored) {}
-            }
-        }
-
-        try {
-            int index = Integer.parseInt(id) - 1;
-            List<Map.Entry<Location, BarterSign>> shopList = new ArrayList<>(shops.entrySet());
-            if (index >= 0 && index < shopList.size()) {
-                return Optional.of(shopList.get(index));
-            }
-        } catch (NumberFormatException ignored) {}
-
-        return Optional.empty();
-    }
-
     @Override
     public String getDescription() {
         return "Clear shop inventory (admin)";
@@ -136,7 +104,7 @@ public class ShopClearSubCommand implements SubCommand {
 
     @Override
     public String getUsage() {
-        return "/shop clear <id|x,y,z>";
+        return "/shop clear <id|x,y,z|world,x,y,z>";
     }
 
     @Override
@@ -174,6 +142,6 @@ public class ShopClearSubCommand implements SubCommand {
         return java.util.List.of(
                 "/shop clear 123",
                 "/shop clear 100,64,-200",
-                "  accepts a shop id or x,y,z");
+                "  accepts the shop id from /shop list, x,y,z in your world, or world,x,y,z");
     }
 }

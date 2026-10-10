@@ -164,4 +164,32 @@ public interface IShopGroupService {
      * @return CompletableFuture with true if player can manage
      */
     CompletableFuture<Boolean> canManageShop(int shopId, UUID playerUuid);
+
+    /**
+     * Cached check: is the player the owner or a co-owner of the group? Reads memory only, so it
+     * is safe on the main thread (#2118). False for an unknown or ungrouped (&lt;= 0) group.
+     *
+     * @param groupId The group ID
+     * @param playerUuid The player UUID
+     * @return true if the player can manage shops in that group
+     */
+    boolean canManageGroupCached(int groupId, UUID playerUuid);
+
+    /**
+     * Reloads the co-owner cache from the database. Runs async; a failed load keeps the old cache.
+     *
+     * @return CompletableFuture that completes when the reload is done
+     */
+    CompletableFuture<Void> refreshAccessCache();
+
+    /**
+     * Reloads one group in the co-owner cache (removed if it no longer exists or is inactive).
+     *
+     * @param groupId The group ID
+     * @return CompletableFuture that completes when the entry is updated
+     */
+    CompletableFuture<Void> refreshGroupAccess(int groupId);
+
+    /** Clears the co-owner cache (plugin disable). */
+    void clearAccessCache();
 }

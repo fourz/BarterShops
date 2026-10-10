@@ -142,6 +142,48 @@ public class ShopGroupRepositoryImpl implements IShopGroupRepository {
     }
 
     @Override
+    public CompletableFuture<List<ShopGroupDTO>> findAllActive() {
+        if (fallbackTracker.isInFallbackMode()) {
+            return CompletableFuture.completedFuture(List.of());
+        }
+
+        return CompletableFuture.supplyAsync(() -> {
+            String membersSql = "SELECT m.group_id, m.member_uuid FROM " + t("shop_group_members") + " m " +
+                "INNER JOIN " + t("shop_groups") + " g ON g.group_id = m.group_id WHERE g.is_active = 1";
+            String groupsSql = "SELECT * FROM " + t("shop_groups") + " WHERE is_active = 1";
+            List<ShopGroupDTO> groups = new ArrayList<>();
+
+            try (Connection conn = connectionProvider.getConnection()) {
+                // Members first, in one query, rather than one co-owner query per group
+                Map<Integer, List<UUID>> members = new HashMap<>();
+                try (PreparedStatement stmt = conn.prepareStatement(membersSql);
+                     ResultSet rs = stmt.executeQuery()) {
+                    while (rs.next()) {
+                        members.computeIfAbsent(rs.getInt("group_id"), k -> new ArrayList<>())
+                            .add(UUID.fromString(rs.getString("member_uuid")));
+                    }
+                }
+
+                try (PreparedStatement stmt = conn.prepareStatement(groupsSql);
+                     ResultSet rs = stmt.executeQuery()) {
+                    while (rs.next()) {
+                        int gid = rs.getInt("group_id");
+                        groups.add(mapRowToGroup(rs, members.getOrDefault(gid, List.of())));
+                    }
+                }
+
+                fallbackTracker.recordSuccess();
+                return groups;
+
+            } catch (SQLException e) {
+                fallbackTracker.recordFailure("Find all active groups failed: " + e.getMessage());
+                logger.error("Failed to find all active groups: " + e.getMessage());
+                throw new RuntimeException("Failed to find all active groups", e);
+            }
+        }, executor);
+    }
+
+    @Override
     public CompletableFuture<List<ShopGroupDTO>> findByOwner(UUID ownerUuid) {
         if (fallbackTracker.isInFallbackMode()) {
             return CompletableFuture.completedFuture(List.of());

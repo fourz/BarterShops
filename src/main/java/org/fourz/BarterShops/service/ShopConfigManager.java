@@ -55,7 +55,11 @@ public class ShopConfigManager {
                             .shopId(existing.shopId())
                             .ownerUuid(existing.ownerUuid())  // CRITICAL: Preserve owner
                             .shopName(existing.shopName())
-                            .shopType(existing.shopType())
+                            // Persist the sign's current type; this wrote the stored one back, so a
+                            // TYPE change never survived a restart (#2118)
+                            .shopType(barterSign.getType() != null
+                                    ? barterSign.getType().toShopType(existing.shopType())
+                                    : existing.shopType())
                             .signLocation(existing.locationWorld(), existing.locationX(), existing.locationY(), existing.locationZ())
                             .chestLocation(existing.chestLocationWorld(), existing.chestLocationX(), existing.chestLocationY(), existing.chestLocationZ())
                             .isActive(existing.isActive())
@@ -83,8 +87,9 @@ public class ShopConfigManager {
 
                     ShopDataDTO dto = builder.build();
 
-                    // Save asynchronously
-                    return repository.save(dto)
+                    // Save asynchronously. saveConfiguration also deletes config keys absent from
+                    // the DTO: upsert-only saving brought a removed payment or price back (#2118)
+                    return repository.saveConfiguration(dto)
                             .thenAccept(saved -> {
                                 logger.debug("Saved config for shop " + shopId + ": offering=" +
                                         (barterSign.getItemOffering() != null ? barterSign.getItemOffering().getType() : "none") +

@@ -8,6 +8,7 @@ import org.bukkit.block.sign.SignSide;
 import org.bukkit.entity.Player;
 import org.bukkit.inventory.ItemStack;
 import org.fourz.BarterShops.shop.ShopMode;
+import org.fourz.BarterShops.container.LiveContainer;
 import org.fourz.BarterShops.container.ShopContainer;
 import org.fourz.BarterShops.container.validation.MultiTypeItemRule;
 import org.fourz.BarterShops.container.validation.UnstackableItemOnlyRule;
@@ -16,6 +17,7 @@ import org.fourz.BarterShops.sign.api.ISignData;
 import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Optional;
 import java.util.Set;
 import java.util.UUID;
 
@@ -23,7 +25,7 @@ public class BarterSign implements ISignData {
     private final String id;
     private final UUID owner;
     private final Location signLocation;
-    private int groupId;
+    private volatile int groupId;  // written from DB callbacks by group commands and transfers (#2118)
     private SignType type;
     private Container container;
     private Container shopContainer;
@@ -69,8 +71,14 @@ public class BarterSign implements ISignData {
     public int getGroupId() { return groupId; }
     public void setGroupId(int groupId) { this.groupId = groupId; }
     public SignType getType() { return type; }
-    public Container getContainer() { return container; }
-    public Container getShopContainer() { return shopContainer; }
+    // Resolved from the world on each call: a stored BlockState goes stale when its chunk unloads.
+    public Container getContainer() { return LiveContainer.resolve(container); }
+    public Container getShopContainer() { return LiveContainer.resolve(shopContainer); }
+    /** Location of the shop container, without touching the world (safe in loops and off-thread). */
+    public Location getContainerLocation() {
+        Container stored = shopContainer != null ? shopContainer : container;
+        return stored != null ? stored.getLocation() : null;
+    }
     public ShopMode getMode() { return mode; }
     public void setMode(ShopMode mode) { this.mode = mode; }
     public void setType(SignType type) { this.type = type; }
@@ -157,18 +165,19 @@ public class BarterSign implements ISignData {
         ItemStack payment = paymentItem.clone();
         payment.setAmount(amount);
 
-        // Check if this material is already accepted
-        Material paymentMaterial = paymentItem.getType();
-        acceptedPayments.removeIf(p -> p.getType() == paymentMaterial);
+        // Replace an existing option for the same item (not just the same material, so a
+        // shop can accept two different potions)
+        acceptedPayments.removeIf(p -> p.isSimilar(paymentItem));
 
         acceptedPayments.add(payment);
     }
 
     /**
-     * Removes a payment option by material type.
+     * Removes the payment option matching this item.
      */
-    public boolean removePaymentOption(Material material) {
-        return acceptedPayments.removeIf(p -> p.getType() == material);
+    public boolean removePaymentOption(ItemStack paymentItem) {
+        if (paymentItem == null) return false;
+        return acceptedPayments.removeIf(p -> p.isSimilar(paymentItem));
     }
 
     /**
@@ -196,28 +205,35 @@ public class BarterSign implements ISignData {
             return priceItem != null && priceItem.isSimilar(paymentItem);
         }
 
-        // For BARTER mode, check acceptedPayments list
-        Material paymentMaterial = paymentItem.getType();
-        return acceptedPayments.stream()
-            .anyMatch(p -> p.getType() == paymentMaterial);
+        // For BARTER mode, the held item must be the configured item, not just the same
+        // material: a water bottle is not a Strength II potion (#2116)
+        return findPaymentOption(paymentItem).isPresent();
     }
 
     /**
-     * Gets the payment amount for a given material.
+     * Returns the configured payment option matching this item (isSimilar: type and meta,
+     * ignoring amount).
+     */
+    public Optional<ItemStack> findPaymentOption(ItemStack paymentItem) {
+        if (paymentItem == null) return Optional.empty();
+        return acceptedPayments.stream()
+            .filter(p -> p != null && p.isSimilar(paymentItem))
+            .findFirst()
+            .map(ItemStack::clone);
+    }
+
+    /**
+     * Gets the payment amount for the option matching this item, or 0.
      * CRITICAL FIX: Fallback to priceItem for BUY/SELL shops if acceptedPayments empty.
      */
-    public int getPaymentAmount(Material material) {
-        int amount = acceptedPayments.stream()
-            .filter(p -> p.getType() == material)
-            .map(ItemStack::getAmount)
-            .findFirst()
-            .orElse(0);
+    public int getPaymentAmount(ItemStack paymentItem) {
+        if (paymentItem == null) return 0;
+        int amount = findPaymentOption(paymentItem).map(ItemStack::getAmount).orElse(0);
 
         // Fallback for BUY/SELL shops if acceptedPayments not populated
-        if (amount == 0 && type != SignType.BARTER && priceItem != null) {
-            if (priceItem.getType() == material) {
-                return priceAmount;
-            }
+        if (amount == 0 && type != SignType.BARTER && priceItem != null
+                && priceItem.isSimilar(paymentItem)) {
+            return priceAmount;
         }
 
         return amount;

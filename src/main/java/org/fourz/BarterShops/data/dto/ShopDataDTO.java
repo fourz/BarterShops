@@ -167,6 +167,21 @@ public record ShopDataDTO(
     }
 
     /**
+     * Metadata keys owned by the sign configuration save. A config save deletes any of these that
+     * the DTO no longer carries, so a cleared price or removed payment stays gone (#2118). Other
+     * keys (ownerName, legacy shop_config_locked_item_type) are never deleted by that save.
+     */
+    public static final Set<String> CONFIG_METADATA_KEYS = Set.of(
+        "shop_config_offering",
+        "shop_config_price_item",
+        "shop_config_price_amount",
+        "shop_config_accepted_payments",
+        "shop_config_is_stackable",
+        "shop_config_type_detected",
+        "shop_config_is_admin"
+    );
+
+    /**
      * Builder for constructing ShopDataDTO with optional fields.
      */
     public static Builder builder() {

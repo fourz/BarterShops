@@ -76,6 +76,9 @@ public class BarterShops extends JavaPlugin {
 
     private IShopGroupRepository shopGroupRepository;
     private IShopGroupService shopGroupService;
+    // Periodic co-owner cache reload, so changes made on another server show up (#2118)
+    private org.bukkit.scheduler.BukkitTask groupCacheRefreshTask;
+    private static final long GROUP_CACHE_REFRESH_TICKS = 60L * 20L;
     private ITransactionLogger transactionLogger;
 
     // Plugin lifecycle tracking
@@ -293,6 +296,14 @@ public class BarterShops extends JavaPlugin {
                     logger.warning("Shop group migration failed: " + ex.getMessage());
                     return null;
                 });
+
+            // Co-owner cache: load now (async), then reload every 60 s. Sign clicks read only this
+            // cache, never the database (#2118)
+            IShopGroupService groupService = shopGroupService;
+            groupService.refreshAccessCache();
+            groupCacheRefreshTask = getServer().getScheduler().runTaskTimerAsynchronously(this,
+                () -> groupService.refreshAccessCache(),
+                GROUP_CACHE_REFRESH_TICKS, GROUP_CACHE_REFRESH_TICKS);
         } catch (Exception e) {
             logger.warning("Failed to initialize ShopGroupService: " + e.getMessage());
         }
@@ -620,6 +631,13 @@ public class BarterShops extends JavaPlugin {
         });
 
         cleanupManager("shopGroupService", () -> {
+            if (groupCacheRefreshTask != null) {
+                groupCacheRefreshTask.cancel();
+                groupCacheRefreshTask = null;
+            }
+            if (shopGroupService != null) {
+                shopGroupService.clearAccessCache();
+            }
             shopGroupService = null;
         });
 

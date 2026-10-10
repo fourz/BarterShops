@@ -42,6 +42,11 @@ public class ShopsTestDataGenerator extends TestDataGenerator {
         UUID.fromString("00000000-0000-0000-0000-000000000001"),
     };
 
+    // Seeded rows are TestShop* AND owned by the seed owner. Name alone matched real shops
+    // called "testshop..." (LIKE is case-insensitive on MySQL) and deleted them (#2117).
+    private static final String SEEDED_SHOPS =
+        "shop_name LIKE 'TestShop%' AND owner_uuid = '00000000-0000-0000-0000-000000000001'";
+
     // Transaction statuses
     private static final String[] TRANSACTION_STATUSES = {
         "COMPLETED", "CANCELLED", "FAILED", "PENDING", "REFUNDED"
@@ -343,12 +348,6 @@ public class ShopsTestDataGenerator extends TestDataGenerator {
                         }
                     }
 
-                    if (isMySQL) {
-                        try (PreparedStatement stmt = conn.prepareStatement("SET FOREIGN_KEY_CHECKS=1")) {
-                            stmt.execute();
-                        }
-                    }
-
                     conn.commit();
                     logInfo("Cleanup complete");
                     return true;
@@ -359,6 +358,13 @@ public class ShopsTestDataGenerator extends TestDataGenerator {
                     return false;
                 } finally {
                     conn.setAutoCommit(true);
+                    // Always restore FK checks. This connection returns to RVNKCore's shared pool;
+                    // resetting only on success left it with checks OFF after a rollback (#2117).
+                    if (isMySQL) {
+                        try (PreparedStatement stmt = conn.prepareStatement("SET FOREIGN_KEY_CHECKS=1")) {
+                            stmt.execute();
+                        } catch (SQLException ignored) {}
+                    }
                     // Re-enable FK checks for SQLite
                     if (!isMySQL) {
                         try (PreparedStatement stmt = conn.prepareStatement("PRAGMA foreign_keys=ON")) {
@@ -379,11 +385,9 @@ public class ShopsTestDataGenerator extends TestDataGenerator {
      */
     private String getTestDataCondition(String tableName) {
         return switch (tableName) {
-            case "shops" -> "shop_name LIKE 'TestShop%'";
-            case "trade_records" -> "shop_id IN (SELECT shop_id FROM " +
-                table("shops") + " WHERE shop_name LIKE 'TestShop%')";
-            case "shop_metadata" -> "shop_id IN (SELECT shop_id FROM " + table("shops") +
-                " WHERE shop_name LIKE 'TestShop%')";
+            case "shops" -> SEEDED_SHOPS;
+            case "trade_records", "shop_metadata" -> "shop_id IN (SELECT shop_id FROM " +
+                table("shops") + " WHERE " + SEEDED_SHOPS + ")";
             default -> "1=0";  // Safe fallback
         };
     }
