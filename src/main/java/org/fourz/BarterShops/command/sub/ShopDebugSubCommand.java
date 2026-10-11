@@ -49,7 +49,7 @@ import java.util.logging.Level;
  *   /shop debug stock <shopId> [amount] - Inspect or restock shop chest
  *   /shop debug validate [shopId] - Validate shop sign/chest integrity
  *   /shop debug rebind <shopId> <world> <x> <y> <z> - Rebind chest location
- *   /shop debug create <name> <world> <x> <y> <z> [owner] - Create shop programmatically
+ *   /shop debug create <name> <world> <x> <y> <z> <ownerName> - Create shop programmatically (owner required)
  */
 public class ShopDebugSubCommand implements SubCommand {
 
@@ -763,7 +763,9 @@ public class ShopDebugSubCommand implements SubCommand {
      * Usage: /shop debug create <name> <world> <x> <y> <z> <ownerName>
      *
      * <p>Programmatically creates a shop. The sign is placed at (x, y+1, z) as a standing OAK_SIGN.
-     * If no owner is specified the console UUID ({@code 00000000-...}) is used.</p>
+     * {@code ownerName} is required and must be a player who has joined this server; without it
+     * the command shows the usage line and creates nothing. There is no console-UUID owner
+     * any more (#2117, #2284).</p>
      */
     private boolean handleCreate(CommandSender sender, String[] args) {
         if (!plugin.getConfigManager().getBoolean("debug.allow-test-data", false)) {
@@ -771,7 +773,9 @@ public class ShopDebugSubCommand implements SubCommand {
             sender.sendMessage(ChatColor.GRAY + "Set debug.allow-test-data: true in BarterShops config.yml (Dev only).");
             return true;
         }
-        if (args.length < 5) {
+        // Never create an owner of 00000000-...: a console-created shop with no owner sat on
+        // the live Event server for five months (#2117). The owner name is required (#2284).
+        if (args.length < 6) {
             sender.sendMessage(ChatColor.RED + "> Usage: /shop debug create <name> <world> <x> <y> <z> <ownerName>");
             return true;
         }
@@ -791,25 +795,18 @@ public class ShopDebugSubCommand implements SubCommand {
 
         // Resolve owner
         UUID ownerUuid;
-        if (args.length >= 6) {
-            String ownerName = args[5];
-            Player onlineOwner = Bukkit.getPlayer(ownerName);
-            if (onlineOwner != null) {
-                ownerUuid = onlineOwner.getUniqueId();
-            } else {
-                @SuppressWarnings("deprecation")
-                var offline = Bukkit.getOfflinePlayer(ownerName);
-                if (!offline.hasPlayedBefore()) {
-                    sender.sendMessage(ChatColor.RED + "x Player '" + ownerName + "' has never joined this server.");
-                    return true;
-                }
-                ownerUuid = offline.getUniqueId();
-            }
+        String ownerName = args[5];
+        Player onlineOwner = Bukkit.getPlayer(ownerName);
+        if (onlineOwner != null) {
+            ownerUuid = onlineOwner.getUniqueId();
         } else {
-            // Never create an owner of 00000000-...: a console-created shop with no owner sat on
-            // the live Event server for five months (#2117). Name a real player.
-            sender.sendMessage(ChatColor.RED + "x An owner name is required: /shop debug create <name> <world> <x> <y> <z> <ownerName>");
-            return true;
+            @SuppressWarnings("deprecation")
+            var offline = Bukkit.getOfflinePlayer(ownerName);
+            if (!offline.hasPlayedBefore()) {
+                sender.sendMessage(ChatColor.RED + "x Player '" + ownerName + "' has never joined this server.");
+                return true;
+            }
+            ownerUuid = offline.getUniqueId();
         }
 
         World world = Bukkit.getWorld(worldName);
@@ -1092,7 +1089,7 @@ public class ShopDebugSubCommand implements SubCommand {
         sender.sendMessage(ChatColor.GRAY + "/shop debug stock <shopId> [amount]" + ChatColor.DARK_GRAY + " - Inspect/restock chest");
         sender.sendMessage(ChatColor.GRAY + "/shop debug validate [shopId]" + ChatColor.DARK_GRAY + " - Validate shop integrity");
         sender.sendMessage(ChatColor.GRAY + "/shop debug rebind <shopId> <world> <x> <y> <z>" + ChatColor.DARK_GRAY + " - Rebind chest");
-        sender.sendMessage(ChatColor.GRAY + "/shop debug create <name> <world> <x> <y> <z> [owner]" + ChatColor.DARK_GRAY + " - Create shop");
+        sender.sendMessage(ChatColor.GRAY + "/shop debug create <name> <world> <x> <y> <z> <ownerName>" + ChatColor.DARK_GRAY + " - Create shop");
         sender.sendMessage(ChatColor.GRAY + "/shop debug remove <shopId>" + ChatColor.DARK_GRAY + " - Force-remove shop from DB");
         sender.sendMessage(ChatColor.GRAY + "/shop debug rename <shopId> <name>" + ChatColor.DARK_GRAY + " - Rename shop");
         sender.sendMessage(ChatColor.GRAY + "/shop debug activate <shopId>" + ChatColor.DARK_GRAY + " - Activate shop");
