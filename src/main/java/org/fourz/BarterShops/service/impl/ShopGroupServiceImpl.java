@@ -151,6 +151,7 @@ public class ShopGroupServiceImpl implements IShopGroupService {
 
                 int groupCount = 0;
                 int shopCount = 0;
+                int failedCount = 0;
                 double radius = getAutoGroupRadius();
 
                 for (List<ShopDataDTO> clusterShops : clusters.values()) {
@@ -174,8 +175,24 @@ public class ShopGroupServiceImpl implements IShopGroupService {
                             .build()
                     ).join();
 
+                    if (group == null || group.groupId() <= 0) {
+                        // Fallback mode hands back the unsaved DTO; there is no group to assign to
+                        logger.warning("Could not create group '" + groupName + "' - skipping "
+                            + clusterShops.size() + " shops");
+                        failedCount += clusterShops.size();
+                        continue;
+                    }
+
                     for (ShopDataDTO shop : clusterShops) {
-                        groupRepository.assignShopToGroup(shop.shopId(), group.groupId()).join();
+                        // A false result is a failed write: do not give the sign a group the
+                        // database does not have, or it changes access on restart (#2285)
+                        if (!Boolean.TRUE.equals(
+                                groupRepository.assignShopToGroup(shop.shopId(), group.groupId()).join())) {
+                            logger.warning("Could not assign shop #" + shop.shopId()
+                                + " to group #" + group.groupId());
+                            failedCount++;
+                            continue;
+                        }
                         // Signs were hydrated before this ran; give them the new group (#2118)
                         withSignManager(sm -> sm.setShopGroupId(shop.shopId(), group.groupId()));
                         shopCount++;
@@ -184,7 +201,8 @@ public class ShopGroupServiceImpl implements IShopGroupService {
                     groupCount++;
                 }
 
-                logger.info("Migrated " + shopCount + " shops into " + groupCount + " groups");
+                logger.info("Migrated " + shopCount + " shops into " + groupCount + " groups"
+                    + (failedCount > 0 ? " (" + failedCount + " shops failed, left ungrouped)" : ""));
 
             } catch (Exception e) {
                 logger.error("Shop group migration failed: " + e.getMessage());

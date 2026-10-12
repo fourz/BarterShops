@@ -180,6 +180,43 @@ public class ShopRepositoryImpl implements IShopRepository {
     }
 
     @Override
+    public CompletableFuture<Boolean> updateOwnerAndGroup(int shopId, UUID expectedOwner, UUID newOwner,
+                                                          Integer groupId) {
+        if (fallbackTracker.isInFallbackMode()) {
+            // Nothing can be persisted; a transfer that only lives in memory is undone on restart
+            return CompletableFuture.completedFuture(false);
+        }
+
+        return CompletableFuture.supplyAsync(() -> {
+            // One statement: owner and group change together or not at all (#2285)
+            String sql = "UPDATE " + t("shops") + " SET owner_uuid = ?, group_id = ?, " +
+                "last_modified = CURRENT_TIMESTAMP WHERE shop_id = ? AND owner_uuid = ?";
+
+            try (Connection conn = connectionProvider.getConnection();
+                 PreparedStatement stmt = conn.prepareStatement(sql)) {
+
+                stmt.setString(1, newOwner.toString());
+                if (groupId == null) {
+                    stmt.setNull(2, Types.INTEGER);
+                } else {
+                    stmt.setInt(2, groupId);
+                }
+                stmt.setInt(3, shopId);
+                stmt.setString(4, expectedOwner.toString());
+
+                int affected = stmt.executeUpdate();
+                fallbackTracker.recordSuccess();
+                return affected > 0;
+
+            } catch (SQLException e) {
+                fallbackTracker.recordFailure("Update shop owner failed: " + e.getMessage());
+                logger.error("Failed to update owner of shop " + shopId + ": " + e.getMessage());
+                return false;
+            }
+        }, executor);
+    }
+
+    @Override
     public CompletableFuture<Optional<ShopDataDTO>> findById(int shopId) {
         if (fallbackTracker.isInFallbackMode()) {
             return CompletableFuture.completedFuture(Optional.empty());

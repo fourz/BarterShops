@@ -40,6 +40,24 @@ public interface IShopRepository {
     CompletableFuture<ShopDataDTO> saveConfiguration(ShopDataDTO shop);
 
     /**
+     * Changes a shop's owner and group in a single UPDATE, so the two can never disagree.
+     * An ownership transfer used to save the owner and then ungroup in a second call whose
+     * failure was ignored, leaving the old owner's co-owners in control after a restart (#2285).
+     *
+     * <p>The row changes only while it still has {@code expectedOwner}, so a concurrent transfer
+     * is not overwritten and a compensating call made after a failed transfer is a no-op.</p>
+     *
+     * @param shopId        The shop to change
+     * @param expectedOwner The owner the row must have now
+     * @param newOwner      The owner to write
+     * @param groupId       The group to write, or {@code null} to ungroup the shop
+     * @return CompletableFuture with true if the row changed; false in fallback mode, on a SQL
+     *         failure, or when the shop is missing or no longer owned by {@code expectedOwner}
+     */
+    CompletableFuture<Boolean> updateOwnerAndGroup(int shopId, UUID expectedOwner, UUID newOwner,
+                                                   Integer groupId);
+
+    /**
      * Finds a shop by its unique ID.
      *
      * @param shopId The shop ID to find

@@ -260,11 +260,21 @@ public class SignManager implements Listener {
                         barterSign.getOwner(), loc.getWorld().getName(),
                         loc.getX(), loc.getY(), loc.getZ()
                     ).thenCompose(optGroup -> {
-                        if (optGroup.isPresent()) {
-                            barterSign.setGroupId(optGroup.get().groupId());
+                        if (optGroup.isPresent() && plugin.getShopGroupRepository() != null) {
+                            int groupId = optGroup.get().groupId();
                             return plugin.getShopGroupRepository()
-                                .assignShopToGroup(savedDTO.shopId(), optGroup.get().groupId())
-                                .thenApply(ok -> savedDTO);
+                                .assignShopToGroup(savedDTO.shopId(), groupId)
+                                .thenApply(ok -> {
+                                    // Cache the group only once the DB holds it, or co-owner
+                                    // access differs before and after a restart (#2285)
+                                    if (Boolean.TRUE.equals(ok)) {
+                                        barterSign.setGroupId(groupId);
+                                    } else {
+                                        logger.warning("Shop #" + savedDTO.shopId()
+                                            + " was not added to group #" + groupId + " - left ungrouped");
+                                    }
+                                    return savedDTO;
+                                });
                         }
                         return java.util.concurrent.CompletableFuture.completedFuture(savedDTO);
                     });

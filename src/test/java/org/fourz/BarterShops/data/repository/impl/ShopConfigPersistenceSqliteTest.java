@@ -32,7 +32,8 @@ import static org.mockito.Mockito.when;
 /**
  * Shop configuration against a real SQLite schema (#2118): a config save must delete the config
  * keys the sign no longer carries, keep other metadata, and persist the shop type; the group
- * repository must load every active group with its co-owners for the co-owner cache.
+ * repository must load every active group with its co-owners for the co-owner cache. An
+ * ownership transfer writes the owner and the group in one conditional statement (#2285).
  */
 class ShopConfigPersistenceSqliteTest {
 
@@ -42,6 +43,7 @@ class ShopConfigPersistenceSqliteTest {
     private String url;
     private ShopRepositoryImpl shops;
     private ShopGroupRepositoryImpl groups;
+    private FallbackTracker tracker;
     private final UUID owner = UUID.randomUUID();
 
     @BeforeEach
@@ -58,7 +60,7 @@ class ShopConfigPersistenceSqliteTest {
         ConnectionProviderImpl provider = new ConnectionProviderImpl(plugin, mock(LogManager.class));
         provider.initializeWith(sqlitePool(url));
 
-        FallbackTracker tracker = mock(FallbackTracker.class);
+        tracker = mock(FallbackTracker.class);
         shops = new ShopRepositoryImpl(provider, tracker, mock(LogManager.class));
         groups = new ShopGroupRepositoryImpl(provider, tracker, mock(LogManager.class));
     }
@@ -123,6 +125,65 @@ class ShopConfigPersistenceSqliteTest {
         assertEquals(1, active.size());
         assertEquals(1, active.get(0).groupId());
         assertEquals(List.of(coOwner), active.get(0).coOwners());
+    }
+
+    @Test
+    void updateOwnerAndGroupChangesOwnerAndUngroupsInOneWrite() throws Exception {
+        int shopId = insertShop();
+        exec("UPDATE bs_shops SET group_id = 7 WHERE shop_id = " + shopId);
+        UUID newOwner = UUID.randomUUID();
+
+        assertTrue(shops.updateOwnerAndGroup(shopId, owner, newOwner, null).get(5, TimeUnit.SECONDS));
+
+        ShopDataDTO reloaded = shops.findById(shopId).get(5, TimeUnit.SECONDS).orElseThrow();
+        assertEquals(newOwner, reloaded.ownerUuid());
+        assertNull(reloaded.groupId(), "old owner's group survived the transfer");
+    }
+
+    @Test
+    void updateOwnerAndGroupRefusesWhenOwnerDoesNotMatch() throws Exception {
+        int shopId = insertShop();
+        exec("UPDATE bs_shops SET group_id = 7 WHERE shop_id = " + shopId);
+
+        assertFalse(shops.updateOwnerAndGroup(shopId, UUID.randomUUID(), UUID.randomUUID(), null)
+            .get(5, TimeUnit.SECONDS));
+
+        ShopDataDTO reloaded = shops.findById(shopId).get(5, TimeUnit.SECONDS).orElseThrow();
+        assertEquals(owner, reloaded.ownerUuid());
+        assertEquals(7, reloaded.groupId());
+    }
+
+    @Test
+    void updateOwnerAndGroupRestoresOldOwnerAndGroup() throws Exception {
+        int shopId = insertShop();
+        exec("UPDATE bs_shops SET group_id = 7 WHERE shop_id = " + shopId);
+        UUID newOwner = UUID.randomUUID();
+        assertTrue(shops.updateOwnerAndGroup(shopId, owner, newOwner, null).get(5, TimeUnit.SECONDS));
+
+        // The rollback a failed cache reload issues
+        assertTrue(shops.updateOwnerAndGroup(shopId, newOwner, owner, 7).get(5, TimeUnit.SECONDS));
+
+        ShopDataDTO reloaded = shops.findById(shopId).get(5, TimeUnit.SECONDS).orElseThrow();
+        assertEquals(owner, reloaded.ownerUuid());
+        assertEquals(7, reloaded.groupId());
+    }
+
+    @Test
+    void updateOwnerAndGroupFailsInFallbackMode() throws Exception {
+        int shopId = insertShop();
+        when(tracker.isInFallbackMode()).thenReturn(true);
+
+        assertFalse(shops.updateOwnerAndGroup(shopId, owner, UUID.randomUUID(), null)
+            .get(5, TimeUnit.SECONDS));
+    }
+
+    @Test
+    void updateOwnerAndGroupReportsSqlFailureAsFalse() throws Exception {
+        int shopId = insertShop();
+        exec("DROP TABLE bs_shops");
+
+        assertFalse(shops.updateOwnerAndGroup(shopId, owner, UUID.randomUUID(), null)
+            .get(5, TimeUnit.SECONDS));
     }
 
     private ShopDataDTO dto(int shopId, ShopDataDTO.ShopType type, Map<String, String> metadata) {
