@@ -2,6 +2,31 @@
 
 BarterShops is a modern, feature-rich trading plugin for Minecraft servers. Create sign-based shops for item-for-item barter trading or currency-based transactions with comprehensive economy integration.
 
+## Status
+
+| Server | Version (read 2026-11-01) |
+|--------|---------------------------|
+| RVNK Dev | 1.1.42 |
+| RVNK Event | 1.1.42 |
+| Ravenkraft (prod) | 1.1.42 |
+
+Versions drift between servers. Read the live one with `version BarterShops` on the server, or the built one in `pom.xml`.
+
+## Building
+
+- Compiler: JDK 25 (Temurin). Bytecode: Java 21 (`<release>21</release>`). API: `spigot-api` 26.1.2, `api-version: '26.1'`.
+- maven-compiler-plugin is pinned to 3.13.0 with `<fork>true</fork>`. Do not unpin it: newer versions crash `javac` on JDK 25 (#1929).
+- Bump the pom `<version>` on every deploy. Full rules: `.claude/rules/java-plugin-build.md` in the parent repo (`fourz/Ravenkaft-Dev`).
+
+```bash
+mvn clean package -DskipTests
+# output: target/BarterShops.jar
+```
+
+## Source and mirrors
+
+GitHub (`fourz/BarterShops`) is origin. Push there. A read-only mirror is on the internal forge in org `ravenkraft` (path to be added).
+
 ## Features
 
 ### Core Trading
@@ -78,7 +103,7 @@ BarterShops is a modern, feature-rich trading plugin for Minecraft servers. Crea
 
 ## Installation
 
-1. Download the latest release from the [Releases](https://github.com/fourz/BarterShops/releases) page
+1. Build `BarterShops.jar` (see Building)
 2. Place `BarterShops.jar` into your server's `plugins/` folder
 3. **Optional Dependencies** (place in `plugins/` before starting):
    - **RVNKCore** - Enhanced logging and cross-plugin integration
@@ -90,8 +115,8 @@ BarterShops is a modern, feature-rich trading plugin for Minecraft servers. Crea
 
 ### Requirements
 
-- **Server**: Spigot, Paper, or compatible fork (1.16+)
-- **Java**: Java 17 or higher
+- **Server**: Paper or Spigot 26.1 (`api-version: '26.1'`)
+- **Java**: Java 21 or higher at runtime
 - **Optional**: Vault, RVNKCore, WorldGuard, GriefPrevention
 
 ## Quick Start
