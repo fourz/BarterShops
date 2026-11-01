@@ -25,7 +25,7 @@ mvn clean package -DskipTests
 
 ## Source and mirrors
 
-GitHub (`fourz/BarterShops`) is origin. Push there. A read-only mirror is on the internal forge in org `ravenkraft` (path to be added).
+GitHub (`fourz/BarterShops`) is origin. Push there. A read-only pull mirror is planned on the internal forge as `ravenkraft/BarterShops`. Rules: [Source and mirrors](https://github.com/fourz/Ravenkaft-Dev/blob/icarus/dev/docs/architecture/source-and-mirrors.md) (`docs/architecture/source-and-mirrors.md` in the parent repo).
 
 ## Features
 
