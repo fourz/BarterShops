@@ -107,6 +107,12 @@ public class BarterShops extends JavaPlugin {
         this.economyManager = new EconomyManager(this);
         this.feeCalculator = new ShopFeeCalculator(economyManager);
         this.typeAvailabilityManager = new TypeAvailabilityManager(this, configManager, economyManager);
+        // #2444: follow the Vault provider across TokenEconomy unload/load instead of caching it.
+        if (economyManager.isVaultPresent()) {
+            economyManager.setProviderChangeListener(typeAvailabilityManager::loadEnabledTypes);
+            getServer().getPluginManager().registerEvents(
+                    new org.fourz.BarterShops.economy.EconomyProviderListener(economyManager), this);
+        }
 
         // Initialize database layer BEFORE SignManager (bug-35: SignManager needs shopRepository in constructor)
         initializeDatabaseLayer();

@@ -99,6 +99,7 @@ class EconomyManagerTest {
 
         // Setup economy provider mock
         when(servicesManager.getRegistration(Economy.class)).thenReturn(economyProvider);
+        when(servicesManager.getRegistrations(Economy.class)).thenReturn(java.util.List.of(economyProvider));
         when(economyProvider.getProvider()).thenReturn(economy);
         when(economy.getName()).thenReturn("EssentialsEconomy");
 
