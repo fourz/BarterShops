@@ -67,9 +67,10 @@ public class ShopCreateSubCommand implements SubCommand {
         return completions;
     }
 
+    /** The command only explains how to create a shop, so the console may run it too. */
     @Override
     public boolean requiresPlayer() {
-        return true;
+        return false;
     }
 
     /** Worked examples served by {@code /shop help <verb>} (#1981). */
