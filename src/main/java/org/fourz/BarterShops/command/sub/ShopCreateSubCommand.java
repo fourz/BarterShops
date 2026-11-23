@@ -1,20 +1,16 @@
 package org.fourz.BarterShops.command.sub;
 
 import org.bukkit.ChatColor;
-import org.bukkit.Location;
-import org.bukkit.block.Block;
 import org.bukkit.command.CommandSender;
-import org.bukkit.entity.Player;
 import org.fourz.BarterShops.BarterShops;
 import org.fourz.BarterShops.command.SubCommand;
-import org.fourz.BarterShops.data.dto.ShopDataDTO;
 
 import java.util.ArrayList;
 import java.util.List;
 
 /**
- * Subcommand for creating a new shop.
- * Usage: /shop create <name>
+ * Refuses and explains how to create a shop. Shops are created by writing [barter] on a
+ * sign next to a chest (SignManager.onSignChange); this command persists nothing (#2462).
  */
 public class ShopCreateSubCommand implements SubCommand {
 
@@ -26,69 +22,18 @@ public class ShopCreateSubCommand implements SubCommand {
 
     @Override
     public boolean execute(CommandSender sender, String[] args) {
-        // This command requires a player to get the target block
-        if (!(sender instanceof Player player)) {
-            sender.sendMessage(ChatColor.RED + "This command must be used by a player.");
-            sender.sendMessage(ChatColor.GRAY + "Console usage coming in future update.");
-            return true;
-        }
-
-        if (args.length < 1) {
-            sender.sendMessage(ChatColor.RED + "Usage: " + getUsage());
-            return true;
-        }
-
-        String shopName = String.join(" ", args);
-
-        // Get the block the player is looking at
-        Block targetBlock = player.getTargetBlockExact(5);
-        if (targetBlock == null || !targetBlock.getType().name().contains("SIGN")) {
-            sender.sendMessage(ChatColor.RED + "You must be looking at a sign to create a shop.");
-            return true;
-        }
-
-        Location signLocation = targetBlock.getLocation();
-
-        // Check if a shop already exists at this location
-        if (plugin.getSignManager().getBarterSigns().containsKey(targetBlock)) {
-            sender.sendMessage(ChatColor.RED + "A shop already exists at this location.");
-            return true;
-        }
-
-        // Validate shop type availability (currently always BARTER)
-        ShopDataDTO.ShopType shopType = ShopDataDTO.ShopType.BARTER;
-        var typeManager = plugin.getTypeAvailabilityManager();
-        var validation = typeManager.validateShopType(shopType);
-
-        if (!validation.isValid()) {
-            sender.sendMessage(ChatColor.RED + "x " + validation.getErrorMessage());
-            return true;
-        }
-
-        // Create shop via service (placeholder - service implementation pending)
-        ShopDataDTO newShop = ShopDataDTO.builder()
-                .ownerUuid(player.getUniqueId())
-                .shopName(shopName)
-                .shopType(shopType)
-                .signLocation(signLocation)
-                .build();
-
-        sender.sendMessage(ChatColor.GREEN + "Shop '" + shopName + "' created!");
-        sender.sendMessage(ChatColor.GRAY + "Location: " + formatLocation(signLocation));
-        sender.sendMessage(ChatColor.YELLOW + "Right-click the sign with items to configure trades.");
-
+        // A shop needs a bound container and a registered sign. Only the [barter] sign
+        // placement (SignManager.onSignChange) sets those up, so this command refuses
+        // instead of reporting a shop it did not save (#2462).
+        sender.sendMessage(ChatColor.RED + "/shop create does not create shops.");
+        sender.sendMessage(ChatColor.YELLOW + "To create a shop: place a chest, put a sign on or above it,");
+        sender.sendMessage(ChatColor.YELLOW + "and write [barter] on line 1 of the sign.");
         return true;
-    }
-
-    private String formatLocation(Location loc) {
-        return String.format("%s: %d, %d, %d",
-                loc.getWorld() != null ? loc.getWorld().getName() : "unknown",
-                loc.getBlockX(), loc.getBlockY(), loc.getBlockZ());
     }
 
     @Override
     public String getDescription() {
-        return "Create a new shop at the sign you're looking at";
+        return "Explains how to create a shop (use a [barter] sign)";
     }
 
     @Override
@@ -122,17 +67,18 @@ public class ShopCreateSubCommand implements SubCommand {
         return completions;
     }
 
+    /** The command only explains how to create a shop, so the console may run it too. */
     @Override
     public boolean requiresPlayer() {
-        return true;
+        return false;
     }
 
     /** Worked examples served by {@code /shop help <verb>} (#1981). */
     @Override
     public java.util.List<String> getExamples() {
         return java.util.List.of(
-                "/shop create Riley's Emporium",
-                "  place a chest, attach a sign with [barter] on line 1, then run this",
+                "/shop create does not create a shop; it only tells you how.",
+                "  place a chest, attach a sign, write [barter] on line 1 of the sign",
                 "Wall sign binds the container BEHIND it; a standing sign binds the one BELOW.");
     }
 }

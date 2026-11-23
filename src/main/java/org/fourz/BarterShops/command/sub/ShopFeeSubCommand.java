@@ -29,7 +29,7 @@ public class ShopFeeSubCommand implements SubCommand {
     @Override
     public boolean execute(CommandSender sender, String[] args) {
         if (!economyManager.isEconomyEnabled()) {
-            sender.sendMessage(ChatColor.YELLOW + "Economy features are disabled (Vault not found)");
+            sender.sendMessage(ChatColor.YELLOW + economyManager.getUnavailableMessage());
             return true;
         }
 

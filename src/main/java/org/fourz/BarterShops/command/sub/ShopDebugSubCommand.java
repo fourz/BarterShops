@@ -1269,7 +1269,7 @@ public class ShopDebugSubCommand implements SubCommand {
                 "/shop debug rebind 123 alphac 100 64 -200",
                 "/shop debug create teststall alphac 100 64 -200 Shad0melt",
                 "/shop debug rename 123 New Name",
-                "After hot-deploying TokenEconomy, run 'plugman reload BarterShops' -",
-                "/shop reload does NOT rebind the Vault economy provider and leaves a dead one.");
+                "BarterShops follows the Vault economy provider: a TokenEconomy unload",
+                "disables economy features and a load re-binds it (#2444). No reload needed.");
     }
 }
